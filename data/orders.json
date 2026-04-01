@@ -1,0 +1,55 @@
+[
+  {
+    "id": "order-1",
+    "agentId": "1",
+    "playerEmail": "player1@mobcash.local",
+    "amount": 100,
+    "gosport365_username": "yassine365",
+    "status": "agent_approved_waiting_player",
+    "messages": [
+      {
+        "senderRole": "player",
+        "message": "I uploaded my proof.",
+        "created_at": "2026-03-23T10:02:00.000Z"
+      },
+      {
+        "senderRole": "agent",
+        "message": "Approved, please confirm after recharge.",
+        "created_at": "2026-03-23T10:03:00.000Z"
+      }
+    ],
+    "created_at": "2026-03-23T10:00:00.000Z",
+    "updated_at": "2026-03-23T10:03:00.000Z",
+    "proof_uploaded": true,
+    "proof_uploaded_at": "2026-03-23T10:02:00.000Z",
+    "agent_approved": true,
+    "agent_approved_at": "2026-03-23T10:03:00.000Z",
+    "player_approved": false,
+    "review_required": false,
+    "review_reason": "",
+    "wallet_deducted": false,
+    "wallet_deducted_at": "",
+    "completion_finalized": false
+  },
+  {
+    "id": "order-2",
+    "agentId": "1",
+    "playerEmail": "player1@mobcash.local",
+    "amount": 250,
+    "gosport365_username": "yassine365",
+    "status": "proof_uploaded",
+    "messages": [],
+    "created_at": "2026-03-23T11:00:00.000Z",
+    "updated_at": "2026-03-23T11:10:00.000Z",
+    "proof_uploaded": true,
+    "proof_uploaded_at": "2026-03-23T11:10:00.000Z",
+    "agent_approved": false,
+    "agent_approved_at": "",
+    "player_approved": false,
+    "review_required": false,
+    "review_reason": "",
+    "wallet_deducted": false,
+    "wallet_deducted_at": "",
+    "completion_finalized": false
+  }
+]

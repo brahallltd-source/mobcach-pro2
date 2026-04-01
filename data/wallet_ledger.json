@@ -1,0 +1,25 @@
+[
+  {
+    "id": "ledger-1",
+    "agentId": "1",
+    "type": "credit",
+    "amount": 1000,
+    "reason": "admin_topup",
+    "meta": {
+      "adminEmail": "admin@mobcash.com"
+    },
+    "created_at": "2026-03-23T10:15:00.000Z"
+  },
+  {
+    "id": "ledger-2",
+    "agentId": "1",
+    "type": "credit",
+    "amount": 100,
+    "reason": "admin_topup_bonus",
+    "meta": {
+      "adminEmail": "admin@mobcash.com",
+      "baseAmount": 1000
+    },
+    "created_at": "2026-03-23T10:15:01.000Z"
+  }
+]

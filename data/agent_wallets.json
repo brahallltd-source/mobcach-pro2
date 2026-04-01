@@ -1,0 +1,12 @@
+[
+  {
+    "agentId": "1",
+    "balance": 1100,
+    "updated_at": "2026-03-23T10:20:00.000Z"
+  },
+  {
+    "agentId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "balance": 0,
+    "updated_at": "2026-03-30T12:25:44.394Z"
+  }
+]

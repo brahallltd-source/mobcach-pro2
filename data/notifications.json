@@ -1,0 +1,119 @@
+[
+  {
+    "id": "notif-1774973518991-72052",
+    "targetRole": "player",
+    "targetId": "8afc6449-6cef-41f2-b3d9-e91e92e3ee1e",
+    "title": "Order created",
+    "message": "Your recharge order was sent successfully.",
+    "read": false,
+    "created_at": "2026-03-31T16:11:58.991Z"
+  },
+  {
+    "id": "notif-1774973518984-56964",
+    "targetRole": "agent",
+    "targetId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "title": "New order received",
+    "message": "test@gmail.com created a new order of 300.",
+    "read": false,
+    "created_at": "2026-03-31T16:11:58.984Z"
+  },
+  {
+    "id": "notif-1774972115186-2335",
+    "targetRole": "player",
+    "targetId": "8afc6449-6cef-41f2-b3d9-e91e92e3ee1e",
+    "title": "Order created",
+    "message": "Your recharge order was sent successfully.",
+    "read": false,
+    "created_at": "2026-03-31T15:48:35.186Z"
+  },
+  {
+    "id": "notif-1774972115185-49064",
+    "targetRole": "agent",
+    "targetId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "title": "New order received",
+    "message": "test@gmail.com created a new order of 200.",
+    "read": false,
+    "created_at": "2026-03-31T15:48:35.185Z"
+  },
+  {
+    "id": "notif-1774969756782-9378",
+    "targetRole": "player",
+    "targetId": "8afc6449-6cef-41f2-b3d9-e91e92e3ee1e",
+    "title": "Agent linked successfully",
+    "message": "Your account is now linked to the selected agent. You can start the recharge flow immediately.",
+    "read": false,
+    "created_at": "2026-03-31T15:09:16.782Z"
+  },
+  {
+    "id": "notif-1774969756776-95942",
+    "targetRole": "agent",
+    "targetId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "title": "New linked player",
+    "message": "test@gmail.com selected you as preferred agent.",
+    "read": false,
+    "created_at": "2026-03-31T15:09:16.776Z"
+  },
+  {
+    "id": "notif-1774969745183-21635",
+    "targetRole": "player",
+    "targetId": "8afc6449-6cef-41f2-b3d9-e91e92e3ee1e",
+    "title": "Agent unlinked",
+    "message": "You can now choose another agent.",
+    "read": false,
+    "created_at": "2026-03-31T15:09:05.183Z"
+  },
+  {
+    "id": "notif-1774968101426-16677",
+    "targetRole": "player",
+    "targetId": "8afc6449-6cef-41f2-b3d9-e91e92e3ee1e",
+    "title": "Agent linked successfully",
+    "message": "Your account is now linked to the selected agent. You can start the recharge flow immediately.",
+    "read": false,
+    "created_at": "2026-03-31T14:41:41.426Z"
+  },
+  {
+    "id": "notif-1774968101425-61667",
+    "targetRole": "agent",
+    "targetId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "title": "New linked player",
+    "message": "test@gmail.com selected you as preferred agent.",
+    "read": false,
+    "created_at": "2026-03-31T14:41:41.425Z"
+  },
+  {
+    "id": "notif-1774873544396-91753",
+    "targetRole": "player",
+    "targetId": "ac448773-15bf-4bb6-ba37-d3e1886a5374",
+    "title": "Application approved",
+    "message": "Your account has been upgraded to agent successfully.",
+    "read": false,
+    "created_at": "2026-03-30T12:25:44.396Z"
+  },
+  {
+    "id": "notif-winner-1",
+    "targetRole": "player",
+    "targetId": "player-user-1",
+    "title": "Congratulations, you won 500 DH",
+    "message": "Your prize is ready. Open My Winnings to submit payout details.",
+    "read": false,
+    "created_at": "2026-03-23T11:05:00.000Z"
+  },
+  {
+    "id": "notif-1",
+    "targetRole": "player",
+    "targetId": "player-user-1",
+    "title": "Welcome",
+    "message": "Your account is active and ready.",
+    "read": false,
+    "created_at": "2026-03-23T10:05:00.000Z"
+  },
+  {
+    "id": "notif-2",
+    "targetRole": "agent",
+    "targetId": "1",
+    "title": "Wallet topped up",
+    "message": "Your wallet received an admin top-up.",
+    "read": false,
+    "created_at": "2026-03-23T10:15:02.000Z"
+  }
+]

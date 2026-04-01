@@ -1,0 +1,12 @@
+[
+  {
+    "id": "complaint-1",
+    "playerEmail": "player1@mobcash.local",
+    "subject": "Late recharge",
+    "message": "The recharge took longer than expected.",
+    "status": "open",
+    "admin_reply": "We are checking with the agent.",
+    "created_at": "2026-03-23T12:00:00.000Z",
+    "updated_at": "2026-03-23T12:05:00.000Z"
+  }
+]

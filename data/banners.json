@@ -1,0 +1,16 @@
+[
+  {
+    "id": "banner-1",
+    "title": "Invite and Earn",
+    "description": "Earn 200 DH bonus after 2000 DH invite recharge.",
+    "active": true,
+    "sort_order": 1
+  },
+  {
+    "id": "banner-2",
+    "title": "Fast Recharge",
+    "description": "Trusted assigned-agent order flow for every player.",
+    "active": true,
+    "sort_order": 2
+  }
+]

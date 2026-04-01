@@ -1,0 +1,13 @@
+[
+  {
+    "id": "dispute-1",
+    "orderId": "order-2",
+    "playerEmail": "player1@mobcash.local",
+    "agentId": "1",
+    "reason": "Need admin review",
+    "status": "open",
+    "admin_note": "Pending verification",
+    "created_at": "2026-03-23T12:10:00.000Z",
+    "updated_at": "2026-03-23T12:10:00.000Z"
+  }
+]

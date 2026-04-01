@@ -1,0 +1,47 @@
+[
+  {
+    "id": "admin-bank-1",
+    "type": "bank",
+    "method_name": "Attijariwafa Bank",
+    "account_name": "MobCash Admin",
+    "account_number": "",
+    "rib": "ADMIN-RIB-778899",
+    "wallet_address": "",
+    "network": "",
+    "phone": "",
+    "fee_percent": 0,
+    "currency": "MAD",
+    "created_at": "2026-03-23T10:00:00.000Z",
+    "updated_at": "2026-03-23T10:00:00.000Z"
+  },
+  {
+    "id": "admin-cash-1",
+    "type": "cash",
+    "method_name": "Wafacash",
+    "account_name": "MobCash Treasury",
+    "account_number": "",
+    "rib": "",
+    "wallet_address": "",
+    "network": "",
+    "phone": "0601010101",
+    "fee_percent": 1,
+    "currency": "MAD",
+    "created_at": "2026-03-23T10:10:00.000Z",
+    "updated_at": "2026-03-23T10:10:00.000Z"
+  },
+  {
+    "id": "admin-crypto-1",
+    "type": "crypto",
+    "method_name": "USDT",
+    "account_name": "MobCash Treasury",
+    "account_number": "",
+    "rib": "",
+    "wallet_address": "TADMINRESERVEUSDT001",
+    "network": "TRC20",
+    "phone": "",
+    "fee_percent": 0,
+    "currency": "USDT",
+    "created_at": "2026-03-23T10:20:00.000Z",
+    "updated_at": "2026-03-23T10:20:00.000Z"
+  }
+]

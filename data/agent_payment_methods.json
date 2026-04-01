@@ -1,0 +1,20 @@
+[
+  {
+    "id": "pm-1774968554555",
+    "agentId": "d3dac6ab-0210-4d8c-8177-8a12c03b892e",
+    "type": "bank",
+    "method_name": "Attijariwafa Bank",
+    "account_name": "test agent",
+    "account_number": "",
+    "rib": "123456789012345678901234",
+    "wallet_address": "",
+    "network": "",
+    "phone": "",
+    "fee_percent": 0,
+    "instructions": "",
+    "enabled": true,
+    "currency": "MAD",
+    "updated_at": "2026-03-31T14:49:14.555Z",
+    "created_at": "2026-03-31T14:49:14.555Z"
+  }
+]

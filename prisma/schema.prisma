@@ -1,0 +1,363 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  AGENT
+  PLAYER
+}
+
+enum OrderStatus {
+  pending_payment
+  proof_uploaded
+  flagged_for_review
+  agent_approved_waiting_player
+  completed
+  cancelled
+  linked_waiting_first_order
+}
+
+enum WithdrawalStatus {
+  pending
+  sent
+  completed
+  rejected
+}
+
+enum RewardStatus {
+  locked
+  ready
+  claimed
+  pending
+  applied
+}
+
+enum PaymentMethodType {
+  bank
+  cash
+  crypto
+}
+
+enum Status {
+  pending
+  approved
+  rejected
+  linked_waiting_first_order
+  completed
+  cancelled
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  username        String   @unique
+  passwordHash    String
+  role            UserRole
+  playerStatus    String?
+  assignedAgentId String?
+  agentId         String?
+  frozen          Boolean  @default(false)
+  permissions     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  player            Player?
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  agentApplications AgentApplication[]
+}
+
+model AgentApplication {
+  id        String   @id @default(uuid())
+  userId    String
+  fullName  String
+  username  String
+  email     String
+  phone     String
+  country   String?
+  note      String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([status])
+}
+
+model Player {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  firstName       String
+  lastName        String
+  username        String   @unique
+  phone           String
+  city            String?
+  country         String?
+  dateOfBirth     String?
+  status          String
+  assignedAgentId String?
+  referredBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+  withdrawals Withdrawal[]
+}
+
+model Agent {
+  id               String   @id @default(uuid())
+  fullName         String
+  username         String   @unique
+  email            String   @unique
+  phone            String
+  country          String?
+  status           String
+  referralCode     String?  @unique
+  online           Boolean  @default(false)
+  note             String?
+  responseMinutes  Int      @default(30)
+  rating           Float    @default(0)
+  successRate      Float    @default(0)
+  tradesCount      Int      @default(0)
+  availableBalance Float    @default(0)
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  orders         Order[]
+  wallet         Wallet?
+  bonusProfile   AgentBonusProfile?
+  paymentMethods PaymentMethod[]
+  activations    Activation[]
+}
+
+model Order {
+  id                String   @id @default(uuid())
+  agentId           String
+  playerId          String?
+  playerEmail       String
+  amount            Float
+  gosportUsername   String
+  status            String
+  paymentMethodName String?
+  proofUrl          String?
+  proofHash         String?
+  reviewRequired    Boolean  @default(false)
+  reviewReason      String?
+  walletDeducted    Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  systemThread      Boolean  @default(false) // ✅ أضف هذا
+
+  agent      Agent          @relation(fields: [agentId], references: [id])
+  player     Player?        @relation(fields: [playerId], references: [id])
+  messages   OrderMessage[]
+  fraudFlags FraudFlag[]
+}
+
+model OrderMessage {
+  id         String   @id @default(uuid())
+  orderId    String
+  senderRole String
+  message    String
+  createdAt  DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  agentId   String   @unique
+  balance   Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  agent  Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  ledger WalletLedger[]
+}
+
+model WalletLedger {
+  id        String   @id @default(uuid())
+  agentId   String
+  type      String
+  amount    Float
+  reason    String
+  meta      Json?
+  createdAt DateTime @default(now())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id            String            @id @default(uuid())
+  ownerRole     String
+  ownerId       String
+  type          PaymentMethodType
+  methodName    String
+  currency      String
+  accountName   String?
+  rib           String?
+  walletAddress String?
+  network       String?
+  phone         String?
+  feePercent    Float             @default(0)
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  agentId       String
+  agent         Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model Activation {
+  id            String    @id @default(uuid())
+  agentId       String
+  playerUserId  String
+  playerEmail   String
+  username      String
+  passwordPlain String
+  whatsapp      String?
+  status        String
+  messageText   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  activatedAt   DateTime?
+  sentAt        DateTime?
+
+  agent Agent @relation(fields: [agentId], references: [id])
+}
+
+model AgentBonusProfile {
+  id              String    @id @default(uuid())
+  agentId         String    @unique
+  volume          Float     @default(0)
+  energy          Float     @default(0)
+  completedOrders Int       @default(0)
+  bonusBalance    Float     @default(0)
+  pendingBonus    Float     @default(0)
+  lastOrderAt     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model PendingBonus {
+  id        String       @id @default(uuid())
+  agentId   String
+  source    String
+  sourceRef String
+  amount    Float
+  status    RewardStatus
+  meta      Json?
+  createdAt DateTime     @default(now())
+  appliedAt DateTime?
+}
+
+model Referral {
+  id                String   @id @default(uuid())
+  playerUserId      String   @unique
+  playerEmail       String
+  referredByAgentId String
+  firstOrderReward  Float    @default(0)
+  rewardStatus      String
+  rewardedOrderId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String?
+  targetRole String
+  targetId   String
+  title      String
+  message    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model Withdrawal {
+  id           String           @id @default(uuid())
+  playerId     String
+  playerEmail  String
+  agentId      String?
+  amount       Float
+  method       String
+  status       WithdrawalStatus
+  rib          String?
+  swift        String?
+  cashProvider String?
+  fullName     String?
+  phone        String?
+  city         String?
+  txHash       String?
+  proofUrl     String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  kind            String  @default("standard")
+  gosportUsername String?
+  winnerOrderId   String?
+  adminNote       String?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model FraudFlag {
+  id        String   @id @default(uuid())
+  orderId   String
+  type      String
+  score     Int      @default(0)
+  note      String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model RechargeRequest {
+  id                  String   @id @default(uuid())
+  agentId             String
+  agentEmail          String
+  amount              Float
+  adminMethodId       String
+  adminMethodName     String
+  txHash              String?
+  proofUrl            String?
+  note                String?
+  status              String
+  bonusAmount         Float    @default(0)
+  pendingBonusApplied Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model EscrowStub {
+  id        String   @id @default(uuid())
+  orderId   String
+  state     String
+  createdAt DateTime @default(now())
+}
