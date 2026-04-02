@@ -1,22 +1,15 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
+import { v2 as cloudinary } from "cloudinary";
 import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
 
-function safeExt(fileName: string, mimeType: string) {
-  const ext = path.extname(fileName || "").toLowerCase();
-
-  if (ext === ".png") return ".png";
-  if (ext === ".jpg" || ext === ".jpeg") return ".jpg";
-  if (ext === ".webp") return ".webp";
-
-  if (mimeType === "image/png") return ".png";
-  if (mimeType === "image/webp") return ".webp";
-  return ".jpg";
-}
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(req: Request) {
   try {
@@ -25,39 +18,25 @@ export async function POST(req: Request) {
     const playerEmail = String(formData.get("playerEmail") || "").trim();
 
     if (!file) {
-      return NextResponse.json(
-        { message: "Proof image is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Proof image is required" }, { status: 400 });
     }
 
     if (!file.type.startsWith("image/")) {
-      return NextResponse.json(
-        { message: "Only image files are allowed" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Only image files are allowed" }, { status: 400 });
     }
 
     if (file.size > 8 * 1024 * 1024) {
-      return NextResponse.json(
-        { message: "Image too large (max 8MB)" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Image too large (max 8MB)" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-    const ext = safeExt(file.name, file.type);
-    const filename = `${uid("proof")}${ext}`;
 
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "proofs");
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-    const filePath = path.join(uploadsDir, filename);
-    fs.writeFileSync(filePath, buffer);
-
-    const relativeUrl = `/uploads/proofs/${filename}`;
-    const absoluteUrl = `${new URL(req.url).origin}${relativeUrl}`;
+    const uploadResult = await cloudinary.uploader.upload(base64, {
+      folder: "mobcash/proofs",
+    });
 
     const hashesPath = dataPath("proof_hashes.json");
     const hashes = readJsonArray<any>(hashesPath);
@@ -66,8 +45,8 @@ export async function POST(req: Request) {
     const record = {
       id: uid("proofhash"),
       hash,
-      filename,
-      url: relativeUrl,
+      filename: uploadResult.public_id,
+      url: uploadResult.secure_url,
       playerEmail,
       duplicate_count: duplicate ? Number(duplicate.duplicate_count || 1) + 1 : 1,
       first_seen_at: duplicate?.first_seen_at || nowIso(),
@@ -86,8 +65,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       message: "Proof uploaded successfully",
       proof: {
-        url: absoluteUrl,
-        relative_url: relativeUrl,
+        url: uploadResult.secure_url,
         hash,
         duplicate_detected: Boolean(duplicate),
         duplicate_count: record.duplicate_count,
