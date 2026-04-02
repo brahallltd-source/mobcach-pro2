@@ -204,22 +204,35 @@ export async function POST(req: Request) {
       );
     }
 
-    const existing = await prisma.withdrawal.findFirst({
+    const lastWinnerRequest = await prisma.withdrawal.findFirst({
       where: {
         playerId: player.id,
         winnerOrderId: order.id,
         kind: "winner",
-        status: {
-          in: ["pending", "sent", "completed"],
-        },
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
-    if (existing) {
-      return NextResponse.json(
-        { message: "A winning payout request already exists for this order" },
-        { status: 400 }
-      );
+    if (lastWinnerRequest) {
+      const createdAt = new Date(lastWinnerRequest.createdAt).getTime();
+      const now = Date.now();
+      const diffHours = (now - createdAt) / (1000 * 60 * 60);
+
+      if (
+        diffHours < 24 &&
+        ["pending", "sent", "completed"].includes(lastWinnerRequest.status)
+      ) {
+        const remainingHours = Math.ceil(24 - diffHours);
+
+        return NextResponse.json(
+          {
+            message: `You can send a new winning payout request after ${remainingHours} hour(s).`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const withdrawal = await prisma.withdrawal.create({

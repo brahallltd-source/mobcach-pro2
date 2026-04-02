@@ -71,10 +71,10 @@ export default function PlayerWinningsPage() {
     setWinning(data.winning || null);
     setHistory(data.history || []);
 
-    if (data.winning?.amount) {
+    if (data.winning) {
       setForm((prev) => ({
         ...prev,
-        amount: prev.amount || String(data.winning.amount),
+        amount: "",
         gosportUsername:
           data.winning.gosport365_username || prev.gosportUsername,
       }));
@@ -246,7 +246,7 @@ export default function PlayerWinningsPage() {
                     onChange={(e) =>
                       setForm({ ...form, amount: e.target.value })
                     }
-                    placeholder="Enter the amount to withdraw"
+                    placeholder="Enter the amount you want to withdraw"
                   />
                   <p className="text-xs text-white/50">
                     Available: {winning.amount} DH
@@ -465,14 +465,10 @@ export default function PlayerWinningsPage() {
 
                 <PrimaryButton
                   onClick={submit}
-                  disabled={saving || Boolean(pendingRequest)}
+                  disabled={saving}
                   className="w-full md:w-auto"
                 >
-                  {pendingRequest
-                    ? "Request already sent"
-                    : saving
-                    ? "Submitting..."
-                    : "Send payout request to admin"}
+                  {saving ? "Submitting..." : "Send payout request to admin"}
                 </PrimaryButton>
               </div>
             </GlassCard>
