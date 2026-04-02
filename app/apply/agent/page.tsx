@@ -6,7 +6,7 @@ import { GlassCard, PageHeader, PrimaryButton, SelectField, Shell, TextArea, Tex
 import { COUNTRY_OPTIONS, getDialCode } from "@/lib/countries";
 
 export default function ApplyAgentPage() {
-  const [form, setForm] = useState({ full_name: "", username: "", email: "", password: "123456", phone: "+212", country: "Morocco", note: "" });
+  const [form, setForm] = useState({ full_name: "", username: "", email: "", password: "", phone: "+212", country: "Morocco", note: "" });
   const [loading, setLoading] = useState(false);
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
   const updateCountry = (country: string) => setForm((prev) => ({ ...prev, country, phone: getDialCode(country) || prev.phone }));

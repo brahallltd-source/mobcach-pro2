@@ -24,7 +24,7 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState({
     email: "",
     username: "",
-    password: "123456",
+    password: "",
     permissions: ["overview", "orders", "notifications"] as string[],
   });
 
@@ -63,7 +63,7 @@ export default function AdminUsersPage() {
     }
     await load();
     alert(data.message || "Admin created");
-    setForm({ email: "", username: "", password: "123456", permissions: ["overview", "orders", "notifications"] });
+    setForm({ email: "", username: "", password: "", permissions: ["overview", "orders", "notifications"] });
     setSaving(false);
   };
 

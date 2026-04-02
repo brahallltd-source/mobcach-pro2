@@ -61,7 +61,14 @@ export async function POST(req: Request) {
     const lastName = String(body.last_name || body.lastName || "").trim();
     const username = String(body.username || "").trim().toLowerCase();
     const email = String(body.email || "").trim().toLowerCase();
-    const password = String(body.password || "123456").trim();
+    const password = String(body.password || "").trim();
+
+if (!password) {
+  return NextResponse.json(
+    { message: "Password is required" },
+    { status: 400 }
+  );
+}
     const phone = String(body.phone || "").trim();
     const country = String(body.country || "Morocco").trim();
     const city = String(body.city || "").trim();

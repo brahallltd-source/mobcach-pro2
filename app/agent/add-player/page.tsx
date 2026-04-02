@@ -18,7 +18,7 @@ const initialForm = {
   last_name: "",
   username: "",
   email: "",
-  password: "123456",
+  password: "",
   phone: "+212",
   country: "Morocco",
   city: "",
