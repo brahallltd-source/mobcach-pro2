@@ -126,12 +126,80 @@ export default function PlayerChatThreadPage() {
     <SidebarShell role="player">
       <PageHeader
         title={`Order ${order.id}`}
-        subtitle="Keep chatting with your agent and complete the final player approval from this same thread after the agent validates the recharge."
+        subtitle="Review your submitted proof, keep chatting with your agent and complete the final approval after the agent validates your recharge."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="space-y-6">
         <GlassCard className="p-6 md:p-8">
-          <div className="space-y-3">
+          <h2 className="text-2xl font-semibold">Order proof</h2>
+
+          <div className="mt-5 grid gap-3 text-sm text-white/65">
+            <p>
+              Amount:{" "}
+              <span className="font-semibold text-white">{order.amount} DH</span>
+            </p>
+            <p>
+              Status:{" "}
+              <span className="font-semibold text-white">{order.status}</span>
+            </p>
+            <p>
+              Payment method:{" "}
+              <span className="font-semibold text-white">
+                {order.payment_method_name || "—"}
+              </span>
+            </p>
+            <p>
+              Username:{" "}
+              <span className="font-semibold text-white">
+                {order.gosport365_username || "—"}
+              </span>
+            </p>
+            {order.review_reason ? (
+              <p>
+                Review reason:{" "}
+                <span className="font-semibold text-white">
+                  {order.review_reason}
+                </span>
+              </p>
+            ) : null}
+          </div>
+
+          {order.proof_url ? (
+            <div className="mt-6 space-y-4">
+              <img
+                src={order.proof_url}
+                alt="Proof"
+                className="max-h-[520px] w-full rounded-3xl border border-white/10 object-contain"
+              />
+
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={order.proof_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+                >
+                  Open proof
+                </a>
+
+                {order.status === "agent_approved_waiting_player" ? (
+                  <PrimaryButton onClick={finalApprove} disabled={busy}>
+                    {busy ? "Processing..." : "Final approve"}
+                  </PrimaryButton>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-3xl border border-dashed border-white/10 p-6 text-center text-white/55">
+              No proof uploaded yet.
+            </div>
+          )}
+        </GlassCard>
+
+        <GlassCard className="p-6 md:p-8">
+          <h2 className="text-2xl font-semibold">Chat with agent</h2>
+
+          <div className="mt-5 space-y-3">
             {(order.messages || []).map((msg, idx) => (
               <div
                 key={msg.id || idx}
@@ -150,6 +218,7 @@ export default function PlayerChatThreadPage() {
                 </p>
               </div>
             ))}
+
             {!order.messages?.length ? (
               <div className="text-white/55">No messages yet.</div>
             ) : null}
@@ -176,64 +245,6 @@ export default function PlayerChatThreadPage() {
             </div>
           </div>
         </GlassCard>
-
-        <div className="space-y-6">
-          <GlassCard className="p-6 md:p-8">
-            <h2 className="text-2xl font-semibold">Order summary</h2>
-            <div className="mt-5 grid gap-3 text-sm text-white/65">
-              <p>
-                Amount:{" "}
-                <span className="font-semibold text-white">{order.amount} DH</span>
-              </p>
-              <p>
-                Status:{" "}
-                <span className="font-semibold text-white">{order.status}</span>
-              </p>
-              <p>
-                Method:{" "}
-                <span className="font-semibold text-white">
-                  {order.payment_method_name || "—"}
-                </span>
-              </p>
-              <p>
-                Username:{" "}
-                <span className="font-semibold text-white">
-                  {order.gosport365_username || "—"}
-                </span>
-              </p>
-              {order.review_reason ? (
-                <p>
-                  Review reason:{" "}
-                  <span className="font-semibold text-white">
-                    {order.review_reason}
-                  </span>
-                </p>
-              ) : null}
-            </div>
-          </GlassCard>
-
-          {order.proof_url ? (
-            <GlassCard className="p-6 md:p-8">
-              <h2 className="text-2xl font-semibold">Proof</h2>
-              <div className="mt-5 space-y-4">
-                <a
-                  href={order.proof_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
-                >
-                  Open proof
-                </a>
-
-                <img
-                  src={order.proof_url}
-                  alt="Proof"
-                  className="max-h-[460px] w-full rounded-3xl border border-white/10 object-contain"
-                />
-              </div>
-            </GlassCard>
-          ) : null}
-        </div>
       </div>
     </SidebarShell>
   );
