@@ -1,18 +1,38 @@
-
 import { PrismaClient } from "@prisma/client";
 
 declare global {
-  var __mobcash_prisma__: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var prismaGlobal: PrismaClient | undefined;
+}
+
+function getDatabaseUrl() {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.DATABASE ||
+    ""
+  ).trim();
 }
 
 export function isDatabaseEnabled() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(getDatabaseUrl());
 }
 
 export function getPrisma() {
-  if (!isDatabaseEnabled()) return null;
-  if (!global.__mobcash_prisma__) {
-    global.__mobcash_prisma__ = new PrismaClient();
+  const databaseUrl = getDatabaseUrl();
+
+  if (!databaseUrl) {
+    return null;
   }
-  return global.__mobcash_prisma__;
+
+  if (!global.prismaGlobal) {
+    global.prismaGlobal = new PrismaClient({
+      datasources: {
+        db: {
+          url: databaseUrl,
+        },
+      },
+    });
+  }
+
+  return global.prismaGlobal;
 }
