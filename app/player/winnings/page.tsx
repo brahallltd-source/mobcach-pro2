@@ -20,7 +20,6 @@ type User = {
 type WinningOrder = {
   id: string;
   amount: number;
-  payment_method_name?: string;
   gosport365_username?: string;
   status: string;
   created_at?: string;
@@ -75,8 +74,9 @@ export default function PlayerWinningsPage() {
     if (data.winning?.amount) {
       setForm((prev) => ({
         ...prev,
-        amount: String(data.winning.amount),
-        gosportUsername: data.winning.gosport365_username || prev.gosportUsername,
+        amount: prev.amount || String(data.winning.amount),
+        gosportUsername:
+          data.winning.gosport365_username || prev.gosportUsername,
       }));
     }
   };
@@ -108,6 +108,16 @@ export default function PlayerWinningsPage() {
 
   const submit = async () => {
     if (!user || !winning) return;
+
+    const amount = Number(form.amount || 0);
+
+    if (!amount || amount <= 0) {
+      return alert("Winning amount is required");
+    }
+
+    if (amount > Number(winning.amount || 0)) {
+      return alert("Winning amount cannot exceed the available winning balance");
+    }
 
     if (!form.gosportUsername.trim()) {
       return alert("GoSport365 username is required");
@@ -147,9 +157,8 @@ export default function PlayerWinningsPage() {
         body: JSON.stringify({
           playerEmail: user.email,
           orderId: winning.id,
-          amount: Number(form.amount),
+          amount,
           method,
-          paymentMethodName: winning.payment_method_name,
           gosportUsername: form.gosportUsername,
           gosportPassword: form.gosportPassword,
           rib: form.rib,
@@ -187,7 +196,7 @@ export default function PlayerWinningsPage() {
     <SidebarShell role="player">
       <PageHeader
         title="My winnings"
-        subtitle="Review your winning amount, add GoSport365 credentials, choose the withdrawal method and send the payout request directly to admin."
+        subtitle="Enter the amount you want to withdraw, add GoSport365 credentials and send the payout request directly to admin."
       />
 
       {!winning ? (
@@ -198,19 +207,14 @@ export default function PlayerWinningsPage() {
         <>
           <div className="grid gap-4 md:grid-cols-4">
             <StatCard
-              label="Winning amount"
+              label="Available winning"
               value={`${winning.amount} DH`}
-              hint="Ready for payout request"
+              hint="Maximum amount you can request"
             />
             <StatCard
               label="Order status"
               value={winning.status}
               hint="Winning source order"
-            />
-            <StatCard
-              label="Payment method"
-              value={winning.payment_method_name || "—"}
-              hint="Original order method"
             />
             <StatCard
               label="Payout request"
@@ -220,6 +224,11 @@ export default function PlayerWinningsPage() {
                   ? "Already sent to admin"
                   : "Fill the form below and send"
               }
+            />
+            <StatCard
+              label="History"
+              value={String(history.length)}
+              hint="Winner payout requests on this account"
             />
           </div>
 
@@ -232,14 +241,16 @@ export default function PlayerWinningsPage() {
                   <label className="text-sm font-medium text-white/80">
                     Winning amount (DH)
                   </label>
-                  <TextField value={form.amount} disabled />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white/80">
-                    Original payment method
-                  </label>
-                  <TextField value={winning.payment_method_name || "—"} disabled />
+                  <TextField
+                    value={form.amount}
+                    onChange={(e) =>
+                      setForm({ ...form, amount: e.target.value })
+                    }
+                    placeholder="Enter the amount to withdraw"
+                  />
+                  <p className="text-xs text-white/50">
+                    Available: {winning.amount} DH
+                  </p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">

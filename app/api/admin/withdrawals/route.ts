@@ -1,28 +1,60 @@
 import { NextResponse } from "next/server";
-import { createNotification } from "@/lib/notifications";
 import { getPrisma } from "@/lib/db";
+import { requireAdminPermission } from "@/lib/server-auth";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request) {
+function mapWithdrawal(item: any) {
+  return {
+    id: item.id,
+    playerId: item.playerId,
+    playerEmail: item.playerEmail,
+    agentId: item.agentId,
+    amount: Number(item.amount || 0),
+    method: item.method,
+    status: item.status,
+    rib: item.rib || null,
+    swift: item.swift || null,
+    cashProvider: item.cashProvider || null,
+    fullName: item.fullName || null,
+    phone: item.phone || null,
+    city: item.city || null,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt,
+    kind: item.kind || "standard",
+    gosportUsername: item.gosportUsername || null,
+    winnerOrderId: item.winnerOrderId || null,
+    adminNote: item.adminNote || null,
+  };
+}
+
+export async function GET() {
+  const access = await requireAdminPermission("withdrawals");
+
+  if (!access.ok) {
+    return NextResponse.json(
+      { message: access.message, withdrawals: [] },
+      { status: access.status }
+    );
+  }
+
   try {
     const prisma = getPrisma();
     if (!prisma) {
       return NextResponse.json(
-        { message: "Database is not available", withdrawals: [] },
+        { message: "Database not available", withdrawals: [] },
         { status: 500 }
       );
     }
 
-    const { searchParams } = new URL(req.url);
-    const kind = searchParams.get("kind");
-
     const withdrawals = await prisma.withdrawal.findMany({
-      where: kind ? { kind: String(kind) } : undefined,
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ withdrawals });
+    return NextResponse.json({
+      withdrawals: withdrawals.map(mapWithdrawal),
+    });
   } catch (error) {
     console.error("ADMIN WITHDRAWALS GET ERROR:", error);
     return NextResponse.json(
@@ -33,53 +65,64 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const access = await requireAdminPermission("withdrawals");
+
+  if (!access.ok) {
+    return NextResponse.json(
+      { message: access.message },
+      { status: access.status }
+    );
+  }
+
   try {
     const prisma = getPrisma();
     if (!prisma) {
-      return NextResponse.json({ message: "Database is not available" }, { status: 500 });
+      return NextResponse.json(
+        { message: "Database not available" },
+        { status: 500 }
+      );
     }
 
     const { withdrawalId, action, note } = await req.json();
 
-    if (!withdrawalId || !["mark_sent", "reject"].includes(action)) {
+    if (!withdrawalId || !["mark_sent", "reject", "complete"].includes(action)) {
       return NextResponse.json(
         { message: "withdrawalId and valid action are required" },
         { status: 400 }
       );
     }
 
-    const withdrawal = await prisma.withdrawal.findUnique({
+    const current = await prisma.withdrawal.findUnique({
       where: { id: String(withdrawalId) },
     });
 
-    if (!withdrawal) {
-      return NextResponse.json({ message: "Withdrawal request not found" }, { status: 404 });
-    }
-
-    if (action === "mark_sent" && withdrawal.status !== "pending") {
+    if (!current) {
       return NextResponse.json(
-        { message: "Admin can only mark pending requests as sent" },
-        { status: 400 }
+        { message: "Withdrawal request not found" },
+        { status: 404 }
       );
     }
 
-    if (action === "reject" && ["sent", "rejected", "completed"].includes(withdrawal.status)) {
-      return NextResponse.json(
-        { message: "This withdrawal can no longer be rejected" },
-        { status: 400 }
-      );
-    }
+    const nextStatus =
+      action === "mark_sent"
+        ? "sent"
+        : action === "complete"
+        ? "completed"
+        : "rejected";
 
     const updated = await prisma.withdrawal.update({
-      where: { id: withdrawal.id },
+      where: { id: String(withdrawalId) },
       data: {
-        status: action === "mark_sent" ? "sent" : "rejected",
-        adminNote: String(note || "").trim() || null,
+        status: nextStatus,
+        adminNote: String(note || "").trim() || current.adminNote,
       },
     });
 
     const playerUser = await prisma.user.findFirst({
-      where: { email: withdrawal.playerEmail },
+      where: {
+        email: current.playerEmail,
+        role: "PLAYER",
+      },
     });
 
     if (playerUser?.id) {
@@ -87,17 +130,29 @@ export async function POST(req: Request) {
         userId: playerUser.id,
         targetRole: "player",
         targetId: playerUser.id,
-        title: action === "mark_sent" ? "Funds sent" : "Payout rejected by admin",
+        title:
+          nextStatus === "rejected"
+            ? "Payout rejected"
+            : nextStatus === "completed"
+            ? "Payout completed"
+            : "Payout sent",
         message:
-          action === "mark_sent"
-            ? `Your ${withdrawal.kind === "winning" ? "winning " : ""}payout of ${withdrawal.amount} DH has been sent.`
-            : "Your payout request was rejected by admin. Please contact support if needed.",
+          nextStatus === "rejected"
+            ? "Your payout request was rejected by admin."
+            : nextStatus === "completed"
+            ? `Your payout of ${updated.amount} DH has been completed.`
+            : `Your payout of ${updated.amount} DH has been sent.`,
       });
     }
 
     return NextResponse.json({
-      message: action === "mark_sent" ? "Funds marked as sent" : "Withdrawal rejected by admin",
-      withdrawal: updated,
+      message:
+        nextStatus === "rejected"
+          ? "Withdrawal rejected by admin"
+          : nextStatus === "completed"
+          ? "Withdrawal completed successfully"
+          : "Funds marked as sent",
+      withdrawal: mapWithdrawal(updated),
     });
   } catch (error) {
     console.error("ADMIN WITHDRAWALS POST ERROR:", error);

@@ -15,6 +15,8 @@ function mapWithdrawal(item: any) {
     rib: item.rib || null,
     swift: item.swift || null,
     gosportUsername: item.gosportUsername || null,
+    kind: item.kind || null,
+    winnerOrderId: item.winnerOrderId || null,
   };
 }
 
@@ -77,7 +79,6 @@ export async function GET(req: Request) {
         ? {
             id: winningOrder.id,
             amount: Number(winningOrder.amount || 0),
-            payment_method_name: winningOrder.paymentMethodName || null,
             gosport365_username: winningOrder.gosportUsername || null,
             status: winningOrder.status,
             created_at: winningOrder.createdAt,
@@ -196,6 +197,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (amount > Number(order.amount || 0)) {
+      return NextResponse.json(
+        { message: "Requested amount exceeds available winning balance" },
+        { status: 400 }
+      );
+    }
+
     const existing = await prisma.withdrawal.findFirst({
       where: {
         playerId: player.id,
@@ -236,9 +244,7 @@ export async function POST(req: Request) {
     });
 
     const adminUsers = await prisma.user.findMany({
-      where: {
-        role: "ADMIN",
-      },
+      where: { role: "ADMIN" },
       select: { id: true },
     });
 
