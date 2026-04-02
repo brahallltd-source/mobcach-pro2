@@ -1,14 +1,19 @@
-
 import { NextResponse } from "next/server";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, normalize, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
 import { normalizePhoneWithCountry } from "@/lib/countries";
 import { hashPassword } from "@/lib/security";
+import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-function buildPlayerMessage(payload: { username: string; password: string; email: string; whatsapp: string }) {
+function buildPlayerMessage(payload: {
+  username: string;
+  password: string;
+  email: string;
+  whatsapp: string;
+}) {
   const { username, password, email, whatsapp } = payload;
+
   return `Hello, your account has been created successfully.
 
 Login credentials:
@@ -40,113 +45,151 @@ These credentials are valid for GoSport365 and GoSport365 MobCash.
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+
+    if (!prisma) {
+      return NextResponse.json(
+        { message: "Database not available" },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
-    const { agentEmail, first_name, last_name, username, email, password, phone, country, city } = body;
+
+    const agentEmail = String(body.agentEmail || "").trim().toLowerCase();
+    const firstName = String(body.first_name || body.firstName || "").trim();
+    const lastName = String(body.last_name || body.lastName || "").trim();
+    const username = String(body.username || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const password = String(body.password || "123456").trim();
+    const phone = String(body.phone || "").trim();
+    const country = String(body.country || "Morocco").trim();
+    const city = String(body.city || "").trim();
 
     if (!agentEmail || !username || !email) {
-      return NextResponse.json({ message: "agentEmail, username and email are required" }, { status: 400 });
+      return NextResponse.json(
+        { message: "agentEmail, username and email are required" },
+        { status: 400 }
+      );
     }
 
-    const usersPath = dataPath("users.json");
-    const playersPath = dataPath("players.json");
-    const activationsPath = dataPath("activations.json");
-
-    const users = readJsonArray<any>(usersPath);
-    const players = readJsonArray<any>(playersPath);
-    const activations = readJsonArray<any>(activationsPath);
-
-    const agentUser = users.find((item) => normalize(item.email) === normalize(String(agentEmail)) && item.role === "agent");
-    if (!agentUser?.agentId) {
-      return NextResponse.json({ message: "Agent not found" }, { status: 404 });
-    }
-
-    if (users.some((item) => normalize(item.email) === normalize(String(email)))) {
-      return NextResponse.json({ message: "Email already exists" }, { status: 400 });
-    }
-    if (users.some((item) => normalize(item.username || "") === normalize(String(username)))) {
-      return NextResponse.json({ message: "Username already exists" }, { status: 400 });
-    }
-
-    const plainPassword = String(password || "123456");
-    const hashedPassword = await hashPassword(plainPassword);
-
-    const user = {
-      id: uid("player-user"),
-      email: String(email).trim(),
-      username: String(username).trim(),
-      password: hashedPassword,
-      role: "player",
-      player_status: "active",
-      assigned_agent_id: String(agentUser.agentId),
-      created_at: nowIso(),
-    };
-
-    const player = {
-      id: uid("player"),
-      user_id: user.id,
-      first_name: String(first_name || ""),
-      last_name: String(last_name || ""),
-      username: String(username).trim(),
-      phone: normalizePhoneWithCountry(String(phone || ""), String(country || "Morocco")),
-      city: String(city || ""),
-      country: String(country || "Morocco"),
-      date_of_birth: "",
-      status: "active",
-      assigned_agent_id: String(agentUser.agentId),
-      reassigned_from_agent_id: "",
-      reassignment_count: 0,
-      reassigned_at: "",
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    };
-
-    const messageText = buildPlayerMessage({
-      username: user.username,
-      password: plainPassword,
-      email: user.email,
-      whatsapp: player.phone,
+    const agentUser = await prisma.user.findFirst({
+      where: {
+        email: agentEmail,
+        role: "AGENT",
+      },
+      select: {
+        id: true,
+        agentId: true,
+        email: true,
+      },
     });
 
-    const activation = {
-      id: uid("activation"),
-      agentId: String(agentUser.agentId),
-      playerUserId: user.id,
-      playerEmail: user.email,
-      username: user.username,
-      password: plainPassword,
-      whatsapp: player.phone,
-      status: "sent",
-      messageText,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-      activated_at: nowIso(),
-      sent_at: nowIso(),
-    };
+    if (!agentUser?.agentId) {
+      return NextResponse.json(
+        { message: "Agent not found" },
+        { status: 404 }
+      );
+    }
 
-    users.unshift(user);
-    players.unshift(player);
-    activations.unshift(activation);
+    const existingEmail = await prisma.user.findFirst({
+      where: { email },
+      select: { id: true },
+    });
 
-    writeJsonArray(usersPath, users);
-    writeJsonArray(playersPath, players);
-    writeJsonArray(activationsPath, activations);
+    if (existingEmail) {
+      return NextResponse.json(
+        { message: "Email already exists" },
+        { status: 400 }
+      );
+    }
 
-    createNotification({
+    const existingUsername = await prisma.user.findFirst({
+      where: { username },
+      select: { id: true },
+    });
+
+    if (existingUsername) {
+      return NextResponse.json(
+        { message: "Username already exists" },
+        { status: 400 }
+      );
+    }
+
+    const normalizedPhone = normalizePhoneWithCountry(phone, country);
+    const passwordHash = await hashPassword(password);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          username,
+          passwordHash,
+          role: "PLAYER",
+          frozen: false,
+          playerStatus: "active",
+          assignedAgentId: agentUser.agentId,
+        },
+      });
+
+      const player = await tx.player.create({
+        data: {
+          userId: user.id,
+          firstName,
+          lastName,
+          username,
+          phone: normalizedPhone,
+          city: city || null,
+          country: country || null,
+          dateOfBirth: null,
+          status: "active",
+          assignedAgentId: agentUser.agentId,
+          referredBy: null,
+        },
+      });
+
+      const messageText = buildPlayerMessage({
+        username,
+        password,
+        email,
+        whatsapp: normalizedPhone,
+      });
+
+      const activation = await tx.activation.create({
+        data: {
+          agentId: agentUser.agentId,
+          playerUserId: user.id,
+          playerEmail: email,
+          username,
+          passwordPlain: password,
+          whatsapp: normalizedPhone || null,
+          status: "sent",
+          messageText,
+          activatedAt: new Date(),
+          sentAt: new Date(),
+        },
+      });
+
+      return { user, player, activation, messageText };
+    });
+
+    await createNotification({
       targetRole: "player",
-      targetId: user.id,
+      targetId: result.user.id,
       title: "Account created by your agent",
-      message: "Your player account has been created and activated directly by your agent.",
+      message:
+        "Your player account has been created and activated directly by your agent.",
     });
 
     return NextResponse.json({
       message: "Player created, activated and linked successfully ✅",
-      user,
-      player,
-      activation,
+      user: result.user,
+      player: result.player,
+      activation: result.activation,
       credentials: {
-        username: user.username,
-        password: plainPassword,
-        messageText,
+        username: result.user.username,
+        password,
+        messageText: result.messageText,
       },
     });
   } catch (error) {
