@@ -1,8 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 
-function toJsonMeta(meta?: Record<string, unknown>): Prisma.InputJsonValue {
-  return (meta ?? {}) as Prisma.InputJsonValue;
+type WalletMeta =
+  | Prisma.InputJsonValue
+  | Prisma.NullableJsonNullValueInput;
+
+function toJsonMeta(meta?: unknown): WalletMeta {
+  if (meta === undefined || meta === null) return Prisma.JsonNull;
+  return (meta as Prisma.InputJsonValue) ?? Prisma.JsonNull;
 }
 
 export async function dbGetWallet(agentId: string) {
