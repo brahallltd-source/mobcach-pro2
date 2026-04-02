@@ -46,6 +46,7 @@ export async function GET() {
 
   try {
     const prisma = getPrisma();
+
     if (!prisma) {
       return NextResponse.json(
         { success: false, message: "Database not available" },

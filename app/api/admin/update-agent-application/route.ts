@@ -4,8 +4,11 @@ import { createNotification } from "@/lib/notifications";
 import { createWalletIfMissing } from "@/lib/wallet";
 import { getPrisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { POST } from "@/app/api/admin/agent-applications/route";
 
+export { POST };
 export const runtime = "nodejs";
+
 
 function buildAgentApprovalMessage(payload: {
   username: string;
