@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     const agentEmail = String(body.agentEmail || "").trim().toLowerCase();
     const firstName = String(body.first_name || body.firstName || "").trim();
     const lastName = String(body.last_name || body.lastName || "").trim();
-    const username = String(body.username || "").trim();
+    const username = String(body.username || "").trim().toLowerCase();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "123456").trim();
     const phone = String(body.phone || "").trim();
@@ -182,6 +182,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
+      success: true,
       message: "Player created, activated and linked successfully ✅",
       user: result.user,
       player: result.player,
