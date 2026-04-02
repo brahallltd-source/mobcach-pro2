@@ -157,12 +157,97 @@ export default function AgentChatThreadPage() {
     <SidebarShell role="agent">
       <PageHeader
         title={`Order ${order.id}`}
-        subtitle="Keep the chat open, answer the player directly and continue the recharge conversation without leaving the order thread."
+        subtitle="Review the player's proof, check the payment details, manage approval and continue the conversation without leaving the order thread."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="space-y-6">
         <GlassCard className="p-6 md:p-8">
-          <div className="space-y-3">
+          <h2 className="text-2xl font-semibold">Player proof</h2>
+
+          <div className="mt-5 grid gap-3 text-sm text-white/65">
+            <p>
+              Player:{" "}
+              <span className="font-semibold text-white">{order.playerEmail}</span>
+            </p>
+            <p>
+              Amount:{" "}
+              <span className="font-semibold text-white">{order.amount} DH</span>
+            </p>
+            <p>
+              Status:{" "}
+              <span className="font-semibold text-white">{order.status}</span>
+            </p>
+            <p>
+              Payment method:{" "}
+              <span className="font-semibold text-white">
+                {order.payment_method_name || "—"}
+              </span>
+            </p>
+            <p>
+              Username:{" "}
+              <span className="font-semibold text-white">
+                {order.gosport365_username || "—"}
+              </span>
+            </p>
+            {order.review_reason ? (
+              <p>
+                Review reason:{" "}
+                <span className="font-semibold text-white">
+                  {order.review_reason}
+                </span>
+              </p>
+            ) : null}
+          </div>
+
+          {order.proof_url ? (
+            <div className="mt-6 space-y-4">
+              <img
+                src={order.proof_url}
+                alt="Proof"
+                className="max-h-[520px] w-full rounded-3xl border border-white/10 object-contain"
+              />
+
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={order.proof_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+                >
+                  Open proof
+                </a>
+
+                {canReview ? (
+                  <>
+                    <PrimaryButton
+                      onClick={() => updateOrderStatus("approve")}
+                      disabled={actionBusy}
+                    >
+                      {actionBusy ? "Processing..." : "Approve order"}
+                    </PrimaryButton>
+
+                    <button
+                      onClick={() => updateOrderStatus("reject")}
+                      disabled={actionBusy}
+                      className="rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {actionBusy ? "Processing..." : "Reject order"}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-3xl border border-dashed border-white/10 p-6 text-center text-white/55">
+              No proof uploaded yet.
+            </div>
+          )}
+        </GlassCard>
+
+        <GlassCard className="p-6 md:p-8">
+          <h2 className="text-2xl font-semibold">Chat with player</h2>
+
+          <div className="mt-5 space-y-3">
             {(order.messages || []).map((msg, idx) => (
               <div
                 key={msg.id || idx}
@@ -181,6 +266,7 @@ export default function AgentChatThreadPage() {
                 </p>
               </div>
             ))}
+
             {!order.messages?.length ? (
               <div className="text-white/55">No messages yet.</div>
             ) : null}
@@ -193,92 +279,12 @@ export default function AgentChatThreadPage() {
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Write your message to the player..."
             />
+
             <PrimaryButton onClick={send} disabled={busy}>
               {busy ? "Sending..." : "Send message"}
             </PrimaryButton>
           </div>
-
-          {canReview ? (
-            <div className="mt-6 flex flex-wrap gap-3">
-              <PrimaryButton
-                onClick={() => updateOrderStatus("approve")}
-                disabled={actionBusy}
-              >
-                {actionBusy ? "Processing..." : "Approve order"}
-              </PrimaryButton>
-
-              <button
-                onClick={() => updateOrderStatus("reject")}
-                disabled={actionBusy}
-                className="rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
-              >
-                {actionBusy ? "Processing..." : "Reject order"}
-              </button>
-            </div>
-          ) : null}
         </GlassCard>
-
-        <div className="space-y-6">
-          <GlassCard className="p-6 md:p-8">
-            <h2 className="text-2xl font-semibold">Order summary</h2>
-            <div className="mt-5 grid gap-3 text-sm text-white/65">
-              <p>
-                Player:{" "}
-                <span className="font-semibold text-white">{order.playerEmail}</span>
-              </p>
-              <p>
-                Amount:{" "}
-                <span className="font-semibold text-white">{order.amount} DH</span>
-              </p>
-              <p>
-                Status:{" "}
-                <span className="font-semibold text-white">{order.status}</span>
-              </p>
-              <p>
-                Method:{" "}
-                <span className="font-semibold text-white">
-                  {order.payment_method_name || "—"}
-                </span>
-              </p>
-              <p>
-                Username:{" "}
-                <span className="font-semibold text-white">
-                  {order.gosport365_username || "—"}
-                </span>
-              </p>
-              {order.review_reason ? (
-                <p>
-                  Review reason:{" "}
-                  <span className="font-semibold text-white">
-                    {order.review_reason}
-                  </span>
-                </p>
-              ) : null}
-            </div>
-          </GlassCard>
-
-          {order.proof_url ? (
-            <GlassCard className="p-6 md:p-8">
-              <h2 className="text-2xl font-semibold">Proof</h2>
-              <div className="mt-5 space-y-4">
-                <a
-                  href={order.proof_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
-                >
-                  Open proof
-                </a>
-
-                <img
-                  src={order.proof_url}
-                  alt="Proof"
-                  className="max-h-[460px] w-full rounded-3xl border border-white/10 object-contain"
-                />
-              </div>
-            </GlassCard>
-          ) : null}
-        </div>
       </div>
     </SidebarShell>
   );
