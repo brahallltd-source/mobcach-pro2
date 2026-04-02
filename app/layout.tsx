@@ -1,4 +1,3 @@
-
 import "./globals.css";
 import type { Metadata } from "next";
 import { LanguageProvider } from "@/components/language";
@@ -8,7 +7,11 @@ export const metadata: Metadata = {
   description: "Modern recharge workflow for players, agents and admins",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="fr" suppressHydrationWarning>
       <body>
