@@ -24,6 +24,7 @@ async function getAuthUser(): Promise<AccessResult> {
   try {
     const cookieStore = await cookies();
     const token =
+      cookieStore.get("mobcash_session")?.value ||
       cookieStore.get("token")?.value ||
       cookieStore.get("auth_token")?.value ||
       cookieStore.get("mobcash_token")?.value;
