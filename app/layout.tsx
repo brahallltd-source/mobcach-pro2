@@ -5,6 +5,11 @@ import { LanguageProvider } from "@/components/language";
 export const metadata: Metadata = {
   title: "MobCash Pro",
   description: "Modern recharge workflow for players, agents and admins",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
