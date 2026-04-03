@@ -12,6 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Energy reward moved to pending bonus", result });
   } catch (error: any) {
     console.error("UNLOCK ENERGY REWARD ERROR:", error);
-    return NextResponse.json({ message: error.message || "Server error" }, { status: 400 });
+    return NextResponse.json({ message: error.message || "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 400 });
   }
 }

@@ -53,7 +53,11 @@ export default function AgentAddPlayerPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.message || "Failed to create player");
+      showToast({
+  type: "error",
+  title: "Could not create player",
+  message: data.message || "Please review the form and try again.",
+});
       setSaving(false);
       return;
     }
@@ -70,7 +74,13 @@ export default function AgentAddPlayerPage() {
   const copyMessage = async () => {
     if (!result?.credentials?.messageText) return;
     await navigator.clipboard.writeText(result.credentials.messageText);
-    alert("Message copied successfully");
+    const { showToast } = useToast();
+
+showToast({
+  type: "success",
+  title: "Copied successfully",
+  message: "The message is ready to paste and send.",
+});
     resetPage();
   };
 

@@ -94,7 +94,13 @@ export default function AdminAgentsPage() {
   const copyMessage = async (messageText: string) => {
     await navigator.clipboard.writeText(messageText);
     setSelectedMessage(messageText);
-    alert("Message copied successfully");
+    const { showToast } = useToast();
+
+showToast({
+  type: "success",
+  title: "Copied successfully",
+  message: "The message is ready to paste and send.",
+});
   };
 
   const handleAction = async (agentId: string, action: "approve" | "reject") => {

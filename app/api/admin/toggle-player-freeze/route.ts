@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: nextFrozen ? "Player frozen" : "Player unfrozen", player: players[index] });
   } catch (error) {
     console.error("TOGGLE PLAYER FREEZE ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

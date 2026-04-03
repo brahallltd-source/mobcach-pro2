@@ -10,7 +10,8 @@ export async function GET() {
     return NextResponse.json({ claims });
   } catch (error) {
     console.error("ADMIN BONUS GET ERROR:", error);
-    return NextResponse.json({ message: "Server error", claims: [] }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", claims: [] }, { status: 500 });
   }
 }
 
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: action === "approve" ? "Bonus approved and credited" : "Bonus claim rejected", claim: claims[index] });
   } catch (error) {
     console.error("ADMIN BONUS POST ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

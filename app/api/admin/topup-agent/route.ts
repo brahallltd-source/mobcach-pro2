@@ -51,6 +51,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Agent topped up successfully", summary: { agentId, previousBalance, creditedBase: baseAmount, creditedBonus: bonusAmount, pendingBonusApplied: pendingApplied.totalApplied, newBalance } });
   } catch (error) {
     console.error("TOPUP ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

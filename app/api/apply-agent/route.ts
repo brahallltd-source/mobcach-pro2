@@ -96,7 +96,8 @@ if (!password) {
   } catch (error) {
     console.error("APPLY AGENT ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Server error" },
+      { success: false, message: "Something went wrong
+We could not complete your request right now. Please try again." },
       { status: 500 }
     );
   }

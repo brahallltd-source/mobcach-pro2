@@ -57,7 +57,13 @@ export default function AgentActivationsPage() {
   const copyMessage = async (messageText: string) => {
     await navigator.clipboard.writeText(messageText);
     setSelectedMessage(messageText);
-    alert("Message copied successfully");
+    const { showToast } = useToast();
+
+showToast({
+  type: "success",
+  title: "Copied successfully",
+  message: "The message is ready to paste and send.",
+});
   };
 
   if (loading) return <SidebarShell role="agent"><LoadingCard text="Loading activations..." /></SidebarShell>;

@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Player deleted successfully" });
   } catch (error) {
     console.error("DELETE PLAYER ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

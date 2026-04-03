@@ -224,7 +224,8 @@ export async function POST(req: Request) {
           ? "Order created and flagged for review ✅"
           : status === "proof_uploaded"
           ? "Order created and proof uploaded ✅"
-          : "Order created successfully ✅",
+          : "Order submitted
+Your recharge request has been sent successfully. ✅",
       order: {
         ...order,
         gosport365_username: order.gosportUsername,
@@ -238,7 +239,8 @@ export async function POST(req: Request) {
     console.error("CREATE ORDER ERROR:", error);
     return NextResponse.json(
       {
-        message: error instanceof Error ? error.message : "Server error",
+        message: error instanceof Error ? error.message : "Something went wrong
+We could not complete your request right now. Please try again.",
       },
       { status: 500 }
     );

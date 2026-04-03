@@ -46,6 +46,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("ADMIN FRAUD ERROR:", error);
-    return NextResponse.json({ message: "Server error", summary: null, items: [], duplicateHashes: [] }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", summary: null, items: [], duplicateHashes: [] }, { status: 500 });
   }
 }

@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Order completed successfully ✅", order: updated });
   } catch (error: any) {
     console.error("CONFIRM ORDER ERROR:", error);
-    return NextResponse.json({ message: error?.message || "Server error" }, { status: 500 });
+    return NextResponse.json({ message: error?.message || "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

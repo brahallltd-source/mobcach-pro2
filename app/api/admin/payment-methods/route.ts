@@ -14,7 +14,8 @@ export async function GET() {
     return NextResponse.json({ methods });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS GET ERROR:", error);
-    return NextResponse.json({ message: "Server error", methods: [] }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", methods: [] }, { status: 500 });
   }
 }
 
@@ -53,7 +54,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Payment method created successfully ✅", method: row });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS POST ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }
 
@@ -73,7 +75,8 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ message: "Payment method updated successfully", method: methods[index] });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PATCH ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }
 
@@ -115,7 +118,8 @@ export async function PUT(req: Request) {
     return NextResponse.json({ message: "Payment method updated successfully ✅", method: updated });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PUT ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }
 
@@ -135,6 +139,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: "Payment method deleted successfully ✅" });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS DELETE ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

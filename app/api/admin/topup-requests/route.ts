@@ -17,7 +17,8 @@ export async function GET() {
     return NextResponse.json({ requests });
   } catch (error) {
     console.error("GET ADMIN TOPUP REQUESTS ERROR:", error);
-    return NextResponse.json({ message: "Server error", requests: [] }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", requests: [] }, { status: 500 });
   }
 }
 
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: `Request ${action}d successfully`, request: requests[index] });
   } catch (error) {
     console.error("PROCESS ADMIN TOPUP REQUEST ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

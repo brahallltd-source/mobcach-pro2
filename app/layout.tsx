@@ -1,15 +1,11 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { LanguageProvider } from "@/components/language";
+import { ToastProvider } from "@/components/toast";
 
 export const metadata: Metadata = {
   title: "MobCash Pro",
   description: "Modern recharge workflow for players, agents and admins",
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({
@@ -20,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body>
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

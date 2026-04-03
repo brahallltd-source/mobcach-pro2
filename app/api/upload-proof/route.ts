@@ -74,6 +74,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("UPLOAD PROOF ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

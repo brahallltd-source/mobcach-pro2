@@ -101,7 +101,8 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("CHANGE AGENT ERROR:", error);
     return NextResponse.json(
-      { message: "Server error" },
+      { message: "Something went wrong
+We could not complete your request right now. Please try again." },
       { status: 500 }
     );
   }

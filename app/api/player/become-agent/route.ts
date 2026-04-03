@@ -28,7 +28,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ application: application || null });
   } catch (error) {
     console.error("GET BECOME AGENT ERROR:", error);
-    return NextResponse.json({ message: "Server error", application: null }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", application: null }, { status: 500 });
   }
 }
 
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("CREATE BECOME AGENT APPLICATION ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }

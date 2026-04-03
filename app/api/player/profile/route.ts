@@ -17,7 +17,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ profile: { user_id: user.id, email: user.email, ...player } });
   } catch (error) {
     console.error("GET PLAYER PROFILE ERROR:", error);
-    return NextResponse.json({ message: "Server error", profile: null }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again.", profile: null }, { status: 500 });
   }
 }
 
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Profile updated successfully ✅", user: { id: users[userIndex].id, email: users[userIndex].email, role: users[userIndex].role, player_status: players[playerIndex].status || "inactive", assigned_agent_id: players[playerIndex].assigned_agent_id || "" }, profile: { email: users[userIndex].email, phone: players[playerIndex].phone } });
   } catch (error) {
     console.error("UPDATE PLAYER PROFILE ERROR:", error);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong
+We could not complete your request right now. Please try again." }, { status: 500 });
   }
 }
