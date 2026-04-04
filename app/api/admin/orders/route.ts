@@ -9,7 +9,13 @@ export async function GET() {
     return NextResponse.json({ orders });
   } catch (error) {
     console.error("GET ADMIN ORDERS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`,, orders: [] }, { status: 500 });
+    return NextResponse.json(
+      {
+        message:
+          "Something went wrong. We could not complete your request right now. Please try again.",
+        orders: [],
+      },
+      { status: 500 }
+    );
   }
 }

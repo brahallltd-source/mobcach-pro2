@@ -10,7 +10,13 @@ export async function GET() {
     return NextResponse.json({ methods });
   } catch (error) {
     console.error("PUBLIC ADMIN PAYMENT METHODS GET ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`,, methods: [] }, { status: 500 });
+    return NextResponse.json(
+      {
+        message:
+          "Something went wrong. We could not complete your request right now. Please try again.",
+        methods: [],
+      },
+      { status: 500 }
+    );
   }
 }

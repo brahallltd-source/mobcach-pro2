@@ -24,7 +24,13 @@ export async function GET() {
     return NextResponse.json({ players: rows });
   } catch (error) {
     console.error("ADMIN PLAYERS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`,, players: [] }, { status: 500 });
+    return NextResponse.json(
+      {
+        message:
+          "Something went wrong. We could not complete your request right now. Please try again.",
+        players: [],
+      },
+      { status: 500 }
+    );
   }
 }
