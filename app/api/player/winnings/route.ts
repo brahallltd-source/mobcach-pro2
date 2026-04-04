@@ -90,7 +90,7 @@ export async function GET(req: Request) {
     console.error("PLAYER WINNINGS GET ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, winning: null, history: [] },
+We could not complete your request right now. Please try again.`, winning: null, history: [] },
       { status: 500 }
     );
   }
