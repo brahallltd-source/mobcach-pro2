@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Player activated successfully ✅", user: users[userIndex], player: players[playerIndex] });
   } catch (error) {
     console.error("ACTIVATE PLAYER ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

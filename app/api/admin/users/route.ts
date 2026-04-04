@@ -18,8 +18,8 @@ export async function GET() {
     return NextResponse.json({ admins });
   } catch (error) {
     console.error("ADMIN USERS GET ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", admins: [] }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, admins: [] }, { status: 500 });
   }
 }
 
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Admin created successfully ✅", admin });
   } catch (error) {
     console.error("ADMIN USERS POST ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

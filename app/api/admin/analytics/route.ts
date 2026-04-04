@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { requireAdminPermission } from "@/lib/server-auth";
 import { dataPath, readJsonArray } from "@/lib/json";
@@ -7,7 +6,12 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const access = await requireAdminPermission("overview");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
+  if (!access.ok) {
+    return NextResponse.json(
+      { message: access.message },
+      { status: access.status }
+    );
+  }
 
   try {
     const orders = readJsonArray<any>(dataPath("orders.json"));
@@ -20,8 +24,13 @@ export async function GET() {
     const referrals = readJsonArray<any>(dataPath("referrals.json"));
     const proofHashes = readJsonArray<any>(dataPath("proof_hashes.json"));
 
-    const totalOrderVolume = orders.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const completedOrderVolume = orders.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalOrderVolume = orders.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
+    const completedOrderVolume = orders
+      .filter((item) => item.status === "completed")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
     const growth = {
       users: users.length,
@@ -35,14 +44,20 @@ export async function GET() {
       orders: orders.length,
       orderVolume: totalOrderVolume,
       completedOrderVolume,
-      withdrawalsPending: withdrawals.filter((item) => item.status === "pending" || item.status === "agent_approved").length,
+      withdrawalsPending: withdrawals.filter(
+        (item) => item.status === "pending" || item.status === "agent_approved"
+      ).length,
       topupsPending: topups.filter((item) => item.status === "pending").length,
     };
 
     const trust = {
       complaints: complaints.length,
-      duplicateProofs: proofHashes.filter((item) => Number(item.duplicate_count || 0) > 1).length,
-      flaggedOrders: orders.filter((item) => item.review_required || item.status === "flagged_for_review").length,
+      duplicateProofs: proofHashes.filter(
+        (item) => Number(item.duplicate_count || 0) > 1
+      ).length,
+      flaggedOrders: orders.filter(
+        (item) => item.review_required || item.status === "flagged_for_review"
+      ).length,
       completedOrders: orders.filter((item) => item.status === "completed").length,
     };
 
@@ -57,7 +72,12 @@ export async function GET() {
     return NextResponse.json({ growth, finance, trust, orderStatusChart });
   } catch (error) {
     console.error("ADMIN ANALYTICS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json(
+      {
+        message:
+          "Something went wrong. We could not complete your request right now. Please try again.",
+      },
+      { status: 500 }
+    );
   }
 }

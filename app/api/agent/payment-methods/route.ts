@@ -54,8 +54,8 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("AGENT PAYMENT METHODS GET ERROR:", error);
     return NextResponse.json(
-      { message: "Something went wrong
-We could not complete your request right now. Please try again.", methods: [], profile: null },
+      { message: `Something went wrong
+We could not complete your request right now. Please try again.`,, methods: [], profile: null },
       { status: 500 }
     );
   }
@@ -103,8 +103,8 @@ Your payment details are now available to players.",
     });
   } catch (error) {
     console.error("AGENT PAYMENT METHODS POST ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }
 
@@ -147,8 +147,8 @@ export async function PUT(req: Request) {
     });
   } catch (error) {
     console.error("AGENT PAYMENT METHODS PUT ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }
 
@@ -178,7 +178,7 @@ export async function DELETE(req: Request) {
     });
   } catch (error) {
     console.error("AGENT PAYMENT METHODS DELETE ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

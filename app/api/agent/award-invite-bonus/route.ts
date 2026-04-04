@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Player invite bonus awarded successfully ✅", summary: { agentId, totalRechargeAmount, bonusAmount: 200 } });
   } catch (error) {
     console.error("AWARD INVITE BONUS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

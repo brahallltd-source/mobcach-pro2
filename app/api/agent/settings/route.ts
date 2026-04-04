@@ -14,8 +14,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ agent, profile });
   } catch (error) {
     console.error("GET AGENT SETTINGS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", agent: null, profile: null }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, agent: null, profile: null }, { status: 500 });
   }
 }
 
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Settings updated successfully", agent: agents[agentIndex], profile: profileIndex !== -1 ? profiles[profileIndex] : null });
   } catch (error) {
     console.error("UPDATE AGENT SETTINGS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

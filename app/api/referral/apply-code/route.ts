@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Referral code applied successfully", user: users[userIndex], player: players[playerIndex] });
   } catch (error) {
     console.error("APPLY REFERRAL CODE ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

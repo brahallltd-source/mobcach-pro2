@@ -14,8 +14,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ requests });
   } catch (error) {
     console.error("GET AGENT TOPUP REQUESTS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", requests: [] }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, requests: [] }, { status: 500 });
   }
 }
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Recharge request sent to admin", request: record });
   } catch (error) {
     console.error("CREATE AGENT TOPUP REQUEST ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

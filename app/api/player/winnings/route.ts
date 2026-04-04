@@ -89,8 +89,8 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("PLAYER WINNINGS GET ERROR:", error);
     return NextResponse.json(
-      { message: "Something went wrong
-We could not complete your request right now. Please try again.", winning: null, history: [] },
+      { message: `Something went wrong
+We could not complete your request right now. Please try again.`,, winning: null, history: [] },
       { status: 500 }
     );
   }
@@ -278,7 +278,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("PLAYER WINNINGS POST ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

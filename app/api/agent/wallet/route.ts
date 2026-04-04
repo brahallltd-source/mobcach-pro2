@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ wallet: createWalletIfMissing(agentId) });
   } catch (error) {
     console.error("GET AGENT WALLET ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", wallet: null }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, wallet: null }, { status: 500 });
   }
 }

@@ -32,8 +32,12 @@ export async function GET() {
   } catch (error) {
     console.error("GET AGENTS ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Something went wrong
-We could not complete your request right now. Please try again.", data: [] },
+      {
+        success: false,
+        message:
+          "Something went wrong. We could not complete your request right now. Please try again.",
+        data: [],
+      },
       { status: 500 }
     );
   }

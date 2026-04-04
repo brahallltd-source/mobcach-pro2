@@ -17,8 +17,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ withdrawals });
   } catch (error) {
     console.error("AGENT WITHDRAWALS GET ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", withdrawals: [] }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, withdrawals: [] }, { status: 500 });
   }
 }
 
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: action === "approve" ? "Withdrawal approved by agent" : "Withdrawal rejected", withdrawal: withdrawals[index] });
   } catch (error) {
     console.error("AGENT WITHDRAWALS POST ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Complaint submitted successfully ✅", complaint });
   } catch (error) {
     console.error("PLAYER COMPLAINT ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

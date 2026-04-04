@@ -74,8 +74,8 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("GET ORDER MESSAGES ERROR:", error);
     return NextResponse.json(
-      { message: "Something went wrong
-We could not complete your request right now. Please try again.", order: null, messages: [] },
+      { message: `Something went wrong
+We could not complete your request right now. Please try again.`,, order: null, messages: [] },
       { status: 500 }
     );
   }
@@ -137,8 +137,8 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("POST ORDER MESSAGES ERROR:", error);
     return NextResponse.json(
-      { message: "Something went wrong
-We could not complete your request right now. Please try again." },
+      { message: `Something went wrong
+We could not complete your request right now. Please try again.`, },
       { status: 500 }
     );
   }

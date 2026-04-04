@@ -13,8 +13,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ requests: rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) });
   } catch (error) {
     console.error("GET WINNER REQUESTS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again.", requests: [] }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`,, requests: [] }, { status: 500 });
   }
 }
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Winner confirmation request submitted ✅", request: record });
   } catch (error) {
     console.error("POST WINNER REQUESTS ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }

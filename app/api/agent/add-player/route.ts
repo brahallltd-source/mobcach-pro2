@@ -202,7 +202,7 @@ if (!password) {
     });
   } catch (error) {
     console.error("ADD PLAYER ERROR:", error);
-    return NextResponse.json({ message: "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 500 });
+    return NextResponse.json({ message: `Something went wrong
+We could not complete your request right now. Please try again.`, }, { status: 500 });
   }
 }
