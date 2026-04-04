@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Mail, MessageCircle } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatusBadge, TextArea } from "@/components/ui";
+import { useToast } from "@/components/toast";
 
 export default function AgentActivationsPage() {
   const [rows, setRows] = useState<any[]>([]);
