@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     console.error("GET ORDER MESSAGES ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, order: null, messages: [] },
+We could not complete your request right now. Please try again.`, order: null, messages: [] },
       { status: 500 }
     );
   }

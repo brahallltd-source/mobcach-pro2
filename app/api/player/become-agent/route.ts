@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("GET BECOME AGENT ERROR:", error);
     return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`,, application: null }, { status: 500 });
+We could not complete your request right now. Please try again.`, application: null }, { status: 500 });
   }
 }
 
