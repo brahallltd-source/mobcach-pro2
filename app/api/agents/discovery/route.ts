@@ -61,7 +61,7 @@ export async function GET() {
     console.error("AGENT DISCOVERY ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, agents: [] },
+We could not complete your request right now. Please try again.`, agents: [] },
       { status: 500 }
     );
   }
