@@ -52,8 +52,9 @@ export default function InviteAgentPage() {
     const text = `Agent invite code: ${inviteCode}
 Invite link: ${base}${inviteLink}`;
     await navigator.clipboard.writeText(text);
-    alert("Invite copied
-You can now share the invite link with the new agent.");
+    alert(`Invite copied
+
+      You can now share the invite link with the new agent.`);
   };
 
   if (loading || !user) return <SidebarShell role="agent"><LoadingCard text="Loading invite agent..." /></SidebarShell>;

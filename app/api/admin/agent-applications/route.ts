@@ -62,8 +62,8 @@ export async function GET() {
   } catch (error) {
     console.error("GET AGENT APPLICATIONS ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Something went wrong
-We could not complete your request right now. Please try again." },
+      { success: false, message: `Something went wrong
+        We could not complete your request right now. Please try again.`},
       { status: 500 }
     );
   }
@@ -269,8 +269,8 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Something went wrong
-We could not complete your request right now. Please try again.",
+        message: error instanceof Error ? error.message: `Something went wrong
+        We could not complete your request right now. Please try again.`,
       },
       { status: 500 }
     );
