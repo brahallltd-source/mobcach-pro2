@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     console.error("GET INVITE AGENT ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, invites: [] },
+We could not complete your request right now. Please try again.`, invites: [] },
       { status: 500 }
     );
   }

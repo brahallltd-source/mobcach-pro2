@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     console.error("AGENT PAYMENT METHODS GET ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, methods: [], profile: null },
+We could not complete your request right now. Please try again.`, methods: [], profile: null },
       { status: 500 }
     );
   }
@@ -97,8 +97,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      message: "Payment method saved
-Your payment details are now available to players.",
+      message: "Payment method savedYour payment details are now available to players.",
       method: mapMethod(created),
     });
   } catch (error) {
