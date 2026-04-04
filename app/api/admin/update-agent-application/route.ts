@@ -225,8 +225,8 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Something went wrong
-We could not complete your request right now. Please try again.",
+        message: error instanceof Error ? error.message : `Something went wrong
+We could not complete your request right now. Please try again.`,
       },
       { status: 500 }
     );

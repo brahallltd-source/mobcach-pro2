@@ -12,7 +12,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Task reward moved to pending bonus", task });
   } catch (error: any) {
     console.error("CLAIM TASK REWARD ERROR:", error);
-    return NextResponse.json({ message: error.message || "Something went wrong
-We could not complete your request right now. Please try again." }, { status: 400 });
+    return NextResponse.json({ message: error.message || "Server error" }, { status: 400 });
   }
 }

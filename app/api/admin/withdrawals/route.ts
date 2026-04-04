@@ -59,7 +59,7 @@ export async function GET() {
     console.error("ADMIN WITHDRAWALS GET ERROR:", error);
     return NextResponse.json(
       { message: `Something went wrong
-We could not complete your request right now. Please try again.`,, withdrawals: [] },
+We could not complete your request right now. Please try again.`, withdrawals: [] },
       { status: 500 }
     );
   }
