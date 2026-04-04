@@ -12,6 +12,7 @@ import {
   TextArea,
   TextField,
 } from "@/components/ui";
+import { useToast } from "@/components/toast";
 
 type FilterType = "all" | "pending" | "approved" | "rejected";
 
@@ -95,6 +96,12 @@ export default function AdminAgentsPage() {
     await navigator.clipboard.writeText(messageText);
     setSelectedMessage(messageText);
     const { showToast } = useToast();
+
+showToast({
+  type: "success",
+  title: "Copied successfully",
+  message: "The message is ready to paste and send.",
+});
 
 showToast({
   type: "success",
