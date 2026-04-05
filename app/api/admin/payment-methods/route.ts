@@ -1,23 +1,31 @@
-
 import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 import { requireAdminPermission } from "@/lib/server-auth";
-import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
+
+const prisma = new PrismaClient();
 
 export async function GET() {
   const access = await requireAdminPermission("wallets");
   if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
 
   try {
-    const methods = readJsonArray<any>(dataPath("admin_payment_methods.json"));
+    const methods = await prisma.paymentMethod.findMany({
+      where: {
+        ownerRole: "ADMIN",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
     return NextResponse.json({ methods });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS GET ERROR:", error);
     return NextResponse.json(
       {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
+        message: "Something went wrong. Please try again.",
         methods: [],
       },
       { status: 500 }
@@ -31,40 +39,51 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const path = dataPath("admin_payment_methods.json");
-    const methods = readJsonArray<any>(path);
 
-    const row = {
-      id: uid("admin-method"),
-      type: String(body.type || "bank"),
-      method_name: String(body.method_name || "").trim(),
-      currency: String(body.currency || "MAD").trim(),
-      bank_name: String(body.bank_name || "").trim(),
-      account_name: String(body.account_name || "").trim(),
-      rib: String(body.rib || "").trim(),
-      wallet_address: String(body.wallet_address || "").trim(),
-      network: String(body.network || "").trim(),
-      provider: String(body.provider || "").trim(),
-      phone: String(body.phone || "").trim(),
-      city: String(body.city || "").trim(),
-      instructions: String(body.instructions || "").trim(),
-      active: body.active !== false,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    };
+    if (!body.method_name) {
+      return NextResponse.json({ message: "method_name is required" }, { status: 400 });
+    }
 
-    if (!row.method_name) return NextResponse.json({ message: "method_name is required" }, { status: 400 });
+    // ⚠️ hack: نحتاج agentId
+    const fallbackAgent = await prisma.agent.findFirst();
 
-    methods.unshift(row);
-    writeJsonArray(path, methods);
-    return NextResponse.json({ message: "Payment method created successfully ✅", method: row });
+    if (!fallbackAgent) {
+      return NextResponse.json(
+        { message: "No agent found. Create an agent first." },
+        { status: 400 }
+      );
+    }
+
+    const method = await prisma.paymentMethod.create({
+      data: {
+        ownerRole: "ADMIN",
+        ownerId: "SYSTEM",
+
+        type: body.type || "bank",
+        methodName: body.method_name,
+        currency: body.currency || "MAD",
+
+        accountName: body.account_name || null,
+        rib: body.rib || null,
+        walletAddress: body.wallet_address || null,
+        network: body.network || null,
+        phone: body.phone || null,
+
+        active: body.active !== false,
+
+        agentId: fallbackAgent.id, // مهم
+      },
+    });
+
+    return NextResponse.json({
+      message: "Payment method created successfully ✅",
+      method,
+    });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS POST ERROR:", error);
     return NextResponse.json(
       {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        methods: [],
+        message: "Something went wrong. Please try again.",
       },
       { status: 500 }
     );
@@ -77,27 +96,28 @@ export async function PATCH(req: Request) {
 
   try {
     const { methodId, active } = await req.json();
-    const path = dataPath("admin_payment_methods.json");
-    const methods = readJsonArray<any>(path);
-    const index = methods.findIndex((item) => item.id === methodId);
-    if (index === -1) return NextResponse.json({ message: "Method not found" }, { status: 404 });
 
-    methods[index] = { ...methods[index], active: Boolean(active), updated_at: nowIso() };
-    writeJsonArray(path, methods);
-    return NextResponse.json({ message: "Payment method updated successfully", method: methods[index] });
+    const method = await prisma.paymentMethod.update({
+      where: { id: methodId },
+      data: {
+        active: Boolean(active),
+      },
+    });
+
+    return NextResponse.json({
+      message: "Payment method updated successfully",
+      method,
+    });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PATCH ERROR:", error);
     return NextResponse.json(
       {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        methods: [],
+        message: "Something went wrong. Please try again.",
       },
       { status: 500 }
     );
   }
 }
-
 
 export async function PUT(req: Request) {
   const access = await requireAdminPermission("wallets");
@@ -105,42 +125,33 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const path = dataPath("admin_payment_methods.json");
-    const methods = readJsonArray<any>(path);
-    const index = methods.findIndex((item) => item.id === String(body.methodId || ""));
-    if (index === -1) return NextResponse.json({ message: "Method not found" }, { status: 404 });
 
-    const current = methods[index];
-    const updated = {
-      ...current,
-      type: String(body.type || current.type || "bank"),
-      method_name: String(body.method_name || current.method_name || "").trim(),
-      currency: String(body.currency || current.currency || "MAD").trim(),
-      bank_name: String(body.bank_name ?? current.bank_name ?? "").trim(),
-      account_name: String(body.account_name ?? current.account_name ?? "").trim(),
-      rib: String(body.rib ?? current.rib ?? "").trim(),
-      wallet_address: String(body.wallet_address ?? current.wallet_address ?? "").trim(),
-      network: String(body.network ?? current.network ?? "").trim(),
-      provider: String(body.provider ?? current.provider ?? "").trim(),
-      phone: String(body.phone ?? current.phone ?? "").trim(),
-      city: String(body.city ?? current.city ?? "").trim(),
-      instructions: String(body.instructions ?? current.instructions ?? "").trim(),
-      active: body.active === undefined ? current.active !== false : body.active !== false,
-      updated_at: nowIso(),
-    };
+    const method = await prisma.paymentMethod.update({
+      where: { id: body.methodId },
+      data: {
+        type: body.type,
+        methodName: body.method_name,
+        currency: body.currency,
 
-    if (!updated.method_name) return NextResponse.json({ message: "method_name is required" }, { status: 400 });
+        accountName: body.account_name ?? null,
+        rib: body.rib ?? null,
+        walletAddress: body.wallet_address ?? null,
+        network: body.network ?? null,
+        phone: body.phone ?? null,
 
-    methods[index] = updated;
-    writeJsonArray(path, methods);
-    return NextResponse.json({ message: "Payment method updated successfully ✅", method: updated });
+        active: body.active !== false,
+      },
+    });
+
+    return NextResponse.json({
+      message: "Payment method updated successfully ✅",
+      method,
+    });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PUT ERROR:", error);
     return NextResponse.json(
       {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        methods: [],
+        message: "Something went wrong. Please try again.",
       },
       { status: 500 }
     );
@@ -154,20 +165,23 @@ export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const methodId = searchParams.get("methodId");
-    if (!methodId) return NextResponse.json({ message: "methodId is required" }, { status: 400 });
-    const path = dataPath("admin_payment_methods.json");
-    const methods = readJsonArray<any>(path);
-    const filtered = methods.filter((item) => item.id !== String(methodId));
-    if (filtered.length === methods.length) return NextResponse.json({ message: "Method not found" }, { status: 404 });
-    writeJsonArray(path, filtered);
-    return NextResponse.json({ message: "Payment method deleted successfully ✅" });
+
+    if (!methodId) {
+      return NextResponse.json({ message: "methodId is required" }, { status: 400 });
+    }
+
+    await prisma.paymentMethod.delete({
+      where: { id: methodId },
+    });
+
+    return NextResponse.json({
+      message: "Payment method deleted successfully ✅",
+    });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS DELETE ERROR:", error);
     return NextResponse.json(
       {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        methods: [],
+        message: "Something went wrong. Please try again.",
       },
       { status: 500 }
     );
