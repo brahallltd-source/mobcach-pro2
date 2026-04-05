@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         email: String(email).trim().toLowerCase(),
         username: String(username).trim(),
         passwordHash: hashedPassword,
-        role: "admin",
+        role: "ADMIN",
         permissions: safePermissions,
       },
       select: {
