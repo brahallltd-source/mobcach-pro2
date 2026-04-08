@@ -15,9 +15,9 @@ export async function GET() {
       await prisma.$queryRaw`SELECT 1`;
       database = "connected";
     }
-    return NextResponse.json({ ok: true, app: "MobCash Pro", database, timestamp: new Date().toISOString() });
+    return NextResponse.json({ ok: true, app: "GS365Cash", database, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error("HEALTH CHECK ERROR:", error);
-    return NextResponse.json({ ok: false, app: "MobCash Pro", database: "error", timestamp: new Date().toISOString() }, { status: 500 });
+    return NextResponse.json({ ok: false, app: "GS365Cash", database: "error", timestamp: new Date().toISOString() }, { status: 500 });
   }
 }

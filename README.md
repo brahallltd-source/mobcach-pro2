@@ -1,4 +1,4 @@
-# MobCash Pro
+# GS365Cash
 
 A modern full-stack MVP built with Next.js App Router, TypeScript, Tailwind CSS and JSON persistence.
 

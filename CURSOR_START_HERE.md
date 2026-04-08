@@ -1,5 +1,5 @@
 
-# MobCash Pro V17.1 — Cursor Ready Package
+# GS365Cash V17.1 — Cursor Ready Package
 
 ## What is this package?
 This archive is prepared so you can open it directly in Cursor and continue rebuilding the product cleanly.

@@ -4,7 +4,7 @@ import { LanguageProvider } from "@/components/language";
 import { ToastProvider } from "@/components/toast";
 
 export const metadata: Metadata = {
-  title: "MobCash Pro",
+  title: "GS365Cash",
   description: "Modern recharge workflow for players, agents and admins",
 };
 

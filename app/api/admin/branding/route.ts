@@ -11,11 +11,11 @@ cloudinary.config({
 });
 
 const defaultBranding = {
-  brandName: "MobCash Pro",
+  brandName: "GS365Cash",
   logoUrl: "",
   heroTitle: "Recharge made simple, trusted and mobile-first.",
   heroBody:
-    "MobCash Pro connects players, agents and admins with a clear recharge flow, trusted agent selection and proof-based order confirmation.",
+    "GS365Cash connects players, agents and admins with a clear recharge flow, trusted agent selection and proof-based order confirmation.",
   primaryCta: "Start Recharge",
   secondaryCta: "Become an Agent",
   heroImages: ["/hero/hero-1.svg", "/hero/hero-2.svg"],

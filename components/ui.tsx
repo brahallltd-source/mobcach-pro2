@@ -41,7 +41,7 @@ type Branding = {
 };
 
 const defaultBranding: Branding = {
-  brandName: "MobCash Pro",
+  brandName: "GS365Cash",
   logoUrl: "",
 };
 

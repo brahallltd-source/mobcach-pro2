@@ -10,7 +10,7 @@ export const defaultLang: Lang = "fr";
 
 const dictionaries = {
   en: {
-    brand: "MobCash Pro",
+    brand: "GS365Cash",
     heroTitle: "Recharge with confidence, choose the right agent and pay with the method you trust.",
     heroBody: "A premium workspace for players, agents and admins with multilingual UX, offer-style buying flow, wallet accounting and review-first operations.",
     login: "Login",
@@ -82,7 +82,7 @@ const dictionaries = {
     orderSend: "Order send",
   },
   fr: {
-    brand: "MobCash Pro",
+    brand: "GS365Cash",
     heroTitle: "Rechargez en toute confiance, choisissez le bon agent et payez avec la méthode que vous préférez.",
     heroBody: "Un espace premium pour joueurs, agents et admins avec UX multilingue, flux d'achat inspiré des annonces, comptabilité wallet et opérations sécurisées.",
     login: "Connexion",
