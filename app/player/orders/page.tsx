@@ -42,11 +42,17 @@ function getMainTab(order: Order): MainTab {
 }
 
 function getFilterTab(order: Order): FilterTab {
-  if (order.status === "completed") return "completed";
+  if (order.status === "completed") return "appeal";
   if (order.status === "cancelled") return "cancelled";
-  if (order.status === "flagged_for_review") return "appeal";
   if (order.status === "agent_approved_waiting_player") return "paid";
-  return "unpaid";
+  if (
+    order.status === "proof_uploaded" ||
+    order.status === "pending_payment" ||
+    order.status === "flagged_for_review"
+  ) {
+    return "unpaid";
+  }
+  return "all";
 }
 
 function formatDate(value?: string) {
@@ -100,7 +106,7 @@ export default function PlayerOrdersPage() {
 
     return [
       { key: "all" as const, label: "All" },
-      { key: "completed" as const, label: "Completed" },
+      { key: "appeal" as const, label: "Appeal" },
       { key: "cancelled" as const, label: "Cancelled" },
     ];
   }, [mainTab]);
@@ -280,16 +286,16 @@ export default function PlayerOrdersPage() {
                         </div>
 
                         {order.status === "agent_approved_waiting_player" ? (
-                          <p className="mt-4 text-sm text-emerald-200">
-                            Payment was reviewed. Open the order and confirm recharge received.
-                          </p>
-                        ) : null}
+  <p className="mt-4 text-sm text-emerald-200">
+    Payment was reviewed. Open the order and confirm recharge received.
+  </p>
+) : null}
 
-                        {order.status === "flagged_for_review" ? (
-                          <p className="mt-4 text-sm text-amber-100">
-                            This order is under review. Open the order to view details or contact admin.
-                          </p>
-                        ) : null}
+{order.status === "proof_uploaded" || order.status === "pending_payment" || order.status === "flagged_for_review" ? (
+  <p className="mt-4 text-sm text-amber-100">
+    Proof was sent by the player. Waiting for agent review.
+  </p>
+) : null}
                       </div>
 
                       <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
