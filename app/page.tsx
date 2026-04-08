@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BadgeCheck, Globe2, ShieldCheck, TimerReset, WalletCards } from "lucide-react";
+import { ArrowRight, Globe2, ShieldCheck, TimerReset, WalletCards } from "lucide-react";
 import { GlassCard, PrimaryButton, Shell } from "@/components/ui";
 
 type Banner = { title: string; subtitle: string; image: string; link: string; active: boolean };
@@ -105,7 +105,7 @@ export default function HomePage() {
         setBranding(defaultBranding);
       }
     };
-  
+
     void loadBranding();
   }, []);
 
@@ -126,56 +126,53 @@ export default function HomePage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-7xl space-y-7">
-        <GlassCard className="overflow-hidden p-5 md:p-7">
-          <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
-            <div>
-              <div className="flex items-center gap-3">
-                {branding.logoUrl ? (
-                  <img src={branding.logoUrl} alt="brand logo" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-300/20">
-                    <BadgeCheck size={20} />
-                  </div>
-                )}
-                <div>
-                  <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.34em] text-cyan-200">
-                    {branding.brandName}
-                  </div>
-                  <p className="mt-1 text-xs text-white/45">Trusted recharge operations for players, agents and admins.</p>
-                </div>
-              </div>
 
-              <h1 className="mt-5 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl xl:text-5xl">
+  
+      <div className="mx-auto max-w-7xl space-y-8">
+        <GlassCard className="overflow-hidden px-5 py-7 md:px-8 md:py-9 xl:px-10">
+          <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+            <div>
+              <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl xl:text-6xl">
                 {branding.heroTitle}
               </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-white/65 md:text-[15px]">
+
+              <p className="mt-4 max-w-xl text-sm leading-7 text-white/65 md:text-base">
                 {branding.heroBody}
               </p>
 
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-7 flex flex-wrap gap-3">
                 <Link href="/register/player">
-                  <PrimaryButton className="px-5">
+                  <PrimaryButton className="min-w-[180px] px-6 py-3 text-sm font-semibold">
                     {branding.primaryCta || "Start Recharge"}
                   </PrimaryButton>
                 </Link>
+
                 <Link
                   href="/apply/agent"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   {branding.secondaryCta || "Become an Agent"}
                   <ArrowRight size={15} />
                 </Link>
-                <Link href="/login" className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white">
+
+                <Link
+                  href="/login"
+                  className="inline-flex min-w-[140px] items-center justify-center rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/10 hover:text-white"
+                >
                   Login
                 </Link>
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 {trustCards.map((item) => (
-                  <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-3.5 md:p-4">
-                    <p className="text-xl font-semibold md:text-2xl">{item.value}</p>
-                    <p className="mt-1.5 text-xs text-white/55 md:text-sm">{item.label}</p>
+                  <div
+                    key={item.label}
+                    className="rounded-3xl border border-white/10 bg-black/20 p-4 md:p-5"
+                  >
+                    <p className="text-2xl font-semibold md:text-3xl">{item.value}</p>
+                    <p className="mt-2 text-xs leading-5 text-white/55 md:text-sm">
+                      {item.label}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -184,17 +181,24 @@ export default function HomePage() {
             <div className="grid gap-4">
               {currentBanner ? (
                 <Link href={currentBanner.link} className="block">
-                  <GlassCard className="overflow-hidden p-3 transition hover:bg-white/[0.08]">
-                    <div className="grid gap-4 md:grid-cols-[0.55fr_0.45fr] md:items-center">
+                  <GlassCard className="overflow-hidden p-4 transition hover:bg-white/[0.08]">
+                    <div className="grid gap-5 md:grid-cols-[0.56fr_0.44fr] md:items-center">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">Live banner</p>
-                        <h2 className="mt-3 text-xl font-semibold md:text-2xl">{currentBanner.title}</h2>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60">{currentBanner.subtitle}</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                          Live banner
+                        </p>
+                        <h2 className="mt-3 text-xl font-semibold md:text-2xl">
+                          {currentBanner.title}
+                        </h2>
+                        <p className="mt-2 text-sm leading-6 text-white/60">
+                          {currentBanner.subtitle}
+                        </p>
                       </div>
+
                       <img
                         src={currentBanner.image || branding.heroImages[0] || "/hero/hero-1.svg"}
                         alt="current banner"
-                        className="h-48 w-full rounded-[22px] object-cover"
+                        className="h-52 w-full rounded-[24px] object-cover"
                       />
                     </div>
                   </GlassCard>
@@ -207,7 +211,7 @@ export default function HomePage() {
                     <img
                       src={image || "/hero/hero-1.svg"}
                       alt={`hero-${index + 1}`}
-                      className="h-40 w-full rounded-[18px] object-cover"
+                      className="h-44 w-full rounded-[20px] object-cover"
                     />
                   </GlassCard>
                 ))}
@@ -219,9 +223,11 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-3">
           {flow.map((item) => (
             <GlassCard key={item.step} className="p-5 md:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">{item.step}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                {item.step}
+              </p>
               <h3 className="mt-3 text-xl font-semibold md:text-2xl">{item.title}</h3>
-              <p className="mt-2.5 text-sm leading-6 text-white/60">{item.text}</p>
+              <p className="mt-3 text-sm leading-6 text-white/60">{item.text}</p>
             </GlassCard>
           ))}
         </div>
@@ -233,7 +239,7 @@ export default function HomePage() {
                 <item.icon size={18} />
               </div>
               <h3 className="mt-4 text-lg font-semibold md:text-xl">{item.title}</h3>
-              <p className="mt-2.5 text-sm leading-6 text-white/60">{item.text}</p>
+              <p className="mt-3 text-sm leading-6 text-white/60">{item.text}</p>
             </GlassCard>
           ))}
         </div>

@@ -145,16 +145,20 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <main dir={dir} className="min-h-screen bg-hero px-4 py-6 text-white md:px-6">
-      <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 backdrop-blur-xl transition hover:bg-white/[0.08]"
-        >
-          <BrandMark />
-          {branding.brandName}
-        </Link>
+      <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between">
+        <div className="flex items-center">
+          {branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={branding.brandName}
+              className="h-16 md:h-20 xl:h-24 object-contain"
+            />
+          ) : null}
+        </div>
+
         <LanguageSwitcher />
       </div>
+
       {children}
     </main>
   );
