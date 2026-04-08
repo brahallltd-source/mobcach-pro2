@@ -193,7 +193,7 @@ export default function PlayerOrderDetailPage() {
             onClick={() => alert("Message sent to admin")}
             className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold"
           >
-            Contact Admin
+            Contact support
           </button>
         </div>
       </div>
