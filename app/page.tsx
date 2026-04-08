@@ -96,11 +96,17 @@ export default function HomePage() {
   const [bannerIndex, setBannerIndex] = useState(0);
 
   useEffect(() => {
-    const raw = localStorage.getItem("mobcash_branding");
-    if (!raw) return;
-    try {
-      setBranding({ ...defaultBranding, ...JSON.parse(raw) });
-    } catch {}
+    const loadBranding = async () => {
+      try {
+        const res = await fetch("/api/admin/branding", { cache: "no-store" });
+        const data = await res.json();
+        setBranding({ ...defaultBranding, ...(data.branding || {}) });
+      } catch {
+        setBranding(defaultBranding);
+      }
+    };
+  
+    void loadBranding();
   }, []);
 
   const activeBanners = useMemo(

@@ -91,7 +91,10 @@ export default function AdminBrandingPage() {
     const load = async () => {
       const res = await fetch("/api/admin/branding", { cache: "no-store" });
       const data = await res.json();
-      setBranding({ ...defaultBranding, ...(data.branding || {}) });
+      localStorage.setItem(
+  "mobcash_branding",
+  JSON.stringify({ ...defaultBranding, ...(data.branding || {}) })
+);
     };
 
     void load();
@@ -114,7 +117,10 @@ export default function AdminBrandingPage() {
         return;
       }
 
-      setBranding({ ...defaultBranding, ...(data.branding || {}) });
+      localStorage.setItem(
+  "mobcash_branding",
+  JSON.stringify({ ...defaultBranding, ...(data.branding || {}) })
+);
       alert("Branding saved successfully");
     } finally {
       setSaving(false);
