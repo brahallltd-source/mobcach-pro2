@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, MessageCircleMore } from "lucide-react";
 import {
   EmptyState,
   GlassCard,
@@ -10,7 +11,15 @@ import {
   PrimaryButton,
   SidebarShell,
   StatusBadge,
+  TextField,
 } from "@/components/ui";
+
+type Msg = {
+  senderRole: string;
+  message: string;
+  created_at?: string;
+  createdAt?: string;
+};
 
 type Order = {
   id: string;
@@ -21,24 +30,47 @@ type Order = {
   paymentMethodName?: string;
   gosportUsername?: string;
   playerApproved?: boolean;
+  messages?: Msg[];
 };
 
-const filters = [
-  "all",
-  "proof_uploaded",
-  "agent_approved_waiting_player",
-  "completed",
-  "flagged_for_review",
-];
+type MainTab = "ongoing" | "fulfilled";
+type FilterTab = "all" | "unpaid" | "paid" | "appeal" | "completed" | "cancelled";
+
+function getMainTab(order: Order): MainTab {
+  if (order.status === "completed" || order.status === "cancelled") return "fulfilled";
+  return "ongoing";
+}
+
+function getFilterTab(order: Order): FilterTab {
+  if (order.status === "completed") return "completed";
+  if (order.status === "cancelled") return "cancelled";
+  if (order.status === "flagged_for_review") return "appeal";
+  if (order.status === "agent_approved_waiting_player") return "paid";
+  return "unpaid";
+}
+
+function formatDate(value?: string) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function lastMessageFromOtherParty(messages?: Msg[]) {
+  if (!messages?.length) return false;
+  const last = messages[messages.length - 1];
+  return last.senderRole !== "player";
+}
 
 export default function PlayerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
+  const [mainTab, setMainTab] = useState<MainTab>("ongoing");
+  const [filter, setFilter] = useState<FilterTab>("all");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
+
     const user = JSON.parse(saved);
     if (user.role !== "player") return void (window.location.href = "/login");
 
@@ -50,15 +82,49 @@ export default function PlayerOrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? orders : orders.filter((order) => order.status === filter)),
-    [orders, filter]
-  );
+  const counts = useMemo(() => {
+    const ongoing = orders.filter((order) => getMainTab(order) === "ongoing").length;
+    const fulfilled = orders.filter((order) => getMainTab(order) === "fulfilled").length;
+    return { ongoing, fulfilled };
+  }, [orders]);
+
+  const filterOptions = useMemo(() => {
+    if (mainTab === "ongoing") {
+      return [
+        { key: "all" as const, label: "All" },
+        { key: "unpaid" as const, label: "Unpaid" },
+        { key: "paid" as const, label: "Paid" },
+        { key: "appeal" as const, label: "Appeal" },
+      ];
+    }
+
+    return [
+      { key: "all" as const, label: "All" },
+      { key: "completed" as const, label: "Completed" },
+      { key: "cancelled" as const, label: "Cancelled" },
+    ];
+  }, [mainTab]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    return orders
+      .filter((order) => getMainTab(order) === mainTab)
+      .filter((order) => (filter === "all" ? true : getFilterTab(order) === filter))
+      .filter((order) => {
+        if (!q) return true;
+        return (
+          order.id.toLowerCase().includes(q) ||
+          String(order.gosportUsername || "").toLowerCase().includes(q) ||
+          String(order.paymentMethodName || "").toLowerCase().includes(q)
+        );
+      });
+  }, [orders, mainTab, filter, query]);
 
   if (loading) {
     return (
       <SidebarShell role="player">
-        <LoadingCard text="Loading player orders..." />
+        <LoadingCard text="Loading order history..." />
       </SidebarShell>
     );
   }
@@ -66,8 +132,8 @@ export default function PlayerOrdersPage() {
   return (
     <SidebarShell role="player">
       <PageHeader
-        title="My orders"
-        subtitle="Orders are separated from the new order flow. Open the chat or confirm the final approval after your agent approves the recharge."
+        title="Order History"
+        subtitle="Track ongoing orders, completed recharges and cancelled operations from one place."
         action={
           <Link href="/player/achat">
             <PrimaryButton>Create new order</PrimaryButton>
@@ -75,63 +141,170 @@ export default function PlayerOrdersPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-3">
-        {filters.map((item) => (
-          <button
-            key={item}
-            onClick={() => setFilter(item)}
-            className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
-              filter === item
-                ? "bg-white text-black"
-                : "border border-white/10 bg-white/5 text-white"
-            }`}
-          >
-            {item.replaceAll("_", " ")}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          title="No orders in this filter"
-          subtitle="Start from the new order page, choose a method and upload your proof."
-        />
-      ) : (
-        <div className="grid gap-4">
-          {filtered.map((order) => (
-            <Link
-              key={order.id}
-              href={`/player/chat/${order.id}`}
-              className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 transition hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-white/[0.08]"
+      <GlassCard className="overflow-hidden p-0">
+        <div className="border-b border-white/10 px-4 pt-4 md:px-6">
+          <div className="flex items-center gap-6 text-lg font-semibold">
+            <button
+              onClick={() => {
+                setMainTab("ongoing");
+                setFilter("all");
+              }}
+              className={`relative pb-4 transition ${
+                mainTab === "ongoing" ? "text-white" : "text-white/55"
+              }`}
             >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-white/35">
-                    {order.id}
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold">{order.amount} DH</p>
-                  <p className="mt-2 text-sm text-white/55">
-                    {order.paymentMethodName || "Method pending"} •{" "}
-                    {order.gosportUsername || "Username pending"}
-                  </p>
-                  <p className="mt-1 text-sm text-white/45">
-                    Created: {new Date(order.createdAt).toLocaleString()}
-                  </p>
-                  <p className="mt-1 text-sm text-white/45">
-                    Updated: {new Date(order.updatedAt || order.createdAt).toLocaleString()}
-                  </p>
-                  {order.status === "agent_approved_waiting_player" ? (
-                    <p className="mt-2 text-sm text-emerald-200">
-                      Open chat and confirm the final approval to complete this order.
-                    </p>
-                  ) : null}
-                </div>
-                <StatusBadge status={order.status} />
-              </div>
-            </Link>
-          ))}
+              Ongoing
+              {mainTab === "ongoing" ? (
+                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-amber-300" />
+              ) : null}
+            </button>
+
+            <button
+              onClick={() => {
+                setMainTab("fulfilled");
+                setFilter("all");
+              }}
+              className={`relative pb-4 transition ${
+                mainTab === "fulfilled" ? "text-white" : "text-white/55"
+              }`}
+            >
+              Fulfilled
+              {mainTab === "fulfilled" ? (
+                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-amber-300" />
+              ) : null}
+            </button>
+          </div>
         </div>
-      )}
+
+        <div className="space-y-4 p-4 md:p-6">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="flex flex-wrap gap-2">
+              {filterOptions.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setFilter(item.key)}
+                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                    filter === item.key
+                      ? "bg-white text-slate-950"
+                      : "border border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div className="relative min-w-[220px]">
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
+                  size={16}
+                />
+                <TextField
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by order, method or username"
+                  className="pl-11"
+                />
+              </div>
+
+              <div className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/60">
+                <SlidersHorizontal size={16} />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
+            {mainTab === "ongoing"
+              ? `${counts.ongoing} ongoing order(s)`
+              : `${counts.fulfilled} fulfilled order(s)`}
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              title="You have no order history."
+              subtitle={
+                mainTab === "ongoing"
+                  ? "No ongoing orders found in this filter."
+                  : "No fulfilled orders found in this filter."
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {filtered.map((order) => {
+                const hasUnread = lastMessageFromOtherParty(order.messages);
+                const detailHref = `/player/orders/${order.id}`;
+
+                return (
+                  <Link
+                    key={order.id}
+                    href={detailHref}
+                    className="block rounded-[28px] border border-white/10 bg-white/[0.04] p-5 transition hover:border-cyan-300/20 hover:bg-white/[0.08]"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <p className="text-3xl font-semibold">
+                            {order.amount.toLocaleString()} DH
+                          </p>
+                          <StatusBadge status={order.status} />
+                          {hasUnread ? (
+                            <span className="inline-flex items-center gap-2 rounded-full bg-amber-300/15 px-3 py-1 text-xs font-semibold text-amber-100">
+                              <MessageCircleMore size={14} />
+                              Unread message
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <p className="mt-3 text-sm text-white/65">
+                          {order.paymentMethodName || "Method pending"} •{" "}
+                          {order.gosportUsername || "Username pending"}
+                        </p>
+
+                        <div className="mt-4 grid gap-2 text-sm text-white/50 md:grid-cols-2 xl:grid-cols-4">
+                          <p>
+                            <span className="text-white/35">Order:</span> {order.id}
+                          </p>
+                          <p>
+                            <span className="text-white/35">Created:</span>{" "}
+                            {formatDate(order.createdAt)}
+                          </p>
+                          <p>
+                            <span className="text-white/35">Updated:</span>{" "}
+                            {formatDate(order.updatedAt || order.createdAt)}
+                          </p>
+                          <p>
+                            <span className="text-white/35">Flow:</span>{" "}
+                            {getFilterTab(order).replaceAll("_", " ")}
+                          </p>
+                        </div>
+
+                        {order.status === "agent_approved_waiting_player" ? (
+                          <p className="mt-4 text-sm text-emerald-200">
+                            Payment was reviewed. Open the order and confirm recharge received.
+                          </p>
+                        ) : null}
+
+                        {order.status === "flagged_for_review" ? (
+                          <p className="mt-4 text-sm text-amber-100">
+                            This order is under review. Open the order to view details or contact admin.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
+                        <span className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/80">
+                          View details
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </GlassCard>
     </SidebarShell>
   );
 }
