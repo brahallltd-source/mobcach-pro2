@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Edit2 } from "lucide-react";
+import { Copy, Edit2, Trash2 } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SelectField, SidebarShell, TextArea, TextField } from "@/components/ui";
 
 type Method = {
@@ -73,10 +73,26 @@ export default function AdminPaymentMethodsPage() {
     setForm({ ...EMPTY_FORM });
   };
 
+  const deleteMethod = async (methodId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this payment method?")) return;
+    
+    try {
+      const res = await fetch(`/api/admin/payment-methods?methodId=${methodId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.message || "Failed to delete method");
+      await load();
+    } catch (error) {
+      console.error(error);
+      alert("Network error");
+    }
+  };
+
   const submit = async () => {
     setSaving(true);
     
-    // إذا كان هناك ID فهذا يعني أننا نقوم بـ "تحديث"، وإلا فهي "إضافة جديدة"
     const isUpdate = !!form.id;
     const method = isUpdate ? "PUT" : "POST";
 
@@ -176,7 +192,7 @@ export default function AdminPaymentMethodsPage() {
                   disabled={saving}
                   className="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -209,15 +225,23 @@ export default function AdminPaymentMethodsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {/* أزرار التعديل والحذف الجديدة */}
                     <button 
                       onClick={() => startEdit(item)} 
                       className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 hover:bg-cyan-500/20 transition"
                     >
-                      <Edit2 size={14} className="mr-2 inline-block" />
-                      Edit
+                      <Edit2 size={14} className="mr-2 inline-block" /> Edit
                     </button>
-                    {item.rib ? <button onClick={() => copyText(item.rib)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"><Copy size={14} className="mr-2 inline-block" />Copy RIB</button> : null}
-                    {item.wallet_address ? <button onClick={() => copyText(item.wallet_address)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"><Copy size={14} className="mr-2 inline-block" />Copy Wallet</button> : null}
+                    
+                    <button 
+                      onClick={() => deleteMethod(item.id)} 
+                      className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-300 hover:bg-rose-500/20 transition"
+                    >
+                      <Trash2 size={14} className="mr-2 inline-block" /> Delete
+                    </button>
+
+                    {item.rib ? <button onClick={() => copyText(item.rib)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"><Copy size={14} className="mr-2 inline-block" /> Copy</button> : null}
+                    {item.wallet_address ? <button onClick={() => copyText(item.wallet_address)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"><Copy size={14} className="mr-2 inline-block" /> Copy</button> : null}
                     <button onClick={() => toggleActive(item.id, !item.active)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10 transition">
                       {item.active ? "Disable" : "Enable"}
                     </button>
