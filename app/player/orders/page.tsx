@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, MessageCircleMore } from "lucide-react";
+import { Search, SlidersHorizontal, MessageCircleMore, Clock } from "lucide-react";
 import {
   EmptyState,
   GlassCard,
@@ -100,13 +100,12 @@ export default function PlayerOrdersPage() {
         { key: "all" as const, label: "All" },
         { key: "unpaid" as const, label: "Unpaid" },
         { key: "paid" as const, label: "Paid" },
-        { key: "appeal" as const, label: "Appeal" },
       ];
     }
 
     return [
       { key: "all" as const, label: "All" },
-      { key: "appeal" as const, label: "Appeal" },
+      { key: "appeal" as const, label: "Completed (Appeal)" }, // توضيح لمعنى appeal في واجهتك
       { key: "cancelled" as const, label: "Cancelled" },
     ];
   }, [mainTab]);
@@ -142,7 +141,7 @@ export default function PlayerOrdersPage() {
         subtitle="Track ongoing orders, completed recharges and cancelled operations from one place."
         action={
           <Link href="/player/achat">
-            <PrimaryButton>Create new order</PrimaryButton>
+            <PrimaryButton>New Recharge Request</PrimaryButton>
           </Link>
         }
       />
@@ -156,12 +155,12 @@ export default function PlayerOrdersPage() {
                 setFilter("all");
               }}
               className={`relative pb-4 transition ${
-                mainTab === "ongoing" ? "text-white" : "text-white/55"
+                mainTab === "ongoing" ? "text-cyan-300" : "text-white/55 hover:text-white/80"
               }`}
             >
-              Ongoing
+              Ongoing Orders
               {mainTab === "ongoing" ? (
-                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-amber-300" />
+                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
             </button>
 
@@ -171,12 +170,12 @@ export default function PlayerOrdersPage() {
                 setFilter("all");
               }}
               className={`relative pb-4 transition ${
-                mainTab === "fulfilled" ? "text-white" : "text-white/55"
+                mainTab === "fulfilled" ? "text-cyan-300" : "text-white/55 hover:text-white/80"
               }`}
             >
               Fulfilled
               {mainTab === "fulfilled" ? (
-                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-amber-300" />
+                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
             </button>
           </div>
@@ -191,7 +190,7 @@ export default function PlayerOrdersPage() {
                   onClick={() => setFilter(item.key)}
                   className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                     filter === item.key
-                      ? "bg-white text-slate-950"
+                      ? "bg-cyan-400 text-slate-950"
                       : "border border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
                   }`}
                 >
@@ -220,7 +219,7 @@ export default function PlayerOrdersPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
             {mainTab === "ongoing"
               ? `${counts.ongoing} ongoing order(s)`
               : `${counts.fulfilled} fulfilled order(s)`}
@@ -245,31 +244,31 @@ export default function PlayerOrdersPage() {
                   <Link
                     key={order.id}
                     href={detailHref}
-                    className="block rounded-[28px] border border-white/10 bg-white/[0.04] p-5 transition hover:border-cyan-300/20 hover:bg-white/[0.08]"
+                    className="block rounded-[28px] border border-white/10 bg-white/[0.04] p-5 transition hover:border-cyan-400/30 hover:bg-white/[0.08]"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-3">
                           <p className="text-3xl font-semibold">
-                            {order.amount.toLocaleString()} DH
+                            {order.amount.toLocaleString()} <span className="text-xl font-normal text-white/60">DH</span>
                           </p>
                           <StatusBadge status={order.status} />
                           {hasUnread ? (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-amber-300/15 px-3 py-1 text-xs font-semibold text-amber-100">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200">
                               <MessageCircleMore size={14} />
-                              Unread message
+                              New message
                             </span>
                           ) : null}
                         </div>
 
                         <p className="mt-3 text-sm text-white/65">
-                          {order.paymentMethodName || "Method pending"} •{" "}
+                          <span className="font-medium text-white/80">{order.paymentMethodName || "Method pending"}</span> •{" "}
                           {order.gosportUsername || "Username pending"}
                         </p>
 
                         <div className="mt-4 grid gap-2 text-sm text-white/50 md:grid-cols-2 xl:grid-cols-4">
                           <p>
-                            <span className="text-white/35">Order:</span> {order.id}
+                            <span className="text-white/35">Order:</span> {order.id.split('-')[0]}
                           </p>
                           <p>
                             <span className="text-white/35">Created:</span>{" "}
@@ -279,28 +278,36 @@ export default function PlayerOrdersPage() {
                             <span className="text-white/35">Updated:</span>{" "}
                             {formatDate(order.updatedAt || order.createdAt)}
                           </p>
-                          <p>
+                          <p className="capitalize">
                             <span className="text-white/35">Flow:</span>{" "}
                             {getFilterTab(order).replaceAll("_", " ")}
                           </p>
                         </div>
 
-                        {order.status === "agent_approved_waiting_player" ? (
-  <p className="mt-4 text-sm text-emerald-200">
-    Payment was reviewed. Open the order and confirm recharge received.
-  </p>
-) : null}
+                        {/* التوجيهات الدقيقة بناءً على الحالات الأمنية الجديدة */}
+                        {order.status === "pending_payment" && (
+                          <div className="mt-4 flex items-center gap-2 text-sm text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-xl inline-flex">
+                            <Clock size={16} /> Waiting for your payment. Open to view details and upload receipt.
+                          </div>
+                        )}
 
-{order.status === "proof_uploaded" || order.status === "pending_payment" || order.status === "flagged_for_review" ? (
-  <p className="mt-4 text-sm text-amber-100">
-    Proof was sent by the player. Waiting for agent review.
-  </p>
-) : null}
+{(order.status === "proof_uploaded" || order.status === "flagged_for_review") && (
+  <div className="mt-4 flex items-center gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl inline-flex">
+    <Clock size={16} /> Proof submitted. Waiting for agent to verify and release.
+  </div>
+)}
+
+{order.status === "agent_approved_waiting_player" && (
+  <div className="mt-4 flex items-center gap-2 text-sm text-emerald-200 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl inline-flex">
+    <ShieldCheck size={16} /> Payment verified by agent. Open to confirm recharge receipt.
+  </div>
+)}
+                        
                       </div>
 
                       <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
-                        <span className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/80">
-                          View details
+                        <span className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition text-center">
+                          {order.status === "pending_payment" ? "Pay Now" : "View Details"}
                         </span>
                       </div>
                     </div>

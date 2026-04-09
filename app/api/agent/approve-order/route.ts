@@ -16,44 +16,84 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "orderId is required" }, { status: 400 });
     }
 
-    const order = await prisma.order.findUnique({ where: { id: String(orderId) } });
-    if (!order) {
-      return NextResponse.json({ message: "Order not found" }, { status: 404 });
-    }
-
-    if (!["proof_uploaded", "pending"].includes(order.status)) {
-      return NextResponse.json({ message: "Order must be in proof_uploaded or pending state" }, { status: 400 });
-    }
-
-    const updated = await prisma.order.update({
-      where: { id: String(orderId) },
-      data: {
-        status: "agent_approved_waiting_player",
-        updatedAt: new Date(),
-      },
-    });
-
-    const playerUser = await prisma.user.findFirst({ where: { email: order.playerEmail, role: "PLAYER" } });
-    if (playerUser) {
-      await createNotification({
-        targetRole: "player",
-        targetId: playerUser.id,
-        title: "Order approved",
-        message: `Your agent approved order ${order.id}.`,
+    // استخدام Transaction لضمان أن جميع العمليات المالية تتم معاً أو تفشل معاً
+    return await prisma.$transaction(async (tx) => {
+      
+      // 1. جلب الطلب مع محفظة الوكيل
+      const order = await tx.order.findUnique({ 
+        where: { id: String(orderId) },
+        include: { agent: { include: { wallet: true } } }
       });
-    }
 
-    return NextResponse.json({
-      message: "Order approved successfully ✅",
-      order: {
-        ...updated,
-        created_at: updated.createdAt,
-        updated_at: updated.updatedAt,
-      },
+      if (!order) throw new Error("Order not found");
+      if (!order.agent.wallet) throw new Error("Agent wallet not found");
+
+      // 2. التحقق من الحالة ومنع الخصم المزدوج
+      if (order.status !== "proof_uploaded") {
+        throw new Error("Order must be in proof_uploaded state to approve");
+      }
+      if (order.walletDeducted) {
+        throw new Error("Funds already deducted for this order");
+      }
+
+      // 3. التحقق من كفاية الرصيد (Available Balance)
+      if (order.agent.wallet.balance < order.amount) {
+        throw new Error(`Insufficient balance. Available: ${order.agent.wallet.balance} DH`);
+      }
+
+      // 4. الخصم من المحفظة وتحديث سجل العمليات (Ledger)
+      const updatedWallet = await tx.wallet.update({
+        where: { agentId: order.agentId },
+        data: {
+          balance: { decrement: order.amount },
+          ledger: {
+            create: {
+              type: "debit",
+              amount: order.amount,
+              reason: `Order Approval: ${order.id.split('-')[0]}`,
+              meta: { orderId: order.id, playerEmail: order.playerEmail }
+            }
+          }
+        }
+      });
+
+      // 5. تحديث حالة الطلب وعلامة الخصم المالي
+      const updatedOrder = await tx.order.update({
+        where: { id: String(orderId) },
+        data: {
+          status: "agent_approved_waiting_player",
+          walletDeducted: true,
+          updatedAt: new Date(),
+        },
+      });
+
+      // 6. تحديث إحصائيات الوكيل (Trades Count)
+      await tx.agent.update({
+        where: { id: order.agentId },
+        data: { tradesCount: { increment: 1 } }
+      });
+
+      // 7. إرسال الإشعارات
+      const playerUser = await tx.user.findFirst({ where: { email: order.playerEmail, role: "PLAYER" } });
+      if (playerUser) {
+        await createNotification({
+          targetRole: "player",
+          targetId: playerUser.id,
+          title: "Order Approved ✅",
+          message: `Your agent approved your ${order.amount} DH recharge. Please confirm receipt.`,
+        });
+      }
+
+      return NextResponse.json({
+        message: "Order approved & balance deducted successfully ✅",
+        order: updatedOrder,
+      });
     });
-  } catch (error) {
-    console.error("APPROVE ORDER ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+
+  } catch (error: any) {
+    console.error("APPROVE ORDER TRANSACTION ERROR:", error);
+    return NextResponse.json({ 
+      message: error.message || "Something went wrong during approval." 
+    }, { status: 400 });
   }
 }
