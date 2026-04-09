@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, MessageCircleMore, Clock } from "lucide-react";
+import { Search, SlidersHorizontal, MessageCircleMore, Clock, ShieldCheck } from "lucide-react";
 import {
   EmptyState,
   GlassCard,
