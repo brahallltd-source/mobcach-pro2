@@ -284,8 +284,8 @@ export function SidebarShell({
           </div>
 
           {open ? (
-            <div className="fixed inset-0 z-50 bg-black/50 p-4 lg:hidden">
-              <GlassCard className="max-h-[90vh] overflow-y-auto p-4">
+            <div className="fixed inset-0 z-50 bg-slate-950/90 p-4 backdrop-blur-md lg:hidden">
+              <div className="max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0B0F19] p-5 shadow-2xl">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3 text-lg font-semibold">
                     <BrandMark />
@@ -329,7 +329,7 @@ export function SidebarShell({
                   <LogOut size={16} />
                   Logout
                 </button>
-              </GlassCard>
+              </div>
             </div>
           ) : null}
 
