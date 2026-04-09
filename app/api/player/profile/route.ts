@@ -17,30 +17,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "Email is required", profile: null }, { status: 400 });
     }
 
-    // البحث في قاعدة بيانات Prisma بدلاً من ملفات JSON
     const user = await prisma.user.findFirst({
       where: { email: email, role: "PLAYER" },
-      include: { player: true } // جلب بيانات الـ Player المرتبطة به
+      include: { player: true } 
     });
 
-    if (!user) {
-      return NextResponse.json({ message: "Player user not found", profile: null }, { status: 404 });
-    }
-
-    if (!user.player) {
+    if (!user || !user.player) {
       return NextResponse.json({ message: "Player profile not found", profile: null }, { status: 404 });
     }
 
-    // إرجاع البيانات بنفس الهيكلة التي تتوقعها واجهة المستخدم
+    // إرجاع كافة البيانات مع توفير دعم للحقول القديمة (snake_case) والجديدة (camelCase)
+    // ووضع "—" إذا كان الحقل فارغاً في قاعدة البيانات
     return NextResponse.json({ 
       profile: { 
         user_id: user.id, 
         email: user.email, 
-        phone: user.player.phone,
-        firstName: user.player.firstName,
-        lastName: user.player.lastName,
-        status: user.player.status,
-        assigned_agent_id: user.player.assignedAgentId
+        phone: user.player.phone || "—",
+        firstName: user.player.firstName || "—",
+        first_name: user.player.firstName || "—",
+        lastName: user.player.lastName || "—",
+        last_name: user.player.lastName || "—",
+        username: user.player.username || "—",
+        dateOfBirth: user.player.dateOfBirth ? new Date(user.player.dateOfBirth).toLocaleDateString() : "—",
+        dob: user.player.dateOfBirth ? new Date(user.player.dateOfBirth).toLocaleDateString() : "—",
+        city: user.player.city || "—",
+        country: user.player.country || "—",
+        status: user.player.status || "inactive",
+        assigned_agent_id: user.player.assignedAgentId || "—"
       } 
     });
 
