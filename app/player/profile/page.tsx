@@ -1,109 +1,125 @@
-"use client";
+import { NextResponse } from "next/server";
+import { getPrisma } from "@/lib/db";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { DangerButton, GlassCard, PageHeader, PrimaryButton, SidebarShell, TextField } from "@/components/ui";
-import { useLanguage } from "@/components/language";
+export const runtime = "nodejs";
 
-type CurrentUser = { id: string; email: string; role: string };
-type PlayerProfile = { user_id: string; email: string; first_name: string; last_name: string; username: string; phone: string; city: string; country: string; date_of_birth: string; status: string; assigned_agent_id: string };
-
-export default function PlayerProfilePage() {
-  const { t } = useLanguage();
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [profile, setProfile] = useState<PlayerProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-
-  const loadProfile = async (userEmail: string) => {
-    const res = await fetch(`/api/player/profile?email=${encodeURIComponent(userEmail)}`, { cache: "no-store" });
-    const data = await res.json();
-    setProfile(data.profile || null);
-    if (data.profile) {
-      setEmail(data.profile.email || "");
-      setPhone(data.profile.phone || "");
+export async function GET(req: Request) {
+  try {
+    const prisma = getPrisma();
+    if (!prisma) {
+      return NextResponse.json({ message: "Database not available", profile: null }, { status: 500 });
     }
-  };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const parsed: CurrentUser = JSON.parse(saved);
-    if (parsed.role !== "player") return void (window.location.href = "/login");
-    setCurrentUser(parsed);
-    loadProfile(parsed.email).finally(() => setLoading(false));
-  }, []);
+    const { searchParams } = new URL(req.url);
+    const email = String(searchParams.get("email") || "").trim().toLowerCase();
 
-  const save = async () => {
-    if (!currentUser) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/player/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentEmail: currentUser.email, newEmail: email, newPhone: phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.message || "Failed to update profile");
-        setSaving(false);
-        return;
-      }
-      if (data.user) {
-        localStorage.setItem("mobcash_user", JSON.stringify(data.user));
-        setCurrentUser(data.user);
-      }
-      await loadProfile(data.user?.email || email);
-      alert(data.message || "Profile updated");
-    } catch (error) {
-      console.error(error);
-      alert("Network error");
+    if (!email) {
+      return NextResponse.json({ message: "Email is required", profile: null }, { status: 400 });
     }
-    setSaving(false);
-  };
 
-  const logout = () => {
-    fetch("/api/logout", { method: "POST", credentials: "include" }).finally(() => {
-      localStorage.removeItem("mobcash_user");
-      window.location.href = "/login";
+    // البحث في قاعدة بيانات Prisma بدلاً من ملفات JSON
+    const user = await prisma.user.findFirst({
+      where: { email: email, role: "PLAYER" },
+      include: { player: true } // جلب بيانات الـ Player المرتبطة به
     });
-  };
 
-  if (loading) return <SidebarShell role="player"><GlassCard className="p-12 text-center">Loading profile...</GlassCard></SidebarShell>;
-  if (!profile) return <SidebarShell role="player"><GlassCard className="p-12 text-center">Profile not found.</GlassCard></SidebarShell>;
+    if (!user) {
+      return NextResponse.json({ message: "Player user not found", profile: null }, { status: 404 });
+    }
 
-  return (
-    <SidebarShell role="player">
-      <PageHeader title={t("myProfile")} subtitle="Update your contact information, switch your assigned agent and access logout in one clear place." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <GlassCard className="p-6">
-          <h2 className="text-2xl font-semibold">Basic information</h2>
-          <div className="mt-5 grid gap-3 text-sm text-white/75">
-            <p><span className="text-white/45">First Name:</span> {profile.first_name}</p>
-            <p><span className="text-white/45">Last Name:</span> {profile.last_name}</p>
-            <p><span className="text-white/45">Username:</span> {profile.username}</p>
-            <p><span className="text-white/45">Date of Birth:</span> {profile.date_of_birth}</p>
-            <p><span className="text-white/45">City:</span> {profile.city}</p>
-            <p><span className="text-white/45">Country:</span> {profile.country}</p>
-            <p><span className="text-white/45">Status:</span> {profile.status}</p>
-            <p><span className="text-white/45">Assigned Agent ID:</span> {profile.assigned_agent_id || "Not assigned"}</p>
-          </div>
-        </GlassCard>
-        <GlassCard className="p-6">
-          <h2 className="text-2xl font-semibold">Editable contact info</h2>
-          <div className="mt-5 space-y-4">
-            <TextField type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <TextField placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            <PrimaryButton onClick={save} disabled={saving} className="w-full">{saving ? "Saving..." : "Save changes"}</PrimaryButton>
-            <Link href="/player/select-agent" className="block">
-              <PrimaryButton className="w-full bg-cyan-200 text-slate-950 hover:bg-cyan-100">{t("changeAgent")}</PrimaryButton>
-            </Link>
-            <DangerButton onClick={logout} className="w-full">Logout</DangerButton>
-          </div>
-        </GlassCard>
-      </div>
-    </SidebarShell>
-  );
+    if (!user.player) {
+      return NextResponse.json({ message: "Player profile not found", profile: null }, { status: 404 });
+    }
+
+    // إرجاع البيانات بنفس الهيكلة التي تتوقعها واجهة المستخدم
+    return NextResponse.json({ 
+      profile: { 
+        user_id: user.id, 
+        email: user.email, 
+        phone: user.player.phone,
+        firstName: user.player.firstName,
+        lastName: user.player.lastName,
+        status: user.player.status,
+        assigned_agent_id: user.player.assignedAgentId
+      } 
+    });
+
+  } catch (error) {
+    console.error("GET PLAYER PROFILE ERROR:", error);
+    return NextResponse.json({ 
+      message: "Something went wrong. We could not complete your request right now.", 
+      profile: null 
+    }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const prisma = getPrisma();
+    if (!prisma) {
+      return NextResponse.json({ message: "Database not available" }, { status: 500 });
+    }
+
+    const { currentEmail, newEmail, newPhone } = await req.json();
+
+    if (!currentEmail || !newEmail || !newPhone) {
+      return NextResponse.json({ message: "currentEmail, newEmail and newPhone are required" }, { status: 400 });
+    }
+
+    const currEmailClean = String(currentEmail).trim().toLowerCase();
+    const newEmailClean = String(newEmail).trim().toLowerCase();
+
+    // 1. جلب المستخدم الحالي
+    const user = await prisma.user.findFirst({
+      where: { email: currEmailClean, role: "PLAYER" },
+      include: { player: true }
+    });
+
+    if (!user || !user.player) {
+      return NextResponse.json({ message: "Player profile not found" }, { status: 404 });
+    }
+
+    // 2. التحقق من أن الإيميل الجديد غير مستخدم من طرف شخص آخر
+    if (currEmailClean !== newEmailClean) {
+      const emailTaken = await prisma.user.findUnique({
+        where: { email: newEmailClean }
+      });
+      if (emailTaken) {
+        return NextResponse.json({ message: "This email is already used by another account" }, { status: 400 });
+      }
+    }
+
+    // 3. تحديث البيانات في قاعدة البيانات باستخدام Transaction لضمان تزامن التحديث
+    const [updatedUser, updatedPlayer] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { email: newEmailClean }
+      }),
+      prisma.player.update({
+        where: { userId: user.id },
+        data: { phone: String(newPhone).trim() }
+      })
+    ]);
+
+    return NextResponse.json({ 
+      message: "Profile updated successfully ✅", 
+      user: { 
+        id: updatedUser.id, 
+        email: updatedUser.email, 
+        role: updatedUser.role.toLowerCase(), 
+        player_status: updatedPlayer.status || "inactive", 
+        assigned_agent_id: updatedPlayer.assignedAgentId || "" 
+      }, 
+      profile: { 
+        email: updatedUser.email, 
+        phone: updatedPlayer.phone 
+      } 
+    });
+
+  } catch (error) {
+    console.error("UPDATE PLAYER PROFILE ERROR:", error);
+    return NextResponse.json({ 
+      message: "Something went wrong. We could not complete your request right now." 
+    }, { status: 500 });
+  }
 }
