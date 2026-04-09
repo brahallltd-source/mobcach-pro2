@@ -11,7 +11,7 @@ export async function GET() {
   if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
 
   try {
-    const methods = await prisma.paymentMethod.findMany({
+    const dbMethods = await prisma.paymentMethod.findMany({
       where: {
         ownerRole: "ADMIN",
       },
@@ -20,14 +20,29 @@ export async function GET() {
       },
     });
 
+    const methods = dbMethods.map(m => ({
+      id: m.id,
+      type: m.type,
+      method_name: m.methodName,
+      currency: m.currency,
+      account_name: m.accountName || "",
+      rib: m.rib || "",
+      wallet_address: m.walletAddress || "",
+      network: m.network || "",
+      phone: m.phone || "",
+      active: m.active,
+      // نضع الحقول غير الموجودة في قاعدة البيانات كفراغ لتتطابق مع الواجهة بدون أخطاء
+      bank_name: "",
+      provider: "",
+      city: "",
+      instructions: "",
+    }));
+
     return NextResponse.json({ methods });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS GET ERROR:", error);
     return NextResponse.json(
-      {
-        message: "Something went wrong. Please try again.",
-        methods: [],
-      },
+      { message: "Something went wrong. Please try again.", methods: [] },
       { status: 500 }
     );
   }
@@ -44,7 +59,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "method_name is required" }, { status: 400 });
     }
 
-    // ⚠️ hack: نحتاج agentId
     const fallbackAgent = await prisma.agent.findFirst();
 
     if (!fallbackAgent) {
@@ -58,20 +72,16 @@ export async function POST(req: Request) {
       data: {
         ownerRole: "ADMIN",
         ownerId: "SYSTEM",
-
         type: body.type || "bank",
         methodName: body.method_name,
         currency: body.currency || "MAD",
-
         accountName: body.account_name || null,
         rib: body.rib || null,
         walletAddress: body.wallet_address || null,
         network: body.network || null,
         phone: body.phone || null,
-
         active: body.active !== false,
-
-        agentId: fallbackAgent.id, // مهم
+        agentId: fallbackAgent.id,
       },
     });
 
@@ -82,9 +92,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS POST ERROR:", error);
     return NextResponse.json(
-      {
-        message: "Something went wrong. Please try again.",
-      },
+      { message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
@@ -105,15 +113,13 @@ export async function PATCH(req: Request) {
     });
 
     return NextResponse.json({
-      message: "Payment method updated successfully",
+      message: "Payment method status updated successfully",
       method,
     });
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PATCH ERROR:", error);
     return NextResponse.json(
-      {
-        message: "Something went wrong. Please try again.",
-      },
+      { message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
@@ -126,19 +132,21 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json();
 
+    if (!body.id) {
+      return NextResponse.json({ message: "method ID is required for updating" }, { status: 400 });
+    }
+
     const method = await prisma.paymentMethod.update({
-      where: { id: body.methodId },
+      where: { id: body.id },
       data: {
         type: body.type,
         methodName: body.method_name,
         currency: body.currency,
-
         accountName: body.account_name ?? null,
         rib: body.rib ?? null,
         walletAddress: body.wallet_address ?? null,
         network: body.network ?? null,
         phone: body.phone ?? null,
-
         active: body.active !== false,
       },
     });
@@ -150,9 +158,7 @@ export async function PUT(req: Request) {
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS PUT ERROR:", error);
     return NextResponse.json(
-      {
-        message: "Something went wrong. Please try again.",
-      },
+      { message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
@@ -180,9 +186,7 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("ADMIN PAYMENT METHODS DELETE ERROR:", error);
     return NextResponse.json(
-      {
-        message: "Something went wrong. Please try again.",
-      },
+      { message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
