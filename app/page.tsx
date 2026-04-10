@@ -126,8 +126,6 @@ export default function HomePage() {
 
   return (
     <Shell>
-
-  
       <div className="mx-auto max-w-7xl space-y-8">
         <GlassCard className="overflow-hidden px-5 py-7 md:px-8 md:py-9 xl:px-10">
           <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
@@ -184,9 +182,7 @@ export default function HomePage() {
                   <GlassCard className="overflow-hidden p-4 transition hover:bg-white/[0.08]">
                     <div className="grid gap-5 md:grid-cols-[0.56fr_0.44fr] md:items-center">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
-                          Live banner
-                        </p>
+                        {/* تم حذف كلمة Live Banner من هنا */}
                         <h2 className="mt-3 text-xl font-semibold md:text-2xl">
                           {currentBanner.title}
                         </h2>
@@ -220,6 +216,7 @@ export default function HomePage() {
           </div>
         </GlassCard>
 
+        {/* بقية العناصر كما هي... */}
         <div className="grid gap-4 md:grid-cols-3">
           {flow.map((item) => (
             <GlassCard key={item.step} className="p-5 md:p-6">
