@@ -35,16 +35,20 @@ import {
 } from "lucide-react";
 import { LanguageSwitcher, useLanguage } from "@/components/language";
 
+// 1. تحديث النوع ليشمل صور الـ Hero
 type Branding = {
   brandName: string;
   logoUrl: string;
+  heroImages: string[];
 };
 
 const defaultBranding: Branding = {
   brandName: "GS365Cash",
   logoUrl: "",
+  heroImages: [],
 };
 
+// 2. إصلاح جلب البيانات ليشمل كافة عناصر الهوية
 function useBranding() {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
 
@@ -53,11 +57,16 @@ function useBranding() {
       try {
         const res = await fetch("/api/admin/branding", { cache: "no-store" });
         const data = await res.json();
-        setBranding({
-          brandName: data?.branding?.brandName || defaultBranding.brandName,
-          logoUrl: data?.branding?.logoUrl || "",
-        });
-      } catch {}
+        if (data?.branding) {
+          setBranding({
+            brandName: data.branding.brandName || defaultBranding.brandName,
+            logoUrl: data.branding.logoUrl || "",
+            heroImages: data.branding.heroImages || [],
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load branding in UI components", err);
+      }
     };
 
     void load();
@@ -96,7 +105,7 @@ export function GlassCard({
   return (
     <div
       className={clsx(
-        "rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-glass",
+        "relative rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-glass",
         className
       )}
     >
@@ -139,6 +148,7 @@ export function PageHeader({
   );
 }
 
+// 3. تعديل الـ Shell لربط الشعار بالرئيسية
 export function Shell({ children }: { children: ReactNode }) {
   const { dir } = useLanguage();
   const branding = useBranding();
@@ -147,13 +157,17 @@ export function Shell({ children }: { children: ReactNode }) {
     <main dir={dir} className="min-h-screen bg-hero px-4 py-6 text-white md:px-6">
       <div className="mx-auto mb-4 flex max-w-7xl items-center justify-between">
         <div className="flex items-center">
-          {branding.logoUrl ? (
-            <img
-              src={branding.logoUrl}
-              alt={branding.brandName}
-              className="h-16 md:h-20 xl:h-24 object-contain"
-            />
-          ) : null}
+          <Link href="/" className="transition hover:opacity-80">
+            {branding.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={branding.brandName}
+                className="h-16 md:h-20 xl:h-24 object-contain"
+              />
+            ) : (
+              <span className="text-2xl font-bold tracking-tighter">{branding.brandName}</span>
+            )}
+          </Link>
         </div>
 
         <LanguageSwitcher />
@@ -207,6 +221,7 @@ function getNav(role: Role, t: ReturnType<typeof useLanguage>["t"]) {
   return admin;
 }
 
+// 4. تعديل الـ SidebarShell لربط الشعار بالرئيسية
 export function SidebarShell({
   children,
   role,
@@ -233,10 +248,11 @@ export function SidebarShell({
         <aside className="hidden w-72 shrink-0 lg:block">
           <GlassCard className="sticky top-5 p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-lg font-semibold">
+              {/*https://gs365cash.com*/}
+              <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
                 <BrandMark />
                 <span>{branding.brandName}</span>
-              </div>
+              </Link>
               <LanguageSwitcher />
             </div>
 
@@ -287,10 +303,11 @@ export function SidebarShell({
             <div className="fixed inset-0 z-50 bg-slate-950/90 p-4 backdrop-blur-md lg:hidden">
               <div className="max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0B0F19] p-5 shadow-2xl">
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-lg font-semibold">
+                  {/* ✅ رابط العودة للرئيسية للموبايل */}
+                  <Link href="/" onClick={() => setOpen(false)} className="flex items-center gap-3 text-lg font-semibold">
                     <BrandMark />
                     <span>{branding.brandName}</span>
-                  </div>
+                  </Link>
                   <button
                     onClick={() => setOpen(false)}
                     className="rounded-2xl border border-white/10 bg-white/5 p-2"
@@ -365,6 +382,8 @@ export function SidebarShell({
     </main>
   );
 }
+
+// ... بقية المكونات (TextField, StatCard, إلخ) تظل كما هي ...
 
 export function TextField(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
