@@ -21,7 +21,7 @@ export default function AgentOrderDetailPage() {
   const [order, setOrder] = useState<any>(null);
   const [agentData, setAgentData] = useState<any>(null);
   const [message, setMessage] = useState("");
-  const [cancelReason, setCancelReason] = useState(""); // سبب الإلغاء
+  const [cancelReason, setCancelReason] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,15 +33,15 @@ export default function AgentOrderDetailPage() {
 
     try {
       const [orderRes, profileRes] = await Promise.all([
-        fetch(`/api/order-messages?orderId=${params.orderId}`), // تم تعديل الرابط ليطابق الـ API الموجود
-        fetch(`/api/agent/wallet?agentId=${user.agentId}`) // جلب المحفظة الحقيقية
+        fetch(`/api/order-messages?orderId=${params.orderId}`),
+        fetch(`/api/agent/wallet?agentId=${user.agentId}`)
       ]);
       
       const oData = await orderRes.json();
       const pData = await profileRes.json();
       
       setOrder(oData.order || null);
-      setAgentData(pData.wallet || null); // نعتمد على رصيد المحفظة
+      setAgentData(pData.wallet || null);
     } catch (error) {
       console.error(error);
     } finally {
@@ -55,13 +55,45 @@ export default function AgentOrderDetailPage() {
     return () => clearInterval(timer);
   }, [params.orderId]);
 
-  // دالة الإلغاء مع إرسال الرسالة
+  // ✅ تعريف دالة postAction المفقودة
+  const postAction = async (url: string, body: any) => {
+    setBusy(true);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) { 
+        await load(); 
+        setMessage(""); 
+      } else {
+        const err = await res.json();
+        alert(err.message || "Action failed");
+      }
+    } catch (error) {
+      alert("Network error");
+    } finally { setBusy(false); }
+  };
+
+  // ✅ تعريف دالة إرسال الرسائل
+  const handleSendMessage = () => {
+    if (!message.trim()) return;
+    postAction("/api/order-messages", { 
+      orderId: order.id, 
+      senderRole: "agent", 
+      message: message 
+    });
+  };
+
+  // ✅ دالة الإلغاء
   const handleReject = async () => {
     if (!cancelReason.trim()) return alert("يرجى كتابة سبب الإلغاء");
     setBusy(true);
     try {
-      const res = await fetch("/api/agent/reject-order", { // سننشئ هذا الـ API
+      const res = await fetch("/api/agent/reject-order", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           orderId: order.id, 
           reason: cancelReason 
@@ -82,7 +114,7 @@ export default function AgentOrderDetailPage() {
   return (
     <SidebarShell role="agent">
       <PageHeader
-        title={`Order Details`}
+        title={`Review Order`}
         subtitle={`ID: ${order.id.split('-')[0]}`}
         action={<StatusBadge status={order.status} />}
       />
@@ -97,7 +129,7 @@ export default function AgentOrderDetailPage() {
                 <p className="font-bold text-cyan-400">{order.gosportUsername}</p>
               </div>
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                <p className="text-xs opacity-50">AMOUNT TO RECHARGE</p>
+                <p className="text-xs opacity-50">AMOUNT</p>
                 <p className="text-xl font-bold">{order.amount} DH</p>
               </div>
             </div>
@@ -109,7 +141,6 @@ export default function AgentOrderDetailPage() {
               </div>
             )}
 
-            {/* الأزرار بناءً على الحالة والرصيد */}
             {order.status === "proof_uploaded" && (
               <div className="mt-8 flex flex-col gap-3">
                 {!hasEnoughBalance && (
@@ -137,7 +168,6 @@ export default function AgentOrderDetailPage() {
           </GlassCard>
         </div>
 
-        {/* الشات */}
         <GlassCard className="p-6 flex flex-col h-[600px]">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-cyan-400">
             <MessageCircle size={20} /> Live Chat
@@ -151,21 +181,20 @@ export default function AgentOrderDetailPage() {
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-white/10 flex gap-2">
-            <TextArea value={message} onChange={e => setMessage(e.target.value)} placeholder="اكتب رسالة للاعب..." className="min-h-[45px] py-2" />
+            <TextArea value={message} onChange={e => setMessage(e.target.value)} placeholder="Type a message..." className="min-h-[45px] py-2" />
             <PrimaryButton onClick={handleSendMessage} disabled={busy || !message.trim()}>Send</PrimaryButton>
           </div>
         </GlassCard>
       </div>
 
-      {/* Modal إلغاء الطلب */}
       {showCancelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <GlassCard className="w-full max-w-md p-6">
             <h3 className="text-xl font-bold mb-4 text-red-400">إلغاء الطلب</h3>
-            <p className="text-sm text-white/60 mb-4">يرجى كتابة سبب الإلغاء، سيتم إرساله كرسالة تلقائية للاعب:</p>
+            <p className="text-sm text-white/60 mb-4">اكتب السبب (سيرسل للاعب):</p>
             <TextArea 
               rows={4} 
-              placeholder="مثال: وصل التحويل غير واضح، أو الاسم غير مطابق..." 
+              placeholder="مثال: الوصل غير واضح..." 
               value={cancelReason}
               onChange={e => setCancelReason(e.target.value)}
             />
