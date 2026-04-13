@@ -48,19 +48,19 @@ const defaultBranding: Branding = {
   heroImages: [],
 };
 
-// 2. إصلاح جلب البيانات ليشمل كافة عناصر الهوية
 function useBranding() {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
 
   useEffect(() => {
     const load = async () => {
       try {
-        // إضافة عامل عشوائي (Timestamp) لكسر كاش المتصفح نهائياً
-        const res = await fetch(`/api/admin/branding?update=${Date.now()}`, { 
+        // قمنا بتغيير الرابط لإضافة v= لضمان كسر الكاش وتحديث الهوية فوراً
+        const res = await fetch(`/api/admin/branding?v=${Date.now()}`, { 
           cache: "no-store",
           headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         });
         
@@ -69,10 +69,10 @@ function useBranding() {
         if (data?.branding) {
           setBranding({
             ...defaultBranding,
-            ...data.branding // سيقوم هذا بدمج اللوجو، الاسم، وصور الـ Hero تلقائياً
+            ...data.branding 
           });
           
-          // تحديث التخزين المحلي لضمان التزامن
+          // تحديث التخزين المحلي لضمان التزامن في المتصفح
           localStorage.setItem("mobcash_branding", JSON.stringify(data.branding));
         }
       } catch (err) {

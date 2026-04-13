@@ -22,45 +22,35 @@ const defaultBranding = {
   primaryCta: "Start Recharge",
   secondaryCta: "Become an Agent",
   heroImages: ["/hero/hero-1.svg", "/hero/hero-2.svg"],
-  banners: [
-    {
-      title: "Fast recharge flow",
-      subtitle: "Choose your agent and upload your proof in a clear guided flow.",
-      image: "/hero/hero-1.svg",
-      link: "/register/player",
-      active: true,
-    },
-    {
-      title: "Join as an agent",
-      subtitle: "Operate your wallet, payment methods and orders from one workspace.",
-      image: "/hero/hero-2.svg",
-      link: "/apply/agent",
-      active: true,
-    },
-  ],
+  banners: [],
 };
 
 async function uploadIfNeeded(value: string, folder: string) {
   const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (!raw.startsWith("data:image/")) return raw;
+  if (!raw || !raw.startsWith("data:image/")) return raw;
 
-  const uploaded = await cloudinary.uploader.upload(raw, {
-    folder,
-    resource_type: "image",
-  });
-
-  return uploaded.secure_url;
+  try {
+    const uploaded = await cloudinary.uploader.upload(raw, {
+      folder,
+      resource_type: "image",
+    });
+    return uploaded.secure_url;
+  } catch (err) {
+    console.error("Cloudinary Upload Error:", err);
+    return raw;
+  }
 }
 
 async function normalizeBranding(input: any) {
   const heroImages = Array.isArray(input.heroImages) ? [...input.heroImages] : [];
   const banners = Array.isArray(input.banners) ? [...input.banners] : [];
 
+  const normalizedLogo = await uploadIfNeeded(input.logoUrl, "mobcash/branding/logo");
+
   const normalizedHeroImages = await Promise.all(
     [0, 1].map(async (index) => {
       const item = String(heroImages[index] || "").trim();
-      if (!item) return defaultBranding.heroImages[index] || "";
+      if (!item || !item.startsWith("data:image/")) return item || (defaultBranding.heroImages[index] || "");
       return uploadIfNeeded(item, "mobcash/branding/hero");
     })
   );
@@ -69,10 +59,7 @@ async function normalizeBranding(input: any) {
     banners.map(async (banner: any, index: number) => ({
       title: String(banner?.title || "").trim(),
       subtitle: String(banner?.subtitle || "").trim(),
-      image: await uploadIfNeeded(
-        String(banner?.image || "").trim(),
-        "mobcash/branding/banners"
-      ),
+      image: await uploadIfNeeded(String(banner?.image || "").trim(), "mobcash/branding/banners"),
       link: String(banner?.link || "").trim(),
       active: banner?.active !== false,
       order: index,
@@ -81,66 +68,46 @@ async function normalizeBranding(input: any) {
 
   return {
     brandName: String(input.brandName || defaultBranding.brandName).trim(),
-    logoUrl: await uploadIfNeeded(
-      String(input.logoUrl || "").trim(),
-      "mobcash/branding/logo"
-    ),
+    logoUrl: normalizedLogo,
     heroTitle: String(input.heroTitle || defaultBranding.heroTitle).trim(),
     heroBody: String(input.heroBody || defaultBranding.heroBody).trim(),
     primaryCta: String(input.primaryCta || defaultBranding.primaryCta).trim(),
     secondaryCta: String(input.secondaryCta || defaultBranding.secondaryCta).trim(),
     heroImages: normalizedHeroImages,
-    banners:
-      normalizedBanners.length > 0 ? normalizedBanners : defaultBranding.banners,
+    banners: normalizedBanners.length > 0 ? normalizedBanners : defaultBranding.banners,
   };
 }
 
 export async function GET() {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json({ branding: defaultBranding }, { status: 200 });
-    }
+    if (!prisma) return NextResponse.json({ branding: defaultBranding });
 
     const latest = await prisma.auditLog.findFirst({
-      where: {
-        action: "branding_updated",
-        entityType: "branding",
-        entityId: "global",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { action: "branding_updated", entityType: "branding" },
+      orderBy: { createdAt: "desc" },
     });
 
-    if (!latest?.meta) {
-      return NextResponse.json({ branding: defaultBranding }, { status: 200 });
-    }
+    if (!latest?.meta) return NextResponse.json({ branding: defaultBranding });
 
+    // التأكد من دمج البيانات المحفوظة مع القيم الافتراضية بدقة
+    const saved = latest.meta as any;
     return NextResponse.json({
       branding: {
         ...defaultBranding,
-        ...(latest.meta as Record<string, any>),
+        ...saved,
       },
     });
   } catch (error) {
-    console.error("GET BRANDING ERROR:", error);
-    return NextResponse.json({ branding: defaultBranding }, { status: 200 });
+    return NextResponse.json({ branding: defaultBranding });
   }
 }
 
 export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json(
-        { message: "Database not available" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
-    const normalized = await normalizeBranding(body);
+    const normalized = await normalizeBranding(body.branding || body);
 
     await prisma.auditLog.create({
       data: {
@@ -151,18 +118,8 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({
-      message: "Branding saved successfully",
-      branding: normalized,
-    });
-  } catch (error) {
-    console.error("POST BRANDING ERROR:", error);
-    return NextResponse.json(
-      {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Saved", branding: normalized });
+  } catch (error: any) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
