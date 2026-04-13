@@ -77,21 +77,18 @@ export default function AdminBrandingPage() {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
   const [saving, setSaving] = useState(false);
 
-  // Refs للتحكم في أزرار الرفع
   const heroInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const bannerInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. إصلاح جلب البيانات: تحديث الـ State عند التحميل
   useEffect(() => {
     const load = async () => {
       try {
         const res = await fetch("/api/admin/branding", { cache: "no-store" });
         const data = await res.json();
         if (data.branding) {
-          const mergedData = { ...defaultBranding, ...data.branding };
-          setBranding(mergedData);
-          localStorage.setItem("mobcash_branding", JSON.stringify(mergedData));
+          // دمج البيانات مع الافتراضية لضمان عدم وجود قيم undefined
+          setBranding({ ...defaultBranding, ...data.branding });
         }
       } catch (err) {
         console.error("Failed to load branding", err);
@@ -100,20 +97,21 @@ export default function AdminBrandingPage() {
     void load();
   }, []);
 
-  // 2. دالة الحفظ
   const save = async () => {
     try {
       setSaving(true);
+      
+      // ✅ الإصلاح الرئيسي: إرسال الـ branding مباشرة بدون تغليفها بكائن إضافي
       const res = await fetch("/api/admin/branding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branding }), // التأكد من إرسال الكائن بشكل صحيح
+        body: JSON.stringify(branding), 
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Save failed");
 
-      alert("تم حفظ البيانات بنجاح!");
+      alert("تم حفظ البيانات بنجاح في قاعدة البيانات!");
       localStorage.setItem("mobcash_branding", JSON.stringify(branding));
     } catch (err: any) {
       alert(err.message);
@@ -142,7 +140,7 @@ export default function AdminBrandingPage() {
     const img = await readImage(e);
     if (img) {
       setBranding(prev => {
-        const images = [...prev.heroImages];
+        const images = [...(prev.heroImages || [])];
         images[index] = img;
         return { ...prev, heroImages: images };
       });
@@ -154,8 +152,10 @@ export default function AdminBrandingPage() {
     const img = await readImage(e);
     if (img) {
       setBranding(prev => {
-        const next = [...prev.banners];
-        next[index] = { ...next[index], image: img };
+        const next = [...(prev.banners || [])];
+        if(next[index]) {
+            next[index] = { ...next[index], image: img };
+        }
         return { ...prev, banners: next };
       });
     }
@@ -188,7 +188,7 @@ export default function AdminBrandingPage() {
               )}
               
               <div className="mt-4 flex gap-3">
-                <button onClick={() => logoInputRef.current?.click()} className="flex-1 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold">
+                <button onClick={() => logoInputRef.current?.click()} className="flex-1 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold transition hover:bg-white/20">
                   Upload logo
                 </button>
                 <input ref={logoInputRef} type="file" className="hidden" onChange={handleLogoUpload} />
@@ -218,12 +218,12 @@ export default function AdminBrandingPage() {
             {[0, 1].map((index) => (
               <div key={index} className="rounded-3xl border border-white/10 bg-black/20 p-4">
                 <p className="text-sm font-semibold mb-3">Hero image {index + 1}</p>
-                {branding.heroImages[index] && (
-                  <img src={branding.heroImages[index]} className="h-32 w-full object-cover rounded-2xl mb-3" alt="Preview" />
+                {branding.heroImages?.[index] && (
+                  <img src={branding.heroImages[index]} className="h-32 w-full object-cover rounded-2xl mb-3 border border-white/5" alt="Preview" />
                 )}
                 <button 
                   onClick={() => heroInputRefs[index].current?.click()}
-                  className="w-full rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold"
+                  className="w-full rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold transition hover:bg-white/20"
                 >
                   Change Image
                 </button>
@@ -234,11 +234,11 @@ export default function AdminBrandingPage() {
         </div>
 
         <GlassCard className="p-6 md:p-8">
-          <h2 className="text-2xl font-semibold mb-6">Banner rotation preview (المعينة)</h2>
+          <h2 className="text-2xl font-semibold mb-6">Banner rotation preview (المعاينة)</h2>
           <div className="space-y-6">
-            {branding.banners.map((banner, index) => (
+            {branding.banners?.map((banner, index) => (
               <div key={index} className="rounded-3xl border border-white/10 bg-black/20 p-5 space-y-3">
-                <p className="text-cyan-400 text-xs font-bold">BANNER {index + 1}</p>
+                <p className="text-cyan-400 text-xs font-bold uppercase">Banner {index + 1}</p>
                 
                 {banner.image && (
                   <img src={banner.image} className="h-40 w-full object-cover rounded-2xl border border-white/5" alt="Banner Preview" />
@@ -249,7 +249,7 @@ export default function AdminBrandingPage() {
                     placeholder="Banner title"
                     value={banner.title}
                     onChange={(e) => {
-                      const next = [...branding.banners];
+                      const next = [...(branding.banners || [])];
                       next[index].title = e.target.value;
                       setBranding(prev => ({ ...prev, banners: next }));
                     }}
@@ -258,7 +258,7 @@ export default function AdminBrandingPage() {
                     placeholder="Banner subtitle"
                     value={banner.subtitle}
                     onChange={(e) => {
-                      const next = [...branding.banners];
+                      const next = [...(branding.banners || [])];
                       next[index].subtitle = e.target.value;
                       setBranding(prev => ({ ...prev, banners: next }));
                     }}
@@ -266,7 +266,7 @@ export default function AdminBrandingPage() {
                   <div className="flex gap-2">
                     <button 
                       onClick={() => bannerInputRefs[index].current?.click()}
-                      className="flex-1 rounded-2xl bg-cyan-500/10 text-cyan-200 border border-cyan-500/20 px-4 py-3 text-sm font-semibold"
+                      className="flex-1 rounded-2xl bg-cyan-500/10 text-cyan-200 border border-cyan-500/20 px-4 py-3 text-sm font-semibold transition hover:bg-cyan-500/20"
                     >
                       Update Banner Image
                     </button>
