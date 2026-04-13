@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { v2 as cloudinary } from "cloudinary";
-import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
+import { getPrisma } from "@/lib/db"; // تأكد من مسار جلب prisma
 
 export const runtime = "nodejs";
 
+// إعدادات Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -13,68 +14,80 @@ cloudinary.config({
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("Database unavailable");
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const playerEmail = String(formData.get("playerEmail") || "").trim();
+    const orderId = String(formData.get("orderId") || "").trim();
+    const paymentMethodName = String(formData.get("paymentMethodName") || "").trim();
 
-    if (!file) {
-      return NextResponse.json({ message: "Proof image is required" }, { status: 400 });
+    // 1. التحقق من البيانات
+    if (!file || !orderId) {
+      return NextResponse.json({ message: "Order ID and File are required" }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ message: "Only image files are allowed" }, { status: 400 });
-    }
-
-    if (file.size > 8 * 1024 * 1024) {
-      return NextResponse.json({ message: "Image too large (max 8MB)" }, { status: 400 });
-    }
-
+    // 2. معالجة الصورة وحساب الـ Hash (لمنع التكرار/الاحتيال)
     const buffer = Buffer.from(await file.arrayBuffer());
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
 
+    // 3. الرفع إلى Cloudinary
     const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
-
     const uploadResult = await cloudinary.uploader.upload(base64, {
-      folder: "mobcash/proofs",
+      folder: "gosport/proofs",
     });
 
-    const hashesPath = dataPath("proof_hashes.json");
-    const hashes = readJsonArray<any>(hashesPath);
-    const duplicate = hashes.find((item) => item.hash === hash);
-
-    const record = {
-      id: uid("proofhash"),
-      hash,
-      filename: uploadResult.public_id,
-      url: uploadResult.secure_url,
-      playerEmail,
-      duplicate_count: duplicate ? Number(duplicate.duplicate_count || 1) + 1 : 1,
-      first_seen_at: duplicate?.first_seen_at || nowIso(),
-      last_seen_at: nowIso(),
-    };
-
-    if (duplicate) {
-      const index = hashes.findIndex((item) => item.hash === hash);
-      hashes[index] = record;
-    } else {
-      hashes.unshift(record);
-    }
-
-    writeJsonArray(hashesPath, hashes);
-
-    return NextResponse.json({
-      message: "Proof uploaded successfully",
-      proof: {
-        url: uploadResult.secure_url,
-        hash,
-        duplicate_detected: Boolean(duplicate),
-        duplicate_count: record.duplicate_count,
-        suspicious_flags: duplicate ? ["duplicate_proof_hash"] : [],
+    // 4. تحديث الطلب في قاعدة البيانات (انتقال للمرحلة الثانية)
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "proof_uploaded", // تحديث الحالة لخريطة المراحل
+        proofUrl: uploadResult.secure_url,
+        proofHash: hash,
+        paymentMethodName: paymentMethodName,
+        updatedAt: new Date(),
       },
     });
-  } catch (error) {
-    console.error("UPLOAD PROOF ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+
+    // 5. إضافة رسالة تلقائية في الشات لإعلام الوكيل
+    await prisma.orderMessage.create({
+      data: {
+        orderId: orderId,
+        senderRole: "system",
+        message: `✅ قام اللاعب برفع إثبات التحويل عبر: ${paymentMethodName}. في انتظار مراجعة الوكيل.`,
+      },
+    });
+
+    // 6. التحقق من تكرار الـ Hash (Fraud Check)
+    const duplicate = await prisma.order.findFirst({
+      where: {
+        proofHash: hash,
+        id: { not: orderId }, // البحث في غير هذا الطلب
+      },
+    });
+
+    if (duplicate) {
+      // إذا وجدنا تكرار، نقوم بعمل Flag للطلب تلقائياً
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          reviewRequired: true,
+          reviewReason: "duplicate_proof_hash_detected",
+        },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Proof uploaded and order updated ✅",
+      proofUrl: uploadResult.secure_url,
+      status: updatedOrder.status
+    });
+
+  } catch (error: any) {
+    console.error("UPLOAD & UPDATE ERROR:", error);
+    return NextResponse.json({ 
+      message: "حدث خطأ أثناء تحديث الطلب، يرجى المحاولة مرة أخرى." 
+    }, { status: 500 });
   }
 }

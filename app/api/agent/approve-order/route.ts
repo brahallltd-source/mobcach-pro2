@@ -1,3 +1,5 @@
+"use client";
+
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
@@ -31,42 +33,67 @@ export async function POST(req: Request) {
         throw new Error("Order, Agent or Wallet not found");
       }
 
-      // 2. التحقق من الرصيد
-      if (order.agent.wallet.balance < order.amount) {
-        throw new Error(`Insufficient balance. Available: ${order.agent.wallet.balance} DH`);
+      // حماية ضد الخصم المزدوج
+      if (order.walletDeducted || order.status === "completed") {
+        throw new Error("هذا الطلب تم تفعيله مسبقاً.");
       }
 
-      // 3. الخصم وتحديث السجل (Ledger) مع كل الحقول المطلوبة في السكيما
+      // 2. التحقق من الرصيد الكافي قبل الخصم
+      if (order.agent.wallet.balance < order.amount) {
+        throw new Error(`رصيدك غير كافٍ. المتوفر حالياً: ${order.agent.wallet.balance} DH`);
+      }
+
+      // 3. خصم المبلغ من المحفظة وتحديث سجل العمليات (Ledger)
       await tx.wallet.update({
         where: { agentId: order.agentId },
         data: {
           balance: { decrement: order.amount },
           ledger: {
             create: {
-              agentId: order.agentId, // مضاف لتجاوز خطأ الـ Build
+              agentId: order.agentId,
               type: "debit",
               amount: order.amount,
-              reason: `Order Approval: ${order.id.split('-')[0]}`,
-              // @ts-ignore - لتجاوز أي تعارض في الأنظمة أثناء الـ Build
-              meta: { orderId: order.id, playerEmail: order.playerEmail }
+              reason: `شحن حساب GoSport365: ${order.gosportUsername}`,
+              meta: { 
+                orderId: order.id, 
+                playerEmail: order.playerEmail,
+                targetAccount: order.gosportUsername 
+              }
             }
           }
         }
       });
 
-      // 4. تحديث الطلب
+      // 4. تحديث حالة الطلب للانتقال للمرحلة الثالثة في الخريطة
       const updatedOrder = await tx.order.update({
         where: { id: String(orderId) },
         data: {
-          status: "agent_approved_waiting_player",
+          status: "agent_approved_waiting_player", // الحالة التي تظهر زر "تم الإتمام" للاعب
           walletDeducted: true,
           updatedAt: new Date(),
         },
       });
 
+      // 5. إضافة رسالة نظام في الشات لإعلام اللاعب بالنجاح
+      await tx.orderMessage.create({
+        data: {
+          orderId: order.id,
+          senderRole: "system",
+          message: `🚀 قام الوكيل بالموافقة وإرسال الشحن لحسابك (${order.gosportUsername}). يرجى التأكد من حسابك وتأكيد الاستلام.`,
+        },
+      });
+
+      // 6. إرسال إشعار فوري للاعب
+      await createNotification({
+        targetRole: "player",
+        targetId: order.playerId || "",
+        title: "تم شحن حسابك ✅",
+        message: `الوكيل ${order.agent.fullName} قام بتفعيل طلبك بقيمة ${order.amount} DH.`,
+      });
+
       return NextResponse.json({
         success: true,
-        message: "Order approved successfully ✅",
+        message: "تمت الموافقة وخصم الرصيد بنجاح ✅",
         order: updatedOrder,
       });
     });
@@ -74,7 +101,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("APPROVE ORDER ERROR:", error);
     return NextResponse.json({ 
-      message: error.message || "Action failed" 
+      message: error.message || "حدث خطأ أثناء معالجة الطلب" 
     }, { status: 400 });
   }
 }

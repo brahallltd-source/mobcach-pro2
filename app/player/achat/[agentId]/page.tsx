@@ -1,130 +1,84 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { Copy, ShieldCheck } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { MessageCircle, Zap, Info, ArrowRight, ShieldCheck, User } from "lucide-react";
 import { useLanguage } from "@/components/language";
-import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, TextArea, TextField } from "@/components/ui";
+import { 
+  GlassCard, 
+  LoadingCard, 
+  PageHeader, 
+  PrimaryButton, 
+  SidebarShell, 
+  TextField 
+} from "@/components/ui";
 
-type CurrentUser = { id: string; email: string; role: string; player_status?: "inactive" | "active"; assigned_agent_id?: string };
-type Method = {
-  id: string;
-  method_name: string;
-  currency: string;
-  type: string;
-  account_name?: string;
-  account_number?: string;
-  rib?: string;
-  wallet_address?: string;
-  instructions?: string;
-  phone?: string;
-  network?: string;
-  provider?: string;
-  city?: string;
-  fee_percent?: number;
-};
-type AgentRow = { 
-  agentId: string; 
-  display_name: string; 
-  online: boolean; 
-  rating: number; 
-  trades_count: number; 
-  response_minutes: number; 
-  min_limit: number; 
-  max_limit: number; 
-  available_balance: number; // تم إضافتها للتحقق
-  methods: Method[] 
+type CurrentUser = { 
+  id: string; 
+  email: string; 
+  role: string; 
+  assigned_agent_id?: string 
 };
 
-export default function AchatAgentPage() {
+type AgentData = { 
+  id: string; 
+  fullName: string; 
+  phone: string; // للمستخدم في واتساب
+  availableBalance: number; 
+  minLimit: number;
+};
+
+export default function AchatStepOnePage() {
   const { t } = useLanguage();
   const params = useParams<{ agentId: string }>();
-  const search = useSearchParams();
+  const router = useRouter();
   
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [agent, setAgent] = useState<AgentRow | null>(null);
-  const [methods, setMethods] = useState<Method[]>([]);
+  const [agent, setAgent] = useState<AgentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  
-  // تم إزالة proofFile لأن الرفع سيتم في الصفحة التالية
 
   const [form, setForm] = useState({
-    amount: search.get("amount") || "",
-    gosport365_username: "",
-    confirm_gosport365_username: "",
-    notes: "",
-    payment_method_id: search.get("methodId") || "",
+    amount: "",
+    username: "",
+    confirmUsername: "",
   });
 
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
     const current = JSON.parse(saved);
-    if (current.role !== "player") return void (window.location.href = "/login");
-    if (!current.assigned_agent_id) return void (window.location.href = "/player/select-agent");
-    if (String(current.assigned_agent_id) !== String(params.agentId)) return void (window.location.href = "/player/achat");
     setUser(current);
 
-    Promise.all([
-      fetch("/api/agents/discovery", { cache: "no-store" }).then((res) => res.json()),
-      fetch(`/api/agent/payment-methods?agentId=${encodeURIComponent(String(params.agentId))}`, { cache: "no-store" }).then((res) => res.json()),
-    ])
-      .then(([agentsData, methodsData]) => {
-        setAgent((agentsData.agents || []).find((item: AgentRow) => item.agentId === String(params.agentId)) || null);
-        setMethods(methodsData.methods || []);
+    // جلب بيانات الوكيل ورصيده الحالي (الـ Max)
+    fetch(`/api/agent/public-profile?agentId=${params.agentId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setAgent(data.agent);
       })
       .finally(() => setLoading(false));
   }, [params.agentId]);
 
-  const selectedMethod = useMemo(
-    () => methods.find((item) => item.id === form.payment_method_id) || methods[0] || null,
-    [methods, form.payment_method_id]
-  );
-
-  useEffect(() => {
-    if (!form.payment_method_id && methods[0]) {
-      setForm((prev) => ({ ...prev, payment_method_id: methods[0].id }));
-    }
-  }, [methods, form.payment_method_id]);
-
   const numericAmount = Number(form.amount || 0);
+  const agentMax = agent?.availableBalance || 0;
 
-  // التحقق الأمني من الرصيد والحدود لحماية اللاعب
-  const limitError = useMemo(() => {
-    if (!agent || !numericAmount) return "";
-    if (agent.min_limit && numericAmount < agent.min_limit) {
-      return `Minimum amount is ${agent.min_limit} DH`;
-    }
-    if (agent.max_limit && numericAmount > agent.max_limit) {
-      return `Maximum amount is ${agent.max_limit} DH`;
-    }
-    if (agent.available_balance !== undefined && numericAmount > agent.available_balance) {
-      return `Amount exceeds agent's available balance (${agent.available_balance} DH)`;
-    }
-    return "";
-  }, [agent, numericAmount]);
+  // التحقق من القيود (10 DH إلى Agent Balance)
+  const validationError = useMemo(() => {
+    if (!form.amount) return null;
+    if (numericAmount < 10) return "Minimum amount is 10 DH";
+    if (numericAmount > agentMax) return `Amount exceeds agent's current liquid balance (${agentMax} DH)`;
+    return null;
+  }, [numericAmount, agentMax]);
 
-  const copyValue = async (value?: string) => {
-    if (!value) return;
-    await navigator.clipboard.writeText(value);
-    alert("Copied successfully");
-  };
+  const handleNextStep = async () => {
+    if (!user || !agent) return;
+    if (validationError || !form.amount || !form.username) {
+      return alert("Please check the amount and username fields.");
+    }
+    if (form.username !== form.confirmUsername) {
+      return alert("GoSport365 usernames do not match.");
+    }
 
-  const createOrder = async () => {
-    if (!user || !agent || !selectedMethod) return;
-    
-    if (!form.amount || !form.gosport365_username || !form.confirm_gosport365_username) {
-      return alert("Amount and username confirmation are required");
-    }
-    if (form.gosport365_username.trim() !== form.confirm_gosport365_username.trim()) {
-      return alert("GoSport 365 username confirmation does not match");
-    }
-    if (limitError) {
-      return alert(limitError);
-    }
-    if (user.player_status !== "active") return alert(t("accountPending"));
-    
     setSubmitting(true);
     try {
       const res = await fetch("/api/create-order", {
@@ -132,150 +86,135 @@ export default function AchatAgentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerEmail: user.email,
-          agentId: agent.agentId,
-          gosport365_username: form.gosport365_username,
-          amount: Number(form.amount),
-          payment_method_id: selectedMethod.id,
-          payment_method_name: selectedMethod.method_name,
-          currency: selectedMethod.currency,
-          notes: form.notes,
-          proof_url: "", // نتركه فارغاً هنا (لا يوجد إثبات في هذه المرحلة)
-          proof_hash: "",
-          duplicate_detected: false,
-          suspicious_flags: [],
+          agentId: agent.id,
+          amount: numericAmount,
+          gosportUsername: form.username,
+          status: "pending_payment", // بداية الخريطة
         }),
       });
-      const data = await res.json();
-      if (!res.ok) return alert(data.message || "Failed to create order");
       
-      // توجيه اللاعب مباشرة لصفحة الطلب ليقوم بالتحويل ورفع الإثبات هناك
-      const newOrderId = data.orderId || data.order?.id;
-      if (newOrderId) {
-        window.location.href = `/player/orders/${newOrderId}`;
-      } else {
-        window.location.href = "/player/orders";
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      // الانتقال للمرحلة الثانية (خريطة الطلب)
+      router.push(`/player/orders/${data.order.id}`);
     } catch (error: any) {
-      alert(error.message || "Failed to create order");
+      alert(error.message || "Failed to initiate order");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <SidebarShell role="player"><LoadingCard text="Loading order flow..." /></SidebarShell>;
-  if (!agent || !selectedMethod) return <SidebarShell role="player"><GlassCard className="p-10 text-center">Agent or payment methods not available.</GlassCard></SidebarShell>;
+  if (loading) return <SidebarShell role="player"><LoadingCard text="Fetching agent availability..." /></SidebarShell>;
+  if (!agent) return <SidebarShell role="player"><GlassCard className="p-10 text-center">Agent data not found.</GlassCard></SidebarShell>;
 
   return (
     <SidebarShell role="player">
-      <div className="pb-36 lg:pb-8">
-        <PageHeader
-          title="New order request"
-          subtitle="Choose your payment method and enter the amount. You will upload the proof on the next page."
-        />
+      <PageHeader
+        title="New Recharge Request"
+        subtitle="Step 1: Enter value and account details"
+      />
 
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <GlassCard className="p-5 md:p-7">
-            <h2 className="text-2xl font-semibold">Select your method</h2>
-            <div className="mt-5 space-y-3">
-              {methods.map((method) => (
-                <button
-                  key={method.id}
-                  onClick={() => setForm((prev) => ({ ...prev, payment_method_id: method.id }))}
-                  className={`w-full rounded-3xl border p-4 text-left transition ${
-                    selectedMethod.id === method.id
-                      ? "border-cyan-300/30 bg-cyan-300/10"
-                      : "border-white/10 bg-black/20 hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold">{method.method_name}</p>
-                      <p className="mt-1 text-sm text-white/55">{method.type} • {method.currency}</p>
-                    </div>
-                    <ShieldCheck size={18} className="text-cyan-200" />
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5 text-sm text-white/65">
-              <p className="font-semibold text-white/85">Transfer instructions</p>
-              <p className="text-xs text-white/40 mb-3">Please do not transfer money until you create the order.</p>
-              <div className="mt-4 grid gap-3 opacity-60">
-                {/* تم تخفيف الشفافية قليلاً هنا لإشعار اللاعب بأن هذه البيانات للعرض فقط وأن التحويل سيكون في الصفحة التالية */}
-                {selectedMethod.account_name ? (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-4 py-3">
-                    <span>Account name: <span className="font-semibold text-white">{selectedMethod.account_name}</span></span>
-                    <button onClick={() => copyValue(selectedMethod.account_name)} className="text-cyan-200"><Copy size={15} /></button>
-                  </div>
-                ) : null}
-                {selectedMethod.rib ? (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-4 py-3">
-                    <span>RIB: <span className="font-semibold text-white">{selectedMethod.rib}</span></span>
-                    <button onClick={() => copyValue(selectedMethod.rib)} className="text-cyan-200"><Copy size={15} /></button>
-                  </div>
-                ) : null}
-                {selectedMethod.wallet_address ? (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-4 py-3">
-                    <span className="min-w-0 flex-1 break-all">Wallet: <span className="font-semibold text-white">{selectedMethod.wallet_address}</span></span>
-                    <button onClick={() => copyValue(selectedMethod.wallet_address)} className="shrink-0 text-cyan-200"><Copy size={15} /></button>
-                  </div>
-                ) : null}
-                {selectedMethod.phone ? (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-4 py-3">
-                    <span>Phone: <span className="font-semibold text-white">{selectedMethod.phone}</span></span>
-                    <button onClick={() => copyValue(selectedMethod.phone)} className="text-cyan-200"><Copy size={15} /></button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-5 md:p-7">
-            <h2 className="text-2xl font-semibold">Create your order</h2>
-            <div className="mt-5 grid gap-4">
-              
-              {/* عرض الحدود بوضوح لللاعب */}
-              <div className="grid gap-3 md:grid-cols-3 mb-2">
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 text-center">
-                  Min: <span className="font-semibold text-white block">{agent.min_limit} DH</span>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 text-center">
-                  Max: <span className="font-semibold text-white block">{agent.max_limit} DH</span>
-                </div>
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 text-center">
-                  Available: <span className="font-semibold text-emerald-100 block">{agent.available_balance} DH</span>
+      <div className="mx-auto max-w-4xl mt-6">
+        <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr]">
+          
+          {/* نموذج إدخال البيانات */}
+          <GlassCard className="p-6 md:p-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-white/70 block mb-2">Recharge Amount (DH)</label>
+                <TextField 
+                  type="number" 
+                  placeholder="Enter value (Min: 10 DH)"
+                  value={form.amount}
+                  onChange={(e) => setForm(prev => ({ ...prev, amount: e.target.value }))}
+                  className={validationError ? "border-red-500/50" : ""}
+                />
+                <div className="mt-2 flex items-center justify-between px-1">
+                  <span className="text-[11px] text-white/40">Range: 10 DH - {agentMax} DH</span>
+                  {validationError && <span className="text-[11px] text-red-400 font-bold">{validationError}</span>}
                 </div>
               </div>
 
-              <TextField type="number" value={form.amount} onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder={t("enterAmount")} />
-              
-              {limitError ? (
-                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {limitError}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-semibold text-white/70 block mb-2">GoSport365 Username</label>
+                  <TextField 
+                    placeholder="Enter username"
+                    value={form.username}
+                    onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+                  />
                 </div>
-              ) : null}
-
-              <TextField value={form.gosport365_username} onChange={(e) => setForm((prev) => ({ ...prev, gosport365_username: e.target.value }))} placeholder={t("gosportUsername")} />
-              <TextField value={form.confirm_gosport365_username} onChange={(e) => setForm((prev) => ({ ...prev, confirm_gosport365_username: e.target.value }))} placeholder={t("confirmGosportUsername")} />
-              
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200 text-center">
-                Clicking "Send Order" will take you to the payment page to upload your transfer receipt safely.
+                <div>
+                  <label className="text-sm font-semibold text-white/70 block mb-2">Confirm Username</label>
+                  <TextField 
+                    placeholder="Repeat username"
+                    value={form.confirmUsername}
+                    onChange={(e) => setForm(prev => ({ ...prev, confirmUsername: e.target.value }))}
+                  />
+                </div>
               </div>
-
-              <TextArea rows={3} value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder={t("notesOptional")} />
             </div>
-          </GlassCard>
-        </div>
-      </div>
 
-      <div className="fixed inset-x-0 bottom-[84px] z-30 px-3 lg:static lg:bottom-auto lg:px-0">
-        <div className="mx-auto max-w-3xl lg:max-w-7xl">
-          <GlassCard className="p-3 shadow-2xl">
-            <PrimaryButton onClick={createOrder} disabled={submitting || Boolean(limitError) || !form.amount} className="w-full py-4 text-base">
-              {submitting ? t("processing") : "Send Order"}
+            <PrimaryButton 
+              onClick={handleNextStep} 
+              disabled={submitting || !!validationError || !form.amount || !form.username}
+              className="w-full py-4 text-base font-bold flex items-center justify-center gap-2"
+            >
+              {submitting ? "Processing..." : "Confirm & Continue to Payment"}
+              <ArrowRight size={18} />
             </PrimaryButton>
           </GlassCard>
+
+          {/* تفاصيل الوكيل والتواصل */}
+          <div className="space-y-4">
+            <GlassCard className="p-6 border-cyan-500/10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <User size={20} />
+                </div>
+                <div>
+                  <p className="text-xs text-white/50 leading-none">Your Agent</p>
+                  <h3 className="text-lg font-bold">{agent.fullName}</h3>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-2xl bg-white/5 p-3 border border-white/5">
+                  <p className="text-[11px] text-white/40 uppercase tracking-wider">Agent Balance Max</p>
+                  <p className="text-xl font-mono font-bold text-emerald-400">{agentMax} DH</p>
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-sm font-semibold mb-3">Need a higher amount?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a 
+                      href={`https://wa.me/${agent.phone}`}
+                      target="_blank"
+                      className="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition"
+                    >
+                      <Zap size={20} />
+                      <span className="text-[10px] font-bold">WhatsApp</span>
+                    </a>
+                    <button 
+                      onClick={() => router.push(`/player/chat?agentId=${agent.id}`)}
+                      className="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition"
+                    >
+                      <MessageCircle size={20} />
+                      <span className="text-[10px] font-bold">Live Chat</span>
+                    </button>
+                  </div>
+                  <p className="mt-3 text-[10px] text-center text-white/30 italic">"Contact your agent for custom limits"</p>
+                </div>
+              </div>
+            </GlassCard>
+
+            <div className="flex items-center gap-2 px-4 text-white/40">
+              <ShieldCheck size={14} className="text-emerald-500" />
+              <p className="text-[10px]">Secure P2P transaction powered by GoSport365</p>
+            </div>
+          </div>
+
         </div>
       </div>
     </SidebarShell>
