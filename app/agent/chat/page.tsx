@@ -53,7 +53,9 @@ export default function AgentChatPage() {
   const unread = useMemo(
     () =>
       orders.filter((order) => {
-        const last = (order.messages || []).slice(-1)[0];
+        const messages = order.messages || [];
+        const last = messages[messages.length - 1];
+        // إذا كانت آخر رسالة من اللاعب، فهي تعتبر غير مقروءة للوكيل
         return last?.senderRole === "player";
       }).length,
     [orders]
