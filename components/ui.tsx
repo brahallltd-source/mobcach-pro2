@@ -55,17 +55,28 @@ function useBranding() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/admin/branding", { cache: "no-store" });
+        // إضافة عامل عشوائي (Timestamp) لكسر كاش المتصفح نهائياً
+        const res = await fetch(`/api/admin/branding?update=${Date.now()}`, { 
+          cache: "no-store",
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
         const data = await res.json();
+        
         if (data?.branding) {
           setBranding({
-            brandName: data.branding.brandName || defaultBranding.brandName,
-            logoUrl: data.branding.logoUrl || "",
-            heroImages: data.branding.heroImages || [],
+            ...defaultBranding,
+            ...data.branding // سيقوم هذا بدمج اللوجو، الاسم، وصور الـ Hero تلقائياً
           });
+          
+          // تحديث التخزين المحلي لضمان التزامن
+          localStorage.setItem("mobcash_branding", JSON.stringify(data.branding));
         }
       } catch (err) {
-        console.error("Failed to load branding in UI components", err);
+        console.error("Branding fetch failed:", err);
       }
     };
 
