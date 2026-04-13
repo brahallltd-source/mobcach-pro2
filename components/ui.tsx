@@ -54,7 +54,6 @@ function useBranding() {
   useEffect(() => {
     const load = async () => {
       try {
-        // قمنا بتغيير الرابط لإضافة v= لضمان كسر الكاش وتحديث الهوية فوراً
         const res = await fetch(`/api/admin/branding?v=${Date.now()}`, { 
           cache: "no-store",
           headers: {
@@ -72,7 +71,6 @@ function useBranding() {
             ...data.branding 
           });
           
-          // تحديث التخزين المحلي لضمان التزامن في المتصفح
           localStorage.setItem("mobcash_branding", JSON.stringify(data.branding));
         }
       } catch (err) {
@@ -159,7 +157,6 @@ export function PageHeader({
   );
 }
 
-// 3. تعديل الـ Shell لربط الشعار بالرئيسية
 export function Shell({ children }: { children: ReactNode }) {
   const { dir } = useLanguage();
   const branding = useBranding();
@@ -232,7 +229,6 @@ function getNav(role: Role, t: ReturnType<typeof useLanguage>["t"]) {
   return admin;
 }
 
-// 4. تعديل الـ SidebarShell لربط الشعار بالرئيسية
 export function SidebarShell({
   children,
   role,
@@ -245,6 +241,20 @@ export function SidebarShell({
   const branding = useBranding();
   const nav = getNav(role, t);
   const [open, setOpen] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    const checkChat = async () => {
+      try {
+        const res = await fetch("/api/chat/unread-status"); 
+        const data = await res.json();
+        setHasUnread(data.hasUnread);
+      } catch {}
+    };
+    checkChat();
+    const interval = setInterval(checkChat, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const logout = () => {
     fetch("/api/logout", { method: "POST", credentials: "include" }).finally(() => {
@@ -259,7 +269,6 @@ export function SidebarShell({
         <aside className="hidden w-72 shrink-0 lg:block">
           <GlassCard className="sticky top-5 p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
-              {/*https://gs365cash.com*/}
               <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
                 <BrandMark />
                 <span>{branding.brandName}</span>
@@ -276,7 +285,7 @@ export function SidebarShell({
                     key={item.href}
                     href={item.href}
                     className={clsx(
-                      "flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
+                      "relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
                       active
                         ? "bg-white text-slate-950"
                         : "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
@@ -284,6 +293,11 @@ export function SidebarShell({
                   >
                     <Icon size={16} />
                     {item.label}
+                    
+                    {/* 🔴 تنبيه الشات للكمبيوتر */}
+                    {item.label === "Chat" && hasUnread && (
+                      <span className="ml-auto h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" />
+                    )}
                   </Link>
                 );
               })}
@@ -314,7 +328,6 @@ export function SidebarShell({
             <div className="fixed inset-0 z-50 bg-slate-950/90 p-4 backdrop-blur-md lg:hidden">
               <div className="max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0B0F19] p-5 shadow-2xl">
                 <div className="mb-4 flex items-center justify-between">
-                  {/* ✅ رابط العودة للرئيسية للموبايل */}
                   <Link href="/" onClick={() => setOpen(false)} className="flex items-center gap-3 text-lg font-semibold">
                     <BrandMark />
                     <span>{branding.brandName}</span>
@@ -337,7 +350,7 @@ export function SidebarShell({
                         href={item.href}
                         onClick={() => setOpen(false)}
                         className={clsx(
-                          "flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
+                          "relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
                           active
                             ? "bg-white text-slate-950"
                             : "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
@@ -345,6 +358,11 @@ export function SidebarShell({
                       >
                         <Icon size={16} />
                         {item.label}
+
+                        {/* 🔴 تنبيه الشات لقائمة الموبايل المنبثقة */}
+                        {item.label === "Chat" && hasUnread && (
+                          <span className="ml-auto h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" />
+                        )}
                       </Link>
                     );
                   })}
@@ -382,7 +400,13 @@ export function SidebarShell({
                       : "text-white/70 hover:bg-white/10 hover:text-white"
                   )}
                 >
-                  <Icon size={16} />
+                  <div className="relative">
+                    <Icon size={16} />
+                    {/* 🔴 تنبيه الشات للشريط السفلي */}
+                    {item.label === "Chat" && hasUnread && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
+                    )}
+                  </div>
                   <span className="mt-1">{item.mobileLabel || item.label}</span>
                 </Link>
               );
@@ -393,8 +417,6 @@ export function SidebarShell({
     </main>
   );
 }
-
-// ... بقية المكونات (TextField, StatCard, إلخ) تظل كما هي ...
 
 export function TextField(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
