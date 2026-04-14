@@ -7,71 +7,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  ADMIN
-  AGENT
-  PLAYER
-}
-
-enum OrderStatus {
-  pending_payment
-  proof_uploaded
-  flagged_for_review
-  agent_approved_waiting_player
-  completed
-  cancelled
-  linked_waiting_first_order
-}
-
-enum WithdrawalStatus {
-  pending
-  sent
-  completed
-  rejected
-}
-
-enum RewardStatus {
-  locked
-  ready
-  claimed
-  pending
-  applied
-}
-
-enum PaymentMethodType {
-  bank
-  cash
-  crypto
-}
-
-enum Status {
-  pending
-  approved
-  rejected
-  linked_waiting_first_order
-  completed
-  cancelled
-}
-
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  username        String   @unique
-  passwordHash    String
-  role            UserRole
-  playerStatus    String?
-  assignedAgentId String?
-  agentId         String?
-  frozen          Boolean  @default(false)
-  permissions     Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  player            Player?
-  agent             Agent? // ✅ أضفنا العلاقة مع الوكيل هنا أيضاً
-  notifications     Notification[]
-  auditLogs         AuditLog[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  username          String             @unique
+  passwordHash      String
+  role              UserRole
+  playerStatus      String?
+  assignedAgentId   String?
+  agentId           String?
+  frozen            Boolean            @default(false)
+  permissions       Json?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   agentApplications AgentApplication[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  player            Player?
 }
 
 model AgentApplication {
@@ -86,8 +38,7 @@ model AgentApplication {
   status    String   @default("pending")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([email])
@@ -95,11 +46,11 @@ model AgentApplication {
 }
 
 model Player {
-  id              String   @id @default(uuid())
-  userId          String   @unique
+  id              String       @id @default(uuid())
+  userId          String       @unique
   firstName       String
   lastName        String
-  username        String   @unique
+  username        String       @unique
   phone           String
   city            String?
   country         String?
@@ -107,68 +58,60 @@ model Player {
   status          String
   assignedAgentId String?
   referredBy      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders      Order[]
-  withdrawals Withdrawal[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  orders          Order[]
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawals     Withdrawal[]
 }
 
 model Agent {
-  id               String   @id @default(uuid())
-  userId           String   @unique // ✅ ربط الوكيل بحساب المستخدم الأساسي
+  id               String             @id @default(uuid())
   fullName         String
-  username         String   @unique
-  email            String   @unique
+  username         String             @unique
+  email            String             @unique
   phone            String
-  whatsapp         String? // ✅ أضفنا الواتساب للتواصل
   country          String?
   status           String
-  referralCode     String?  @unique
-  online           Boolean  @default(false)
+  referralCode     String?            @unique
+  online           Boolean            @default(false)
   note             String?
-  responseMinutes  Int      @default(30)
-  rating           Float    @default(0)
-  successRate      Float    @default(0)
-  tradesCount      Int      @default(0)
-  availableBalance Float    @default(0)
-  verified         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user           User               @relation(fields: [userId], references: [id])
-  orders         Order[]
-  wallet         Wallet?
-  bonusProfile   AgentBonusProfile?
-  paymentMethods PaymentMethod[]
-  activations    Activation[]
-  topupRequests  TopupRequest[] // ✅ ربط طلبات الشحن بالوكيل
+  responseMinutes  Int                @default(30)
+  rating           Float              @default(0)
+  successRate      Float              @default(0)
+  tradesCount      Int                @default(0)
+  availableBalance Float              @default(0)
+  verified         Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  activations      Activation[]
+  bonusProfile     AgentBonusProfile?
+  orders           Order[]
+  paymentMethods   PaymentMethod[]
+  wallet           Wallet?
 }
 
 model Order {
-  id                String   @id @default(uuid())
+  id                String         @id @default(uuid())
   agentId           String
   playerId          String?
   playerEmail       String
   amount            Float
   gosportUsername   String
-  status            String // pending_payment, proof_uploaded, etc.
-  currentStep       Int      @default(1) // ✅ المرحلة الحالية في الخريطة (1, 2, 3)
+  status            String
   paymentMethodName String?
   proofUrl          String?
   proofHash         String?
-  reviewRequired    Boolean  @default(false)
+  reviewRequired    Boolean        @default(false)
   reviewReason      String?
-  walletDeducted    Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  systemThread      Boolean  @default(false) // ✅ أضف هذا
-
-  agent      Agent          @relation(fields: [agentId], references: [id])
-  player     Player?        @relation(fields: [playerId], references: [id])
-  messages   OrderMessage[]
-  fraudFlags FraudFlag[]
+  walletDeducted    Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  systemThread      Boolean        @default(false)
+  fraudFlags        FraudFlag[]
+  agent             Agent          @relation(fields: [agentId], references: [id])
+  player            Player?        @relation(fields: [playerId], references: [id])
+  messages          OrderMessage[]
 }
 
 model OrderMessage {
@@ -177,18 +120,16 @@ model OrderMessage {
   senderRole String
   message    String
   createdAt  DateTime @default(now())
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Wallet {
-  id        String   @id @default(uuid())
-  agentId   String   @unique
-  balance   Float    @default(0) // ✅ هذا هو الـ Agent Balance Max
-  updatedAt DateTime @updatedAt
-
-  agent  Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  ledger WalletLedger[] //
+  id        String         @id @default(uuid())
+  agentId   String         @unique
+  balance   Float          @default(0)
+  updatedAt DateTime       @updatedAt
+  agent     Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  ledger    WalletLedger[]
 }
 
 model WalletLedger {
@@ -237,8 +178,7 @@ model Activation {
   updatedAt     DateTime  @updatedAt
   activatedAt   DateTime?
   sentAt        DateTime?
-
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent         Agent     @relation(fields: [agentId], references: [id])
 }
 
 model AgentBonusProfile {
@@ -251,8 +191,7 @@ model AgentBonusProfile {
   pendingBonus    Float     @default(0)
   lastOrderAt     DateTime?
   updatedAt       DateTime  @updatedAt
-
-  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent           Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
 
 model PendingBonus {
@@ -288,35 +227,32 @@ model Notification {
   message    String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
 }
 
 model Withdrawal {
-  id           String           @id @default(uuid())
-  playerId     String
-  playerEmail  String
-  agentId      String?
-  amount       Float
-  method       String
-  status       WithdrawalStatus
-  rib          String?
-  swift        String?
-  cashProvider String?
-  fullName     String?
-  phone        String?
-  city         String?
-  txHash       String?
-  proofUrl     String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  kind            String  @default("standard")
+  id              String           @id @default(uuid())
+  playerId        String
+  playerEmail     String
+  agentId         String?
+  amount          Float
+  method          String
+  status          WithdrawalStatus
+  rib             String?
+  swift           String?
+  cashProvider    String?
+  fullName        String?
+  phone           String?
+  city            String?
+  txHash          String?
+  proofUrl        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  kind            String           @default("standard")
   gosportUsername String?
   winnerOrderId   String?
   adminNote       String?
-
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player          Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
 }
 
 model FraudFlag {
@@ -328,27 +264,7 @@ model FraudFlag {
   resolved  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-}
-
-model TopupRequest {
-  id                  String   @id @default(uuid())
-  agentId             String
-  agentEmail          String
-  gosport365_username String? // ✅ اسم المستخدم في GoSport365
-  amount              Float
-  adminMethodName     String
-  txHash              String?
-  proofUrl            String? // ✅ رابط صورة الـ Proof لتظهر للآدمن
-  note                String?
-  status              String   @default("pending")
-  bonusAmount         Float    @default(0)
-  pendingBonusApplied Float    @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  agent Agent @relation(fields: [agentId], references: [id]) // ✅ العلاقة التي تسمح بجلب الـ username
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
@@ -359,8 +275,7 @@ model AuditLog {
   entityId   String?
   meta       Json?
   createdAt  DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
 }
 
 model EscrowStub {
@@ -368,4 +283,67 @@ model EscrowStub {
   orderId   String
   state     String
   createdAt DateTime @default(now())
+}
+
+model RechargeRequest {
+  id                  String   @id
+  agentId             String
+  agentEmail          String
+  amount              Float
+  adminMethodId       String
+  adminMethodName     String
+  txHash              String?
+  proofUrl            String?
+  note                String?
+  status              String
+  bonusAmount         Float    @default(0)
+  pendingBonusApplied Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime
+}
+
+enum UserRole {
+  ADMIN
+  AGENT
+  PLAYER
+}
+
+enum OrderStatus {
+  pending_payment
+  proof_uploaded
+  flagged_for_review
+  agent_approved_waiting_player
+  completed
+  cancelled
+  linked_waiting_first_order
+}
+
+enum WithdrawalStatus {
+  pending
+  sent
+  completed
+  rejected
+}
+
+enum RewardStatus {
+  locked
+  ready
+  claimed
+  pending
+  applied
+}
+
+enum PaymentMethodType {
+  bank
+  cash
+  crypto
+}
+
+enum Status {
+  pending
+  approved
+  rejected
+  linked_waiting_first_order
+  completed
+  cancelled
 }

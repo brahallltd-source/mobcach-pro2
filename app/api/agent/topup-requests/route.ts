@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -13,13 +16,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ requests: [] }, { status: 400 });
     }
 
-    // البحث في قاعدة البيانات عن طلبات هذا الوكيل فقط
     const requests = await prisma.topupRequest.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
     });
 
-    // إعادة صياغة الحقول لتتطابق مع ما تتوقعه صفحة الواجهة (frontend)
+    // تحويل الأسماء لتطابق ما يتوقعه الـ Frontend (snake_case)
     const formattedRequests = requests.map((req: any) => ({
       ...req,
       admin_method_name: req.adminMethodName,
@@ -44,6 +46,7 @@ export async function POST(req: Request) {
       agentId,
       agentEmail,
       amount,
+      admin_method_id,   // ✅ يجب استلام الـ ID من الواجهة
       admin_method_name,
       tx_hash,
       proof_url,
@@ -51,22 +54,27 @@ export async function POST(req: Request) {
       gosport365_username,
     } = body;
 
-    if (!agentId || !amount) {
-      return NextResponse.json({ message: "بيانات غير مكتملة" }, { status: 400 });
+    // التحقق من البيانات الأساسية
+    if (!agentId || !amount || !admin_method_id) {
+      return NextResponse.json({ message: "بيانات غير مكتملة: تأكد من اختيار طريقة الدفع والمبلغ" }, { status: 400 });
     }
 
-    // إنشاء الطلب مباشرة في قاعدة بيانات Prisma
+    // إنشاء الطلب في Prisma
     const newRequest = await prisma.topupRequest.create({
       data: {
         agentId: agentId,
         agentEmail: agentEmail,
         amount: Number(amount),
+        adminMethodId: admin_method_id,      // ✅ الحقل الإلزامي الذي كان مفقوداً
         adminMethodName: admin_method_name || "Unknown",
         txHash: tx_hash || null,
         proofUrl: proof_url || null,
         note: note || null,
         gosport365_username: gosport365_username || null,
         status: "pending",
+        // الحقول التالية لها Default Value في السكيما فلا داعي لذكرها إلا إذا أردت تغييرها
+        bonusAmount: 0,
+        pendingBonusApplied: 0,
       },
     });
 
@@ -76,7 +84,12 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
-    console.error("AGENT POST TOPUP REQUEST ERROR:", error);
-    return NextResponse.json({ message: "حدث خطأ أثناء إرسال الطلب" }, { status: 500 });
+    // طباعة الخطأ التفصيلي في الـ Console لمعرفته بدقة
+    console.error("❌ PRISMA CREATE ERROR:", error);
+    
+    return NextResponse.json({ 
+      message: "حدث خطأ أثناء إرسال الطلب، تأكد من صحة البيانات وقاعدة البيانات",
+      error: process.env.NODE_ENV === 'development' ? String(error) : undefined 
+    }, { status: 500 });
   }
 }

@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 import { NextResponse } from "next/server";
 import { requireAdminPermission } from "@/lib/server-auth";
 import { prisma } from "@/lib/prisma";
