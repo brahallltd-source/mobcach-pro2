@@ -243,16 +243,30 @@ export function SidebarShell({
   const [open, setOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
+  // ✅ تحديث: جلب حالة التنبيهات من النظام الجديد (الإشعارات والشات)
   useEffect(() => {
-    const checkChat = async () => {
+    const checkUpdates = async () => {
       try {
-        const res = await fetch("/api/chat/unread-status"); 
+        const saved = localStorage.getItem("mobcash_user");
+        if (!saved) return;
+        const user = JSON.parse(saved);
+        const role = String(user.role).toLowerCase();
+        const targetId = role === "agent" ? (user.agentId || user.id) : user.email;
+
+        // كنعيطو لـ API الإشعارات اللي صاوبنا باش نشوفو واش كاين شي حاجة Unread
+        const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
         const data = await res.json();
-        setHasUnread(data.hasUnread);
-      } catch {}
+        
+        // إذا كان كاين على الأقل إشعار واحد ما مقريش، كنشعلو النقطة الحمراء
+        const unread = (data.notifications || []).some((n: any) => !n.read);
+        setHasUnread(unread);
+      } catch (err) {
+        // كنخليوه خاوي باش ما يعمرش الكونسول بالأخطاء إذا فشل الاتصال
+      }
     };
-    checkChat();
-    const interval = setInterval(checkChat, 10000);
+
+    checkUpdates();
+    const interval = setInterval(checkUpdates, 15000); // كل 15 ثانية باش ما نتقلوش السيرفر
     return () => clearInterval(interval);
   }, []);
 
