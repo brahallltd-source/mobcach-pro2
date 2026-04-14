@@ -32,6 +32,7 @@ export default function AgentChatPage() {
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [notifications, setNotifications] = useState<any[]>([]); // 🟢 تخزين الإشعارات
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // --- 🟢 دالة مسح التنبيهات للوكيل ---
@@ -60,7 +61,15 @@ export default function AgentChatPage() {
       console.error("Failed to mark notifications as read", err);
     }
   };
-  // ---------------------------------------
+
+  // --- 🟢 جلب الإشعارات لمعرفة عدد الرسائل غير المقروءة ---
+  const fetchNotifs = async (currentAgentId: string) => {
+    try {
+      const res = await fetch(`/api/notifications?role=agent&targetId=${currentAgentId}`);
+      const data = await res.json();
+      setNotifications(data.notifications || []);
+    } catch (err) {}
+  };
 
   const loadConversations = async (currentAgentId: string) => {
     try {
@@ -97,19 +106,20 @@ export default function AgentChatPage() {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
     const user = JSON.parse(saved);
-    const myAgentId = user.agentId;
+    const myAgentId = user.agentId || user.id;
     setAgentId(myAgentId);
 
     loadConversations(myAgentId).finally(() => setLoading(false));
+    fetchNotifs(myAgentId);
 
     if (activePlayer) {
       loadMessages(myAgentId, activePlayer);
-      // ✅ مسح تنبيهات الوكيل عند فتح شات اللاعب
-      markAllAsRead();
+      markAllAsRead(); // مسح الإشعارات عند اختيار لاعب
     }
 
     const timer = setInterval(() => {
       loadConversations(myAgentId);
+      fetchNotifs(myAgentId); // تحديث الإشعارات كل 4 ثواني
       if (activePlayer) {
         loadMessages(myAgentId, activePlayer);
       }
@@ -167,7 +177,7 @@ export default function AgentChatPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-[350px_1fr] gap-4 h-[calc(100vh-180px)] min-h-[600px] mt-4">
         
-        {/* Sidebar */}
+        {/* Sidebar - قائمة اللاعبين */}
         <GlassCard className="flex flex-col overflow-hidden border-white/10">
           <div className="p-4 border-b border-white/10 bg-white/5 space-y-3">
             <div className="font-bold flex items-center gap-2 text-cyan-400">
@@ -185,25 +195,41 @@ export default function AgentChatPage() {
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {filteredConversations.length > 0 ? (
-              filteredConversations.map((c) => (
-                <div
-                  key={c.playerEmail}
-                  onClick={() => setActivePlayer(c.playerEmail)}
-                  className={`p-3 rounded-2xl cursor-pointer transition flex items-center gap-3 ${
-                    activePlayer === c.playerEmail
-                      ? "bg-cyan-500/20 border border-cyan-500/30"
-                      : "hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activePlayer === c.playerEmail ? 'bg-cyan-500/30 text-cyan-300' : 'bg-white/10 text-white/50'}`}>
-                    <User size={18} />
+              filteredConversations.map((c) => {
+                // 🔴 حساب عدد الرسائل غير المقروءة لهاد اللاعب بالخصوص
+                const unreadForThisPlayer = notifications.filter(
+                  n => !n.read && n.message.toLowerCase().includes(c.playerEmail.toLowerCase())
+                ).length;
+
+                return (
+                  <div
+                    key={c.playerEmail}
+                    onClick={() => setActivePlayer(c.playerEmail)}
+                    className={`p-3 rounded-2xl cursor-pointer transition flex items-center gap-3 ${
+                      activePlayer === c.playerEmail
+                        ? "bg-cyan-500/20 border border-cyan-500/30"
+                        : "hover:bg-white/5 border border-transparent"
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activePlayer === c.playerEmail ? 'bg-cyan-500/30 text-cyan-300' : 'bg-white/10 text-white/50'}`}>
+                      <User size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center">
+                        <p className="font-bold text-sm text-white truncate">{c.gosportUsername || 'Unknown User'}</p>
+                        
+                        {/* 🔔 إظهار رقم التنبيه الأحمر */}
+                        {unreadForThisPlayer > 0 && (
+                          <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                            {unreadForThisPlayer}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-white/50 truncate mt-0.5">{c.playerEmail}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-sm text-white truncate">{c.gosportUsername || 'Unknown User'}</p>
-                    <p className="text-[10px] text-white/50 truncate mt-0.5">{c.playerEmail}</p>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center text-white/30 text-xs mt-10 italic">
                 {searchQuery ? "لم يتم العثور على لاعبين" : "لا توجد محادثات سابقة."}
@@ -216,11 +242,9 @@ export default function AgentChatPage() {
         <GlassCard className="flex flex-col overflow-hidden relative border-white/10">
           {activePlayer ? (
             <>
-              <div className="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
-                  <p className="text-xs text-white/50">{activePlayer}</p>
-                </div>
+              <div className="p-4 border-b border-white/10 bg-black/20">
+                <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
+                <p className="text-xs text-white/50">{activePlayer}</p>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -267,7 +291,7 @@ export default function AgentChatPage() {
                   className="min-h-[55px] max-h-[120px] bg-white/5 border-white/10 rounded-2xl"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 />
-                <PrimaryButton onClick={handleSend} disabled={!newMessage.trim()} className="h-[55px] px-6 rounded-2xl bg-cyan-500 text-black font-bold">
+                <PrimaryButton onClick={handleSend} disabled={!newMessage.trim()} className="h-[55px] px-6 rounded-2xl bg-cyan-500 text-black font-bold flex items-center justify-center">
                   <Send size={20} />
                 </PrimaryButton>
               </div>
@@ -275,7 +299,7 @@ export default function AgentChatPage() {
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-white/20">
               <MessageCircle size={72} className="mb-6 opacity-10" />
-              <p className="text-lg font-semibold">اختر لاعباً للبدء</p>
+              <p className="text-lg font-semibold tracking-wide">اختر لاعباً للبدء</p>
             </div>
           )}
         </GlassCard>
