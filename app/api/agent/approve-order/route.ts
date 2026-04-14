@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       // 6. إرسال إشعار فوري للاعب
       await createNotification({
         targetRole: "player",
-        targetId: order.playerId || "",
+        targetId: order.playerEmail, // 👈 بدلها لهادي
         title: "تم شحن حسابك ✅",
         message: `الوكيل ${order.agent.fullName} قام بتفعيل طلبك. تفقد حسابك الآن.`,
       });
