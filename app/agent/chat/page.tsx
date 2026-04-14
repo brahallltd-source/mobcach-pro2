@@ -32,10 +32,10 @@ export default function AgentChatPage() {
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifications, setNotifications] = useState<any[]>([]); // 🟢 تخزين الإشعارات
+  const [notifications, setNotifications] = useState<any[]>([]); 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- 🟢 دالة مسح التنبيهات للوكيل ---
+  // --- 🟢 مسح التنبيهات عند فتح المحادثة ---
   const markAllAsRead = async () => {
     try {
       const saved = localStorage.getItem("mobcash_user");
@@ -47,7 +47,6 @@ export default function AgentChatPage() {
       const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
       const data = await res.json();
       
-      // جلب الإشعارات غير المقروءة فقط
       const unreadNotifs = (data.notifications || []).filter((n: any) => !n.read);
 
       for (const notif of unreadNotifs) {
@@ -62,7 +61,7 @@ export default function AgentChatPage() {
     }
   };
 
-  // --- 🟢 جلب الإشعارات لمعرفة عدد الرسائل غير المقروءة ---
+  // --- 🟢 جلب الإشعارات لتحديث أرقام التنبيهات ---
   const fetchNotifs = async (currentAgentId: string) => {
     try {
       const res = await fetch(`/api/notifications?role=agent&targetId=${currentAgentId}`);
@@ -114,12 +113,12 @@ export default function AgentChatPage() {
 
     if (activePlayer) {
       loadMessages(myAgentId, activePlayer);
-      markAllAsRead(); // مسح الإشعارات عند اختيار لاعب
+      markAllAsRead(); 
     }
 
     const timer = setInterval(() => {
       loadConversations(myAgentId);
-      fetchNotifs(myAgentId); // تحديث الإشعارات كل 4 ثواني
+      fetchNotifs(myAgentId); 
       if (activePlayer) {
         loadMessages(myAgentId, activePlayer);
       }
@@ -196,9 +195,9 @@ export default function AgentChatPage() {
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {filteredConversations.length > 0 ? (
               filteredConversations.map((c) => {
-                // 🔴 حساب عدد الرسائل غير المقروءة لهاد اللاعب بالخصوص
+                // 🔴 التعديل الجوهري: البحث عن إيميل اللاعب في عنوان الإشعار
                 const unreadForThisPlayer = notifications.filter(
-                  n => !n.read && n.message.toLowerCase().includes(c.playerEmail.toLowerCase())
+                  n => !n.read && n.title.includes(c.playerEmail)
                 ).length;
 
                 return (
@@ -218,9 +217,9 @@ export default function AgentChatPage() {
                       <div className="flex justify-between items-center">
                         <p className="font-bold text-sm text-white truncate">{c.gosportUsername || 'Unknown User'}</p>
                         
-                        {/* 🔔 إظهار رقم التنبيه الأحمر */}
+                        {/* 🔔 التنبيه الأحمر بالأرقام */}
                         {unreadForThisPlayer > 0 && (
-                          <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                          <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-bounce shadow-[0_0_10px_rgba(239,68,68,0.5)]">
                             {unreadForThisPlayer}
                           </span>
                         )}
@@ -242,9 +241,11 @@ export default function AgentChatPage() {
         <GlassCard className="flex flex-col overflow-hidden relative border-white/10">
           {activePlayer ? (
             <>
-              <div className="p-4 border-b border-white/10 bg-black/20">
-                <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
-                <p className="text-xs text-white/50">{activePlayer}</p>
+              <div className="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
+                  <p className="text-xs text-white/50">{activePlayer}</p>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -256,9 +257,9 @@ export default function AgentChatPage() {
                     if (isSystem) {
                       return (
                         <div key={m.id} className="flex justify-center my-4">
-                          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2">
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                             {m.message.includes("✅") ? <CheckCircle size={14} /> : <Info size={14} />}
-                            <span className="font-semibold">{m.message}</span>
+                            <span className="font-semibold tracking-wide">{m.message}</span>
                           </div>
                         </div>
                       );
@@ -266,8 +267,8 @@ export default function AgentChatPage() {
 
                     return (
                       <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm ${isMe ? "bg-cyan-600 text-white rounded-tr-sm" : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"}`}>
-                          <p className="whitespace-pre-wrap">{m.message}</p>
+                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm shadow-lg ${isMe ? "bg-cyan-600 text-white rounded-tr-sm" : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"}`}>
+                          <p className="leading-relaxed whitespace-pre-wrap">{m.message}</p>
                           <p className={`text-[10px] mt-2 font-mono ${isMe ? 'text-cyan-200/70 text-right' : 'text-white/40 text-left'}`}>
                             {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -277,7 +278,7 @@ export default function AgentChatPage() {
                   })
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-white/30 italic font-mono">
-                    <p>No messages yet.</p>
+                    <p>لا توجد رسائل سابقة.</p>
                   </div>
                 )}
                 <div ref={scrollRef} />
@@ -288,10 +289,10 @@ export default function AgentChatPage() {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="رد على اللاعب..."
-                  className="min-h-[55px] max-h-[120px] bg-white/5 border-white/10 rounded-2xl"
+                  className="min-h-[55px] max-h-[120px] py-3.5 bg-white/5 border-white/10 focus:border-cyan-500/50 resize-none rounded-2xl"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 />
-                <PrimaryButton onClick={handleSend} disabled={!newMessage.trim()} className="h-[55px] px-6 rounded-2xl bg-cyan-500 text-black font-bold flex items-center justify-center">
+                <PrimaryButton onClick={handleSend} disabled={!newMessage.trim()} className="h-[55px] px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex items-center justify-center">
                   <Send size={20} />
                 </PrimaryButton>
               </div>
@@ -300,6 +301,7 @@ export default function AgentChatPage() {
             <div className="h-full flex flex-col items-center justify-center text-white/20">
               <MessageCircle size={72} className="mb-6 opacity-10" />
               <p className="text-lg font-semibold tracking-wide">اختر لاعباً للبدء</p>
+              <p className="text-sm mt-2">حدد لاعباً من القائمة للاطلاع على المحادثة</p>
             </div>
           )}
         </GlassCard>

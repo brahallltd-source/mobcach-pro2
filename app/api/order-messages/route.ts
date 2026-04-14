@@ -123,14 +123,14 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. 🚀 إرسال إشعار للطرف الآخر (تفعيل النقطة الحمراء)
+    // 2. 🚀 إرسال إشعار للطرف الآخر مع وضع الإيميل في العنوان لسهولة الفلترة
     try {
       if (senderRole === "player" && finalAgentId) {
-        // اللاعب أرسل -> نُعلم الوكيل
+        // اللاعب أرسل -> نُعلم الوكيل (نضع إيميل اللاعب في العنوان)
         await createNotification({
           targetRole: "agent",
           targetId: finalAgentId,
-          title: "رسالة جديدة من لاعب 💬",
+          title: `رسالة من: ${finalPlayerEmail}`, 
           message: message.length > 60 ? message.substring(0, 60) + "..." : message,
         });
       } 
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
         });
       }
     } catch (notifErr) {
-      console.error("Notification creation failed but message was sent:", notifErr);
+      console.error("Notification creation failed:", notifErr);
     }
 
     return NextResponse.json({
