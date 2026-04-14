@@ -68,6 +68,7 @@ model User {
   updatedAt       DateTime @updatedAt
 
   player            Player?
+  agent             Agent? // ✅ أضفنا العلاقة مع الوكيل هنا أيضاً
   notifications     Notification[]
   auditLogs         AuditLog[]
   agentApplications AgentApplication[]
@@ -116,10 +117,12 @@ model Player {
 
 model Agent {
   id               String   @id @default(uuid())
+  userId           String   @unique // ✅ ربط الوكيل بحساب المستخدم الأساسي
   fullName         String
   username         String   @unique
   email            String   @unique
   phone            String
+  whatsapp         String? // ✅ أضفنا الواتساب للتواصل
   country          String?
   status           String
   referralCode     String?  @unique
@@ -134,11 +137,13 @@ model Agent {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  user           User               @relation(fields: [userId], references: [id])
   orders         Order[]
   wallet         Wallet?
   bonusProfile   AgentBonusProfile?
   paymentMethods PaymentMethod[]
   activations    Activation[]
+  topupRequests  TopupRequest[] // ✅ ربط طلبات الشحن بالوكيل
 }
 
 model Order {
@@ -148,7 +153,8 @@ model Order {
   playerEmail       String
   amount            Float
   gosportUsername   String
-  status            String
+  status            String // pending_payment, proof_uploaded, etc.
+  currentStep       Int      @default(1) // ✅ المرحلة الحالية في الخريطة (1, 2, 3)
   paymentMethodName String?
   proofUrl          String?
   proofHash         String?
@@ -178,11 +184,11 @@ model OrderMessage {
 model Wallet {
   id        String   @id @default(uuid())
   agentId   String   @unique
-  balance   Float    @default(0)
+  balance   Float    @default(0) // ✅ هذا هو الـ Agent Balance Max
   updatedAt DateTime @updatedAt
 
   agent  Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  ledger WalletLedger[]
+  ledger WalletLedger[] //
 }
 
 model WalletLedger {
@@ -326,21 +332,23 @@ model FraudFlag {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-model RechargeRequest {
+model TopupRequest {
   id                  String   @id @default(uuid())
   agentId             String
   agentEmail          String
+  gosport365_username String? // ✅ اسم المستخدم في GoSport365
   amount              Float
-  adminMethodId       String
   adminMethodName     String
   txHash              String?
-  proofUrl            String?
+  proofUrl            String? // ✅ رابط صورة الـ Proof لتظهر للآدمن
   note                String?
-  status              String
+  status              String   @default("pending")
   bonusAmount         Float    @default(0)
   pendingBonusApplied Float    @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id]) // ✅ العلاقة التي تسمح بجلب الـ username
 }
 
 model AuditLog {

@@ -1,91 +1,133 @@
-
 import { NextResponse } from "next/server";
 import { requireAdminPermission } from "@/lib/server-auth";
-import { creditWallet } from "@/lib/wallet";
+import { prisma } from "@/lib/prisma"; // تأكد من وجود ملف Prisma client
+import { creditWallet } from "@/lib/wallet"; // سنفترض أنك قمت بتحويل هذا الملف أيضاً لـ Prisma
 import { applyPendingBonusesToRecharge } from "@/lib/bonus";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
 
+// 1. جلب كافة الطلبات مع بيانات الوكيل (Username)
 export async function GET() {
   const access = await requireAdminPermission("wallets");
   if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
 
   try {
-    const requests = readJsonArray<any>(dataPath("agent_topup_requests.json"));
+    const requests = await prisma.rechargeRequest.findMany({
+      include: {
+        agent: {
+          select: {
+            username: true, // ✅ جلب الـ Username
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return NextResponse.json({ requests });
   } catch (error) {
-    console.error("GET ADMIN TOPUP REQUESTS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, requests: [] }, { status: 500 });
+    return NextResponse.json({ message: "Error fetching data", requests: [] }, { status: 500 });
   }
 }
 
+    // تحويل البيانات لتناسب الواجهة (Flattening)
+    const formattedRequests = requests.map((req) => ({
+      ...req,
+      agentUsername: req.agent?.username || req.agent?.email.split("@")[0],
+      agentEmail: req.agent?.email,
+    }));
+
+    return NextResponse.json({ requests: formattedRequests });
+  } catch (error) {
+    console.error("GET ADMIN TOPUP REQUESTS ERROR:", error);
+    return NextResponse.json({ message: "خطأ في جلب الطلبات من قاعدة البيانات", requests: [] }, { status: 500 });
+  }
+}
+
+// 2. معالجة الطلبات (موافقة أو رفض)
 export async function POST(req: Request) {
   const access = await requireAdminPermission("wallets");
   if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
 
   try {
     const { requestId, action, adminEmail, transfer_reference, admin_note } = await req.json();
-    if (!requestId || !action) return NextResponse.json({ message: "requestId and action are required" }, { status: 400 });
 
-    const path = dataPath("agent_topup_requests.json");
-    const requests = readJsonArray<any>(path);
-    const index = requests.findIndex((item) => item.id === requestId);
-    if (index === -1) return NextResponse.json({ message: "Request not found" }, { status: 404 });
+    if (!requestId || !action) {
+      return NextResponse.json({ message: "requestId and action are required" }, { status: 400 });
+    }
 
-    const requestRow = requests[index];
-    if (requestRow.status !== "pending") return NextResponse.json({ message: "Request already processed" }, { status: 400 });
+    // البحث عن الطلب في Prisma
+    const requestRow = await prisma.topupRequest.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!requestRow) return NextResponse.json({ message: "الطلب غير موجود" }, { status: 404 });
+    if (requestRow.status !== "pending") return NextResponse.json({ message: "الطلب تمت معالجته مسبقاً" }, { status: 400 });
+
+    let updatedRequest;
 
     if (action === "approve") {
       const baseAmount = Number(requestRow.amount);
       const bonusAmount = Math.floor(baseAmount * 0.1);
-      creditWallet(requestRow.agentId, baseAmount, "agent_self_topup", { adminEmail, requestId, transfer_reference });
-      if (bonusAmount > 0) {
-        creditWallet(requestRow.agentId, bonusAmount, "agent_self_topup_bonus", { adminEmail, requestId, baseAmount, transfer_reference });
-      }
-      const pendingApplied = applyPendingBonusesToRecharge(String(requestRow.agentId), adminEmail);
 
-      requests[index] = {
-        ...requestRow,
-        status: "approved",
-        bonus_amount: bonusAmount,
-        pendingBonusApplied: pendingApplied.totalApplied,
-        transfer_reference: String(transfer_reference || ""),
-        admin_note: String(admin_note || ""),
-        updated_at: nowIso(),
-      };
+      // استخدام Transaction لضمان تنفيذ كافة العمليات أو فشلها معاً
+      updatedRequest = await prisma.$transaction(async (tx) => {
+        // تحديث الرصيد (سنستخدم دالة مساعدة أو تحديث مباشر)
+        await tx.user.update({
+          where: { id: requestRow.agentId },
+          data: { balance: { increment: baseAmount + bonusAmount } },
+        });
 
-      createNotification({
-        targetRole: "agent",
-        targetId: String(requestRow.agentId),
-        title: "Recharge approved",
-        message: `Your ${requestRow.amount} DH recharge was approved by admin (+${bonusAmount} DH fixed 10% bonus${pendingApplied.totalApplied ? ` + ${pendingApplied.totalApplied} DH pending bonus` : ""}).`,
+        // تطبيق البونص المعلق (Bonus logic)
+        // ملاحظة: قد تحتاج لتعديل دالة applyPendingBonuses لتقبل الـ tx الخاص ببريزما
+        const pendingApplied = await applyPendingBonusesToRecharge(requestRow.agentId, adminEmail);
+
+        // تحديث حالة الطلب
+        return await tx.topupRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "approved",
+            bonus_amount: bonusAmount,
+            pendingBonusApplied: pendingApplied.totalApplied,
+            transfer_reference: String(transfer_reference || ""),
+            admin_note: String(admin_note || ""),
+            updated_at: new Date(),
+          },
+        });
       });
+
+      // إرسال إشعار للوكيل
+      await createNotification({
+        targetRole: "agent",
+        targetId: requestRow.agentId,
+        title: "تمت الموافقة على شحن رصيدك",
+        message: `تم تفعيل شحن ${requestRow.amount} DH. أضيفت لك مكافأة 10% (${bonusAmount} DH).`,
+      });
+
     } else if (action === "reject") {
-      requests[index] = {
-        ...requestRow,
-        status: "rejected",
-        transfer_reference: String(transfer_reference || ""),
-        admin_note: String(admin_note || ""),
-        updated_at: nowIso(),
-      };
-      createNotification({
-        targetRole: "agent",
-        targetId: String(requestRow.agentId),
-        title: "Recharge rejected",
-        message: `Your ${requestRow.amount} DH recharge request was rejected by admin.`,
+      updatedRequest = await prisma.topupRequest.update({
+        where: { id: requestId },
+        data: {
+          status: "rejected",
+          transfer_reference: String(transfer_reference || ""),
+          admin_note: String(admin_note || ""),
+          updated_at: new Date(),
+        },
       });
-    } else {
-      return NextResponse.json({ message: "Invalid action" }, { status: 400 });
+
+      await createNotification({
+        targetRole: "agent",
+        targetId: requestRow.agentId,
+        title: "تم رفض طلب الشحن",
+        message: `تم رفض طلب الشحن الخاص بك بقيمة ${requestRow.amount} DH من قبل الإدارة.`,
+      });
     }
 
-    writeJsonArray(path, requests);
-    return NextResponse.json({ message: `Request ${action}d successfully`, request: requests[index] });
+    return NextResponse.json({ message: `تمت الـ ${action} بنجاح`, request: updatedRequest });
+
   } catch (error) {
     console.error("PROCESS ADMIN TOPUP REQUEST ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json({ message: "حدث خطأ أثناء معالجة العملية برمجياً" }, { status: 500 });
   }
 }

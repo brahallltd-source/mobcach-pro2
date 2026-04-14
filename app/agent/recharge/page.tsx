@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +7,7 @@ import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SelectField, Sidebar
 type User = { role: string; email: string; agentId?: string };
 type Wallet = { balance: number };
 type AdminMethod = { id: string; type: string; method_name: string; currency: string; account_name?: string; rib?: string; wallet_address?: string; network?: string; phone?: string; fee_percent?: number };
-type TopupRequest = { id: string; amount: number; admin_method_name: string; tx_hash?: string; proof_url?: string; status: string; created_at: string; note?: string; pendingBonusApplied?: number; bonus_amount?: number };
+type TopupRequest = { id: string; amount: number; admin_method_name: string; tx_hash?: string; proof_url?: string; status: string; created_at: string; note?: string; pendingBonusApplied?: number; bonus_amount?: number; gosport365_username?: string };
 
 export default function AgentRechargePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -18,7 +17,18 @@ export default function AgentRechargePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [form, setForm] = useState({ amount: "1000", admin_method_id: "", proof_url: "", proof_hash: "", tx_hash: "", note: "" });
+  
+  // ✅ تم تحديث الـ Form ليشمل حقول اليوزر نيم
+  const [form, setForm] = useState({ 
+    amount: "1000", 
+    admin_method_id: "", 
+    proof_url: "", 
+    proof_hash: "", 
+    tx_hash: "", 
+    note: "",
+    gosport365_username: "",
+    confirm_gosport365_username: ""
+  });
 
   const load = async (agentId: string) => {
     const [walletRes, methodsRes, requestsRes] = await Promise.all([
@@ -45,6 +55,16 @@ export default function AgentRechargePage() {
   const approvedCount = useMemo(() => requests.filter((item) => item.status === "approved").length, [requests]);
   const pendingCount = useMemo(() => requests.filter((item) => item.status === "pending").length, [requests]);
 
+  // ✅ منطق التحقق من صحة البيانات قبل الإرسال
+  const isFormInvalid = useMemo(() => {
+    if (!form.amount || Number(form.amount) <= 0) return true;
+    if (!form.gosport365_username) return true;
+    if (form.gosport365_username !== form.confirm_gosport365_username) return true;
+    const requiresManualProof = selectedMethod?.type !== "crypto";
+    if (requiresManualProof && !proofFile) return true;
+    return false;
+  }, [form, selectedMethod, proofFile]);
+
   const uploadProof = async () => {
     if (!proofFile || !user?.email) return null;
     const body = new FormData();
@@ -63,13 +83,12 @@ export default function AgentRechargePage() {
 
   const submit = async () => {
     if (!user?.agentId) return;
-    const selected = methods.find((item) => item.id === form.admin_method_id);
-    if (!selected) return alert("Select an admin method");
-    const requiresManualProof = selected.type !== "crypto";
-    if (requiresManualProof && !proofFile) return alert("Upload your transfer proof first");
+    if (isFormInvalid) return alert("Please check your usernames and proof");
 
     setSaving(true);
+    const requiresManualProof = selectedMethod?.type !== "crypto";
     const proof = requiresManualProof ? await uploadProof() : { url: "", hash: "", duplicate_detected: false, suspicious_flags: [] };
+    
     if (requiresManualProof && !proof) {
       setSaving(false);
       return;
@@ -82,21 +101,24 @@ export default function AgentRechargePage() {
         agentId: user.agentId,
         agentEmail: user.email,
         amount: Number(form.amount),
-        admin_method_id: selected.id,
-        admin_method_name: selected.method_name,
+        admin_method_id: selectedMethod?.id,
+        admin_method_name: selectedMethod?.method_name,
         tx_hash: "",
         proof_url: proof?.url || "",
         proof_hash: proof?.hash || "",
         note: form.note,
+        gosport365_username: form.gosport365_username, // ✅ إرسال اليوزر نيم
       }),
     });
+    
     const data = await res.json();
     if (!res.ok) {
       alert(data.message || "Failed to send recharge request");
       setSaving(false);
       return;
     }
-    setForm((prev) => ({ ...prev, amount: "1000", proof_url: "", proof_hash: "", tx_hash: "", note: "" }));
+
+    setForm((prev) => ({ ...prev, amount: "1000", proof_url: "", proof_hash: "", tx_hash: "", note: "", gosport365_username: "", confirm_gosport365_username: "" }));
     setProofFile(null);
     await load(user.agentId);
     setSaving(false);
@@ -108,86 +130,99 @@ export default function AgentRechargePage() {
   return (
     <SidebarShell role="agent">
       <PageHeader
-        title="Recharge agent credits"
-        subtitle="Create a recharge request, upload transfer proof, then let admin review it. The system keeps the fixed 10% recharge bonus and any pending bonus applied automatically on approval."
+        title="شحن رصيد الوكيل"
+        subtitle="أنشئ طلب شحن، ارفع صورة التحويل، وسيقوم المسؤول بمراجعته وتفعيل البونص تلقائياً."
       />
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Wallet balance" value={`${wallet?.balance || 0} DH`} hint="Usable immediately after admin approval" />
-        <StatCard label="Treasury methods" value={String(methods.length)} hint="Bank / cash / crypto methods from admin" />
-        <StatCard label="Pending requests" value={String(pendingCount)} hint="Waiting for admin" />
-        <StatCard label="Approved requests" value={String(approvedCount)} hint="Already processed" />
+        <StatCard label="رصيد المحفظة" value={`${wallet?.balance || 0} DH`} hint="Usable balance" />
+        <StatCard label="طرق الدفع" value={String(methods.length)} hint="Available methods" />
+        <StatCard label="طلبات معلقة" value={String(pendingCount)} hint="Pending review" />
+        <StatCard label="طلبات مقبولة" value={String(approvedCount)} hint="Processed" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
         <GlassCard className="p-6 md:p-8">
-          <h2 className="text-2xl font-semibold">Create recharge request</h2>
+          <h2 className="text-2xl font-semibold text-white">إنشاء طلب شحن</h2>
           <div className="mt-5 space-y-4">
-            <TextField type="number" value={form.amount} onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder="Amount" />
+            
+            {/* ✅ حقول اليوزر نيم الجديدة */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField 
+                value={form.gosport365_username} 
+                onChange={(e) => setForm((prev) => ({ ...prev, gosport365_username: e.target.value }))} 
+                placeholder="GoSport365 Username" 
+              />
+              <TextField 
+                value={form.confirm_gosport365_username} 
+                onChange={(e) => setForm((prev) => ({ ...prev, confirm_gosport365_username: e.target.value }))} 
+                placeholder="Confirm Username" 
+              />
+            </div>
+            
+            {form.confirm_gosport365_username && form.gosport365_username !== form.confirm_gosport365_username && (
+              <p className="text-xs font-medium text-red-400">⚠️ أسماء المستخدمين غير متطابقة</p>
+            )}
+
+            <TextField type="number" value={form.amount} onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder="Amount (DH)" />
+            
             <SelectField value={form.admin_method_id} onChange={(e) => setForm((prev) => ({ ...prev, admin_method_id: e.target.value }))}>
               {methods.map((item) => <option key={item.id} value={item.id}>{item.method_name} • {item.currency}</option>)}
             </SelectField>
 
-            {selectedMethod ? (
+            {selectedMethod && (
               <div className="rounded-3xl border border-white/10 bg-black/20 p-5 text-sm text-white/70">
-                <p className="text-xs uppercase tracking-[0.22em] text-white/35">Transfer instructions</p>
-                <div className="mt-3 grid gap-2">
-                  <p>Method: <span className="font-semibold text-white">{selectedMethod.method_name}</span></p>
-                  {selectedMethod.account_name ? <p>Account name: <span className="font-semibold text-white">{selectedMethod.account_name}</span></p> : null}
-                  {selectedMethod.rib ? <p>RIB: <span className="font-semibold text-white">{selectedMethod.rib}</span></p> : null}
-                  {selectedMethod.wallet_address ? <p>Wallet address: <span className="break-all font-semibold text-white">{selectedMethod.wallet_address}</span></p> : null}
-                  {selectedMethod.network ? <p>Network: <span className="font-semibold text-white">{selectedMethod.network}</span></p> : null}
-                  {selectedMethod.phone ? <p>Phone: <span className="font-semibold text-white">{selectedMethod.phone}</span></p> : null}
+                <p className="text-xs uppercase tracking-[0.22em] text-white/35 font-bold mb-3">بيانات التحويل</p>
+                <div className="grid gap-2">
+                  <p>الطريقة: <span className="font-semibold text-white">{selectedMethod.method_name}</span></p>
+                  {selectedMethod.account_name && <p>الاسم: <span className="font-semibold text-white">{selectedMethod.account_name}</span></p>}
+                  {selectedMethod.rib && <p>RIB: <span className="font-semibold text-cyan-300 font-mono">{selectedMethod.rib}</span></p>}
+                  {selectedMethod.wallet_address && <p>Address: <span className="break-all font-semibold text-white">{selectedMethod.wallet_address}</span></p>}
+                  {selectedMethod.phone && <p>الهاتف: <span className="font-semibold text-white">{selectedMethod.phone}</span></p>}
                 </div>
               </div>
-            ) : null}
+            )}
 
-            {selectedMethod?.type === "crypto" ? (
-              <div className="rounded-3xl border border-cyan-400/15 bg-cyan-400/10 p-4 text-sm text-cyan-100">
-                Crypto requests do not need Tx hash or image proof. You can complete them directly through your crypto provider flow.
-              </div>
-            ) : (
+            {selectedMethod?.type !== "crypto" && (
               <div className="rounded-3xl border border-dashed border-white/10 bg-black/20 p-5">
-                <p className="text-sm font-semibold text-white/85">Upload proof</p>
+                <p className="text-sm font-semibold text-white/85">رفع وصل التحويل (Proof)</p>
                 <label className="mt-4 flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium text-white/75 transition hover:bg-white/10">
                   <ImagePlus size={16} />
-                  {proofFile ? proofFile.name : "Choose transfer proof"}
+                  {proofFile ? proofFile.name : "إختر صورة الوصل"}
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => setProofFile(e.target.files?.[0] || null)} />
                 </label>
               </div>
             )}
 
-            <TextArea rows={4} value={form.note} onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))} placeholder="Optional note for admin review" />
+            <TextArea rows={3} value={form.note} onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))} placeholder="ملاحظة اختيارية للآدمن" />
 
-            <div className="rounded-3xl border border-cyan-400/15 bg-cyan-400/10 p-4 text-sm text-cyan-100">
-              Every approved recharge keeps the fixed <strong>10%</strong> bonus rule. Pending bonus rewards are also applied automatically on approval.
-            </div>
-
-            <PrimaryButton onClick={submit} disabled={saving} className="w-full md:w-auto">
-              {saving ? "Sending request..." : "Send recharge request"}
+            <PrimaryButton onClick={submit} disabled={saving || isFormInvalid} className="w-full">
+              {saving ? "جاري الإرسال..." : "إرسال طلب الشحن"}
             </PrimaryButton>
           </div>
         </GlassCard>
 
+        {/* سجل الطلبات */}
         <GlassCard className="p-6 md:p-8">
-          <h2 className="text-2xl font-semibold">Recharge request history</h2>
+          <h2 className="text-2xl font-semibold text-white">سجل طلباتك</h2>
           <div className="mt-5 space-y-4">
             {requests.map((item) => (
               <div key={item.id} className="rounded-3xl border border-white/10 bg-black/20 p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-lg font-semibold">{item.amount} DH</p>
-                    <p className="mt-2 text-sm text-white/55">{item.admin_method_name}</p>
-                    <p className="mt-1 text-sm text-white/45">{new Date(item.created_at).toLocaleString()}</p>
-                                        {item.bonus_amount ? <p className="mt-2 text-xs text-emerald-200">10% bonus applied: {item.bonus_amount} DH</p> : null}
-                    {item.pendingBonusApplied ? <p className="mt-1 text-xs text-amber-200">Pending bonus applied: {item.pendingBonusApplied} DH</p> : null}
+                    <p className="text-lg font-bold text-white">{item.amount} DH</p>
+                    <p className="mt-1 text-xs text-white/40">{item.admin_method_name} • {new Date(item.created_at).toLocaleDateString()}</p>
+                    {item.gosport365_username && <p className="mt-2 text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Account: {item.gosport365_username}</p>}
+                    {item.bonus_amount ? <p className="mt-2 text-[11px] text-emerald-400 font-bold">+ {item.bonus_amount} DH Bonus</p> : null}
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                    {item.status.replaceAll("_", " ")}
+                  <div className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                    item.status === 'pending' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'
+                  }`}>
+                    {item.status}
                   </div>
                 </div>
               </div>
             ))}
-            {!requests.length ? <div className="rounded-3xl border border-dashed border-white/10 p-6 text-center text-white/55">No recharge requests yet.</div> : null}
+            {!requests.length && <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-white/30 italic">لا توجد طلبات سابقة</div>}
           </div>
         </GlassCard>
       </div>
