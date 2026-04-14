@@ -1,58 +1,82 @@
-
 import { NextResponse } from "next/server";
-import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+// 1. جلب سجل طلبات الوكيل (ليظهر في صفحته)
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get("agentId");
-    if (!agentId) return NextResponse.json({ message: "agentId is required", requests: [] }, { status: 400 });
-    const requests = readJsonArray<any>(dataPath("agent_topup_requests.json")).filter((item) => String(item.agentId) === String(agentId));
-    return NextResponse.json({ requests });
+
+    if (!agentId) {
+      return NextResponse.json({ requests: [] }, { status: 400 });
+    }
+
+    // البحث في قاعدة البيانات عن طلبات هذا الوكيل فقط
+    const requests = await prisma.topupRequest.findMany({
+      where: { agentId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // إعادة صياغة الحقول لتتطابق مع ما تتوقعه صفحة الواجهة (frontend)
+    const formattedRequests = requests.map((req: any) => ({
+      ...req,
+      admin_method_name: req.adminMethodName,
+      created_at: req.createdAt,
+      bonus_amount: req.bonusAmount,
+      proof_url: req.proofUrl,
+      tx_hash: req.txHash,
+    }));
+
+    return NextResponse.json({ requests: formattedRequests });
   } catch (error) {
-    console.error("GET AGENT TOPUP REQUESTS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, requests: [] }, { status: 500 });
+    console.error("AGENT GET TOPUP REQUESTS ERROR:", error);
+    return NextResponse.json({ requests: [] }, { status: 500 });
   }
 }
 
+// 2. إرسال طلب شحن جديد (من الوكيل للآدمن)
 export async function POST(req: Request) {
   try {
-    const { agentId, agentEmail, amount, admin_method_id, admin_method_name, tx_hash, proof_url, proof_hash, note } = await req.json();
-    if (!agentId || !agentEmail || !amount || !admin_method_id || !admin_method_name) {
-      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    const body = await req.json();
+    const {
+      agentId,
+      agentEmail,
+      amount,
+      admin_method_name,
+      tx_hash,
+      proof_url,
+      note,
+      gosport365_username,
+    } = body;
+
+    if (!agentId || !amount) {
+      return NextResponse.json({ message: "بيانات غير مكتملة" }, { status: 400 });
     }
-    const numericAmount = Number(amount);
-    if (Number.isNaN(numericAmount) || numericAmount < 1000) {
-      return NextResponse.json({ message: "Minimum recharge request is 1000 DH" }, { status: 400 });
-    }
-    const path = dataPath("agent_topup_requests.json");
-    const requests = readJsonArray<any>(path);
-    const record = {
-      id: uid("topupreq"),
-      agentId: String(agentId),
-      agentEmail: String(agentEmail),
-      amount: numericAmount,
-      admin_method_id: String(admin_method_id),
-      admin_method_name: String(admin_method_name),
-      tx_hash: String(tx_hash || ""),
-      proof_url: String(proof_url || ""),
-      proof_hash: String(proof_hash || ""),
-      note: String(note || ""),
-      status: "pending",
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    };
-    requests.unshift(record);
-    writeJsonArray(path, requests);
-    createNotification({ targetRole: "admin", targetId: "admin", title: "Agent wallet recharge request", message: `${agentEmail} requested ${numericAmount} DH wallet top-up.` });
-    return NextResponse.json({ message: "Recharge request sent to admin", request: record });
+
+    // إنشاء الطلب مباشرة في قاعدة بيانات Prisma
+    const newRequest = await prisma.topupRequest.create({
+      data: {
+        agentId: agentId,
+        agentEmail: agentEmail,
+        amount: Number(amount),
+        adminMethodName: admin_method_name || "Unknown",
+        txHash: tx_hash || null,
+        proofUrl: proof_url || null,
+        note: note || null,
+        gosport365_username: gosport365_username || null,
+        status: "pending",
+      },
+    });
+
+    return NextResponse.json({ 
+      message: "تم إرسال طلب الشحن بنجاح", 
+      request: newRequest 
+    });
+
   } catch (error) {
-    console.error("CREATE AGENT TOPUP REQUEST ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    console.error("AGENT POST TOPUP REQUEST ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ أثناء إرسال الطلب" }, { status: 500 });
   }
 }
