@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ function mapMessage(msg: any) {
     senderRole: msg.senderRole,
     message: msg.message,
     created_at: msg.createdAt,
-    orderId: msg.orderId, // باش نعرفو كل رسالة تابعة لأي طلب إذا بغينا
+    orderId: msg.orderId,
   };
 }
 
@@ -24,38 +25,31 @@ export async function GET(req: Request) {
     const orderId = searchParams.get("orderId");
     const playerEmail = searchParams.get("playerEmail")?.toLowerCase();
     const agentId = searchParams.get("agentId");
-    const listRole = searchParams.get("listRole"); // 'player' or 'agent'
+    const listRole = searchParams.get("listRole");
     const userEmail = searchParams.get("userEmail")?.toLowerCase();
 
     // 1. جلب قائمة المحادثات (Conversations List)
     if (listRole && userEmail) {
       const orders = await prisma.order.findMany({
-        where: listRole === 'player' ? { playerEmail: userEmail } : { agentId: userEmail }, // افتراضياً هنا
+        where: listRole === 'player' ? { playerEmail: userEmail } : { agentId: userEmail },
         select: {
+          id: true,
           agentId: true,
           playerEmail: true,
           gosportUsername: true,
           messages: { orderBy: { createdAt: 'desc' }, take: 1 }
         }
       });
-      // منطق تجميع المحادثات الفريدة (Unique Conversations)
-      // يمكن تطويره لاحقاً لجلب أسماء الوكلاء/اللاعبين
       return NextResponse.json({ conversations: orders });
     }
 
-    // 2. جلب التاريخ الموحد (Unified History) بين لاعب ووكيل معين
+    // 2. جلب التاريخ الموحد بين لاعب ووكيل معين
     if (playerEmail && agentId) {
       const allOrdersBetweenThem = await prisma.order.findMany({
-        where: {
-          playerEmail: playerEmail,
-          agentId: agentId
-        },
-        include: {
-          messages: true
-        }
+        where: { playerEmail, agentId },
+        include: { messages: true }
       });
 
-      // جمع كاع الرسائل من كاع الأوردرات اللي بيناتهم
       const allMessages = allOrdersBetweenThem
         .flatMap(order => order.messages)
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -66,7 +60,7 @@ export async function GET(req: Request) {
       });
     }
 
-    // 3. الحالة القديمة: جلب رسائل طلب واحد (للتوافق مع الكود القديم)
+    // 3. حالة طلب واحد
     if (orderId) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -80,7 +74,6 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ message: "Missing parameters" }, { status: 400 });
-
   } catch (error) {
     console.error("GET MESSAGES ERROR:", error);
     return NextResponse.json({ message: "Internal Error" }, { status: 500 });
@@ -96,8 +89,10 @@ export async function POST(req: Request) {
     const { orderId, senderRole, message, playerEmail, agentId } = body;
 
     let targetOrderId = orderId;
+    let finalPlayerEmail = playerEmail;
+    let finalAgentId = agentId;
 
-    // "الخطة الذكية": إذا لم يرسل الـ orderId، نبحث عن آخر طلب نشط بينهما
+    // البحث عن آخر طلب إذا لم يتوفر orderId
     if (!targetOrderId && playerEmail && agentId) {
       const lastOrder = await prisma.order.findFirst({
         where: { playerEmail, agentId },
@@ -106,10 +101,20 @@ export async function POST(req: Request) {
       targetOrderId = lastOrder?.id;
     }
 
+    // إذا توفر الـ orderId ولكن نقصت المعلومات الأخرى، نجلبها من الطلب
+    if (targetOrderId && (!finalPlayerEmail || !finalAgentId)) {
+      const orderData = await prisma.order.findUnique({ where: { id: targetOrderId } });
+      if (orderData) {
+        finalPlayerEmail = orderData.playerEmail;
+        finalAgentId = orderData.agentId;
+      }
+    }
+
     if (!targetOrderId || !senderRole || !message) {
       return NextResponse.json({ message: "Missing data" }, { status: 400 });
     }
 
+    // 1. إنشاء الرسالة في قاعدة البيانات
     const created = await prisma.orderMessage.create({
       data: {
         orderId: targetOrderId,
@@ -117,6 +122,30 @@ export async function POST(req: Request) {
         message,
       },
     });
+
+    // 2. 🚀 إرسال إشعار للطرف الآخر (تفعيل النقطة الحمراء)
+    try {
+      if (senderRole === "player" && finalAgentId) {
+        // اللاعب أرسل -> نُعلم الوكيل
+        await createNotification({
+          targetRole: "agent",
+          targetId: finalAgentId,
+          title: "رسالة جديدة من لاعب 💬",
+          message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+        });
+      } 
+      else if (senderRole === "agent" && finalPlayerEmail) {
+        // الوكيل أرسل -> نُعلم اللاعب
+        await createNotification({
+          targetRole: "player",
+          targetId: finalPlayerEmail,
+          title: "رد جديد من الوكيل 💬",
+          message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+        });
+      }
+    } catch (notifErr) {
+      console.error("Notification creation failed but message was sent:", notifErr);
+    }
 
     return NextResponse.json({
       success: true,

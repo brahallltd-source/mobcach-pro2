@@ -251,7 +251,8 @@ export function SidebarShell({
         if (!saved) return;
         const user = JSON.parse(saved);
         const role = String(user.role).toLowerCase();
-        const targetId = role === "agent" ? (user.agentId || user.id) : user.email;
+        // تأكد من هاد السطر وسط useEffect في ui.tsx
+        const targetId = role === "agent" ? (user.agentId || user.id) : (user.email || user.playerEmail);
 
         // كنعيطو لـ API الإشعارات اللي صاوبنا باش نشوفو واش كاين شي حاجة Unread
         const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
