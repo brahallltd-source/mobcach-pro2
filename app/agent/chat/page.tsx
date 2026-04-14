@@ -1,82 +1,133 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { MessageCircle, Send, CheckCircle, User, Info, Search } from "lucide-react";
 import {
   GlassCard,
   LoadingCard,
   PageHeader,
+  PrimaryButton,
   SidebarShell,
-  StatCard,
-  StatusBadge,
+  TextArea,
   TextField,
 } from "@/components/ui";
 
-type Msg = {
+type ChatMessage = {
+  id: string;
   senderRole: string;
   message: string;
-  createdAt: string;
+  created_at: string;
 };
 
-type Order = {
-  id: string;
-  amount: number;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+type PlayerConversation = {
   playerEmail: string;
   gosportUsername?: string;
-  paymentMethodName?: string;
-  messages?: Msg[];
 };
 
 export default function AgentChatPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [conversations, setConversations] = useState<PlayerConversation[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activePlayer, setActivePlayer] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const load = (email: string) =>
-    fetch(`/api/agent/orders?email=${encodeURIComponent(email)}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => setOrders(data.orders || []));
+  // 1. جلب قائمة اللاعبين (الزبائن)
+  const loadConversations = async (currentAgentId: string) => {
+    try {
+      const res = await fetch(`/api/order-messages?listRole=agent&userEmail=${currentAgentId}`);
+      const data = await res.json();
+      
+      // استخراج اللاعبين بدون تكرار
+      const uniquePlayers = new Map();
+      (data.conversations || []).forEach((order: any) => {
+        if (order.playerEmail && !uniquePlayers.has(order.playerEmail)) {
+          uniquePlayers.set(order.playerEmail, { 
+            playerEmail: order.playerEmail,
+            gosportUsername: order.gosportUsername
+          });
+        }
+      });
+      setConversations(Array.from(uniquePlayers.values()));
+    } catch (err) {
+      console.error("Failed to load conversations", err);
+    }
+  };
+
+  // 2. جلب التاريخ الكامل للمحادثة مع لاعب محدد
+  const loadMessages = async (currentAgentId: string, playerEmail: string) => {
+    try {
+      const res = await fetch(`/api/order-messages?playerEmail=${encodeURIComponent(playerEmail)}&agentId=${currentAgentId}`);
+      const data = await res.json();
+      setMessages(data.messages || []);
+      
+      // النزول التلقائي لآخر رسالة
+      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (err) {
+      console.error("Failed to load messages", err);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
     const user = JSON.parse(saved);
-    load(user.email).finally(() => setLoading(false));
-    const timer = setInterval(() => load(user.email), 4000);
+    const myAgentId = user.agentId; // الوكيل يمتلك agentId في التخزين المحلي
+    setAgentId(myAgentId);
+
+    loadConversations(myAgentId).finally(() => setLoading(false));
+
+    // تحديث تلقائي (Polling) كل 4 ثواني
+    const timer = setInterval(() => {
+      loadConversations(myAgentId);
+      if (activePlayer) {
+        loadMessages(myAgentId, activePlayer);
+      }
+    }, 4000);
+
     return () => clearInterval(timer);
-  }, []);
+  }, [activePlayer]);
 
-  const unread = useMemo(
-    () =>
-      orders.filter((order) => {
-        const messages = order.messages || [];
-        const last = messages[messages.length - 1];
-        // إذا كانت آخر رسالة من اللاعب، فهي تعتبر غير مقروءة للوكيل
-        return last?.senderRole === "player";
-      }).length,
-    [orders]
-  );
+  const handleSend = async () => {
+    if (!newMessage.trim() || !activePlayer || !agentId) return;
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return orders;
+    const messageText = newMessage;
+    setNewMessage(""); 
 
-    return orders.filter(
-      (order) =>
-        order.playerEmail.toLowerCase().includes(q) ||
-        String(order.gosportUsername || "").toLowerCase().includes(q) ||
-        order.id.toLowerCase().includes(q)
+    try {
+      await fetch("/api/order-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderRole: "agent", // المرسل هو الوكيل
+          playerEmail: activePlayer,
+          agentId: agentId,
+          message: messageText,
+        }),
+      });
+      loadMessages(agentId, activePlayer);
+    } catch (error) {
+      console.error("Send error", error);
+      alert("فشل إرسال الرسالة، جرب مرة أخرى.");
+    }
+  };
+
+  // فلترة اللاعبين في الـ Sidebar بناءً على البحث
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return conversations;
+    return conversations.filter(c => 
+      c.playerEmail.toLowerCase().includes(q) || 
+      (c.gosportUsername && c.gosportUsername.toLowerCase().includes(q))
     );
-  }, [orders, query]);
+  }, [conversations, searchQuery]);
 
   if (loading) {
     return (
       <SidebarShell role="agent">
-        <LoadingCard text="Loading agent chat..." />
+        <LoadingCard text="جاري تحميل المحادثات..." />
       </SidebarShell>
     );
   }
@@ -84,89 +135,147 @@ export default function AgentChatPage() {
   return (
     <SidebarShell role="agent">
       <PageHeader
-        title="Agent chat inbox"
-        subtitle="Receive player messages, keep each order thread open and answer players without leaving the order context."
+        title="صندوق رسائل الوكيل (Agent Inbox)"
+        subtitle="تواصل مع اللاعبين، راجع وصولات الدفع، وتابع تاريخ عملياتهم في مساحة عمل واحدة مدمجة."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          label="Open conversations"
-          value={String(orders.length)}
-          hint="Orders with an available chat thread"
-        />
-        <StatCard
-          label="Need reply"
-          value={String(unread)}
-          hint="Last message currently from player"
-        />
-        <StatCard
-          label="Completed chats"
-          value={String(orders.filter((order) => order.status === "completed").length)}
-          hint="Conversations linked to finished orders"
-        />
-      </div>
-
-      <GlassCard className="p-4 md:p-5">
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
-            size={16}
-          />
-          <TextField
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by player, username or order id"
-            className="pl-11"
-          />
-        </div>
-      </GlassCard>
-
-      <div className="space-y-4">
-        {filtered.map((order) => {
-          const messages = order.messages || [];
-          const lastMessage = messages.slice(-1)[0];
-          const waitingReply = lastMessage?.senderRole === "player";
-
-          return (
-            <GlassCard key={order.id} className="p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold">{order.playerEmail}</p>
-                    {waitingReply ? (
-                      <span className="rounded-full bg-amber-300/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100">
-                        Need reply
-                      </span>
-                    ) : null}
+      <div className="grid grid-cols-1 md:grid-cols-[350px_1fr] gap-4 h-[calc(100vh-160px)] min-h-[600px] mt-4">
+        
+        {/* القائمة الجانبية (Sidebar) - قائمة الزبائن والبحث */}
+        <GlassCard className="flex flex-col overflow-hidden border-white/10">
+          <div className="p-4 border-b border-white/10 bg-white/5 space-y-3">
+            <div className="font-bold flex items-center gap-2 text-cyan-400">
+              <MessageCircle size={18} /> قائمة العملاء
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
+              <TextField 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث بالإيميل أو اليوزر..." 
+                className="pl-9 py-2 text-sm bg-black/40 border-white/10" 
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {filteredConversations.length > 0 ? (
+              filteredConversations.map((c) => (
+                <div
+                  key={c.playerEmail}
+                  onClick={() => {
+                    setActivePlayer(c.playerEmail);
+                    loadMessages(agentId, c.playerEmail);
+                  }}
+                  className={`p-3 rounded-2xl cursor-pointer transition flex items-center gap-3 ${
+                    activePlayer === c.playerEmail
+                      ? "bg-cyan-500/20 border border-cyan-500/30"
+                      : "hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activePlayer === c.playerEmail ? 'bg-cyan-500/30 text-cyan-300' : 'bg-white/10 text-white/50'}`}>
+                    <User size={18} />
                   </div>
-
-                  <p className="mt-2 text-sm text-white/55">
-                    {order.paymentMethodName || "Method pending"} •{" "}
-                    {order.gosportUsername || "Username pending"}
-                  </p>
-
-                  <p className="mt-1 text-sm text-white/45">
-                    Order {order.id} • {new Date(order.updatedAt).toLocaleString()}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-white truncate">{c.gosportUsername || 'Unknown User'}</p>
+                    <p className="text-[10px] text-white/50 truncate mt-0.5">{c.playerEmail}</p>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center text-white/30 text-xs mt-10 italic">
+                {searchQuery ? "لم يتم العثور على لاعبين" : "لا توجد محادثات سابقة."}
+              </div>
+            )}
+          </div>
+        </GlassCard>
 
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={order.status} />
-                  <Link
-                    href={`/agent/chat/${order.id}`}
-                    className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
-                  >
-                    Open chat
-                  </Link>
+        {/* مساحة الدردشة الرئيسية (Main Chat Area) */}
+        <GlassCard className="flex flex-col overflow-hidden relative border-white/10">
+          {activePlayer ? (
+            <>
+              {/* شريط معلومات اللاعب المفتوح */}
+              <div className="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
+                  <p className="text-xs text-white/50">{activePlayer}</p>
                 </div>
               </div>
-            </GlassCard>
-          );
-        })}
 
-        {!filtered.length ? (
-          <GlassCard className="p-10 text-center">No chat threads found.</GlassCard>
-        ) : null}
+              {/* منطقة عرض الرسائل */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {messages.length > 0 ? (
+                  messages.map((m) => {
+                    const isSystem = m.senderRole === "system";
+                    const isMe = m.senderRole === "agent"; // الوكيل هو المرسل هنا
+
+                    if (isSystem) {
+                      return (
+                        <div key={m.id} className="flex justify-center my-4">
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                            {m.message.includes("✅") || m.message.includes("🏁") ? <CheckCircle size={14} /> : <Info size={14} />}
+                            <span className="font-semibold tracking-wide">{m.message}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[85%] p-4 rounded-3xl text-sm shadow-lg ${
+                            isMe
+                              ? "bg-cyan-600 text-white rounded-tr-sm"
+                              : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"
+                          }`}
+                        >
+                          <p className="leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                          <p className={`text-[10px] mt-2 font-mono ${isMe ? 'text-cyan-200/70 text-right' : 'text-white/40 text-left'}`}>
+                            {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-white/30 italic">
+                    <MessageCircle size={48} className="mb-3 opacity-20" />
+                    <p>لا توجد رسائل سابقة مع هذا اللاعب.</p>
+                  </div>
+                )}
+                <div ref={scrollRef} />
+              </div>
+
+              {/* منطقة إدخال النص */}
+              <div className="p-4 border-t border-white/10 bg-black/40 flex items-end gap-3">
+                <TextArea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="رد على اللاعب..."
+                  className="min-h-[55px] max-h-[120px] py-3.5 bg-white/5 border-white/10 focus:border-cyan-500/50 resize-none rounded-2xl"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                />
+                <PrimaryButton 
+                  onClick={handleSend} 
+                  disabled={!newMessage.trim()}
+                  className="h-[55px] px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex items-center justify-center"
+                >
+                  <Send size={20} className={newMessage.trim() ? "translate-x-0.5 transition-transform" : ""} />
+                </PrimaryButton>
+              </div>
+            </>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-white/20">
+              <MessageCircle size={72} className="mb-6 opacity-10" />
+              <p className="text-lg font-semibold tracking-wide">اختر لاعباً للبدء</p>
+              <p className="text-sm mt-2">حدد لاعباً من القائمة للاطلاع على المحادثة</p>
+            </div>
+          )}
+        </GlassCard>
       </div>
     </SidebarShell>
   );

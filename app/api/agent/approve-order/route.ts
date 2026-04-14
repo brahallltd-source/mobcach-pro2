@@ -1,9 +1,9 @@
-
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
@@ -63,22 +63,23 @@ export async function POST(req: Request) {
         }
       });
 
-      // 4. تحديث حالة الطلب للانتقال للمرحلة الثالثة في الخريطة
+      // 4. تحديث حالة الطلب للانتقال للمرحلة الثالثة
       const updatedOrder = await tx.order.update({
         where: { id: String(orderId) },
         data: {
-          status: "agent_approved_waiting_player", // الحالة التي تظهر زر "تم الإتمام" للاعب
+          status: "agent_approved_waiting_player", 
           walletDeducted: true,
           updatedAt: new Date(),
         },
       });
 
-      // 5. إضافة رسالة نظام في الشات لإعلام اللاعب بالنجاح
+      // 5. ✅ إضافة رسالة النظام الموحدة في الشات (كما طلبت)
+      // هذه الرسالة ستظهر في تاريخ المحادثة بين الوكيل واللاعب
       await tx.orderMessage.create({
         data: {
           orderId: order.id,
           senderRole: "system",
-          message: `🚀 قام الوكيل بالموافقة وإرسال الشحن لحسابك (${order.gosportUsername}). يرجى التأكد من حسابك وتأكيد الاستلام.`,
+          message: `✅ Agent approved: Check your balance on gosport365.com.`,
         },
       });
 
@@ -87,12 +88,12 @@ export async function POST(req: Request) {
         targetRole: "player",
         targetId: order.playerId || "",
         title: "تم شحن حسابك ✅",
-        message: `الوكيل ${order.agent.fullName} قام بتفعيل طلبك بقيمة ${order.amount} DH.`,
+        message: `الوكيل ${order.agent.fullName} قام بتفعيل طلبك. تفقد حسابك الآن.`,
       });
 
       return NextResponse.json({
         success: true,
-        message: "تمت الموافقة وخصم الرصيد بنجاح ✅",
+        message: "تمت الموافقة بنجاح. المرجو إبلاغ اللاعب بتفقد حسابه.",
         order: updatedOrder,
       });
     });
