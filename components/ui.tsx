@@ -195,10 +195,10 @@ function getNav(role: Role, t: any) {
     { href: "/player/achat", label: t("newOrder") || "New Order", icon: ShoppingCart, mobileLabel: "New" },
     { href: "/player/orders", label: t("orders") || "Orders", icon: Package, mobileLabel: "Orders" },
     { href: "/player/chat", label: t("chat") || "Chat", icon: MessageCircle, mobileLabel: "Chat" },
-    { href: "/player/notifications", label: t("notifications") || "Notifications", icon: Bell, mobileLabel: "Notif" },
+    { href: "/player/winnings", label: t("winnings") || "Winnings", icon: CircleDollarSign, mobileLabel: "Win" },
     { href: "/player/profile", label: t("myProfile") || "Profile", icon: UserRound, mobileLabel: "Profile" },
   ];
-  
+
   const agent: NavItem[] = [
     { href: "/agent/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
     { href: "/agent/orders", label: t("orders") || "Orders", icon: Package },
@@ -208,11 +208,13 @@ function getNav(role: Role, t: any) {
     { href: "/agent/settings", label: t("settings") || "Settings", icon: Settings },
   ];
 
+  // 🟢 هاد الجزء هو لي كان ناقص ودير المشكل:
   const admin: NavItem[] = [
     { href: "/admin/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
     { href: "/admin/agents", label: t("agents") || "Agents", icon: Users },
     { href: "/admin/orders", label: t("orders") || "Orders", icon: Package },
     { href: "/admin/branding", label: t("branding") || "Branding", icon: Sparkles },
+    { href: "/admin/analytics", label: t("analytics") || "Analytics", icon: CreditCard },
   ];
 
   if (role === "player") return player;
@@ -228,9 +230,9 @@ export function SidebarShell({
   role: Role;
 }) {
   const pathname = usePathname();
-  const { t, dir } = useLanguage(); // تأكد أن t جاية من هنا
+  const { t, dir } = useLanguage();
   const branding = useBranding();
-  const nav = getNav(role, t);
+  const nav = getNav(role, t); // الآن t سيعمل لأن المفاتيح موجودة
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -267,21 +269,24 @@ useEffect(() => {
   return (
     <main dir={dir} className="min-h-screen bg-hero px-4 py-5 text-white md:px-6">
       <div className="mx-auto flex max-w-7xl gap-6">
+        {/* الشريط الجانبي للكمبيوتر */}
         <aside className="hidden w-72 shrink-0 lg:block">
-          {/* 🌐 تحسين مكان اللغة في الـ Desktop: حطيناها الفوق بعيدة على المنيو */}
-          <div className="mb-4 flex justify-end scale-90 origin-right">
-            <LanguageSwitcher />
+          {/* 🌐 حل مشكل الـ Switcher: وضعناه فوق الـ Card ليأخذ مساحة مريحة */}
+          <div className="mb-4 flex justify-end">
+            <div className="scale-90 origin-right">
+              <LanguageSwitcher />
+            </div>
           </div>
 
-          <GlassCard className="sticky top-5 p-5 flex flex-col gap-4">
-            <div className="mb-2 flex items-center gap-3 border-b border-white/5 pb-4">
-              <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80 truncate">
+          <GlassCard className="sticky top-5 p-5 flex flex-col min-h-[600px]">
+            <div className="mb-6 flex items-center gap-3 border-b border-white/5 pb-5">
+              <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
                 <BrandMark />
                 <span className="truncate">{branding.brandName}</span>
               </Link>
             </div>
 
-            <div className="space-y-1.5 flex-1">
+            <nav className="space-y-1.5 flex-1">
               {nav.map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;
@@ -292,15 +297,15 @@ useEffect(() => {
                     className={clsx(
                       "relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
                       active
-                        ? "bg-white text-slate-950 shadow-lg shadow-white/10"
+                        ? "bg-white text-slate-950 shadow-lg"
                         : "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
                     )}
                   >
                     <Icon size={16} />
                     <span className="flex-1">{item.label}</span>
                     
-                    {/* 🔴 تنبيه الشات للكمبيوتر مع الرقم */}
-                    {item.label.toLowerCase().includes("chat") && unreadCount > 0 && (
+                    {/* رقم الإشعارات */}
+                    {item.label === t("chat") && unreadCount > 0 && (
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-bounce">
                         {unreadCount}
                       </span>
@@ -308,15 +313,15 @@ useEffect(() => {
                   </Link>
                 );
               })}
-            </div>
+            </nav>
 
-            {/* 🛠️ حل مشكل الـ Build: استعملنا "as any" باش TypeScript ما يعترضش على logout */}
+            {/* زر تسجيل الخروج مترجم */}
             <button
               onClick={logout}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
             >
               <LogOut size={16} />
-              {(t as any)("logout") || "Logout"}
+              {(t as any)("logout")}
             </button>
           </GlassCard>
         </aside>
