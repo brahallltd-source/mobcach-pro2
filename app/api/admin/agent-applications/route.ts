@@ -189,15 +189,16 @@ export async function POST(req: Request) {
       } else {
         agentRecord = await tx.agent.create({
           data: {
+            userId: application.userId, // 👈 ✅ أضف هذا السطر فقط!
             fullName: application.fullName,
             username: application.username,
             email: application.email,
             phone: application.phone,
-            country: application.country || "Morocco",
-            note: application.note || null,
-            status: "account_created",
+            country: application.country,
+            note: application.note,
+            status: "active", // (أو أي قيمة موجودة في الكود الخاص بك)
             online: true,
-          },
+          }
         });
       }
 
