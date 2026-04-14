@@ -16,26 +16,36 @@ export async function GET() {
   }
 
   try {
-    const requests = await prisma.topupRequest.findMany({
-      include: {
-        agent: {
-          select: {
-            username: true,
-            email: true,
-          },
-        },
-      },
+    // 1. جلب الطلبات بدون include لتفادي خطأ TypeScript
+    const requests = await prisma.rechargeRequest.findMany({
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    // تم التعديل هنا لتفادي خطأ المترجم (SWC Compiler Bug)
+    // 2. استخراج معرفات الوكلاء (agentIds) من الطلبات
+    const agentIds = [...new Set(requests.map((r: any) => r.agentId))];
+
+    // 3. جلب بيانات هؤلاء الوكلاء (للحصول على الـ username)
+    const agents = await prisma.agent.findMany({
+      where: { id: { in: agentIds } },
+      select: { id: true, username: true },
+    });
+
+    // 4. تحويل بيانات الوكلاء إلى خريطة (Map) لتسهيل البحث
+    const agentMap = agents.reduce((acc: any, agent: any) => {
+      acc[agent.id] = agent;
+      return acc;
+    }, {});
+
+    // 5. دمج الـ username مع كل طلب
     const formattedRequests = requests.map((req: any) => {
+      const matchedAgent = agentMap[req.agentId];
       return {
         ...req,
-        agentUsername: req.agent?.username || (req.agent?.email ? req.agent.email.split("@")[0] : ""),
-        agentEmail: req.agent?.email || "",
+        // إذا وجد الوكيل نضع اسمه، وإلا نستخدم بداية الإيميل كاحتياط
+        agentUsername: matchedAgent?.username || (req.agentEmail ? req.agentEmail.split("@")[0] : ""),
+        agentEmail: req.agentEmail || "",
       };
     });
 
@@ -60,7 +70,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "requestId and action are required" }, { status: 400 });
     }
 
-    const requestRow = await prisma.topupRequest.findUnique({
+    const requestRow = await prisma.rechargeRequest.findUnique({
       where: { id: requestId },
     });
 
@@ -88,7 +98,7 @@ export async function POST(req: Request) {
         const pendingApplied = await applyPendingBonusesToRecharge(requestRow.agentId, adminEmail);
 
         // تحديث حالة الطلب
-        return tx.topupRequest.update({
+        return tx.rechargeRequest.update({
           where: { id: requestId },
           data: {
             status: "approved",
@@ -107,7 +117,7 @@ export async function POST(req: Request) {
       });
 
     } else if (action === "reject") {
-      updatedRequest = await prisma.topupRequest.update({
+      updatedRequest = await prisma.rechargeRequest.update({
         where: { id: requestId },
         data: {
           status: "rejected",
