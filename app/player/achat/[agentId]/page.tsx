@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { MessageCircle, Zap, ArrowRight, ShieldCheck, User, AlertCircle } from "lucide-react";
+import { MessageCircle, Zap, ArrowRight, User, AlertCircle } from "lucide-react";
 import { useLanguage } from "@/components/language";
 import { 
   GlassCard, 
@@ -18,6 +18,7 @@ type AgentData = {
   fullName: string; 
   phone: string; 
   availableBalance: number; 
+  balance?: number; // حقل احتياطي
 };
 
 export default function AchatStepOnePage() {
@@ -36,26 +37,36 @@ export default function AchatStepOnePage() {
     confirmUsername: "",
   });
 
-  useEffect(() => {
-    const loadAgent = async () => {
-      try {
-        setLoading(true);
-        // تم تعديل الرابط لضمان جلب بيانات الوكيل الصحيحة
-        const res = await fetch(`/api/agent/public-profile?agentId=${params.agentId}`);
-        const data = await res.json();
-        
-        if (!res.ok || !data.agent) {
-          throw new Error(data.message || "Agent not found");
-        }
-        setAgent(data.agent);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const loadAgent = async () => {
+    try {
+      // نستخدم timestamp لمنع المتصفح من عرض بيانات قديمة (Cache)
+      const res = await fetch(`/api/agent/public-profile?agentId=${params.agentId}&t=${Date.now()}`);
+      const data = await res.json();
+      
+      if (!res.ok || !data.agent) {
+        throw new Error(data.message || "Agent not found");
       }
-    };
 
+      // ✅ إصلاح ذكي: التأكد من قراءة الرصيد سواء كان اسمه balance أو availableBalance
+      const normalizedAgent = {
+        ...data.agent,
+        availableBalance: data.agent.availableBalance ?? data.agent.balance ?? 0
+      };
+
+      setAgent(normalizedAgent);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (params.agentId) loadAgent();
+    
+    // تحديث تلقائي كل 10 ثوانٍ لضمان دقة الرصيد المتاح
+    const interval = setInterval(loadAgent, 10000);
+    return () => clearInterval(interval);
   }, [params.agentId]);
 
   const numericAmount = Number(form.amount || 0);
@@ -89,7 +100,7 @@ export default function AchatStepOnePage() {
           agentId: agent?.id,
           amount: numericAmount,
           gosportUsername: form.username,
-          currentStep: 2, // ننتقل للمرحلة الثانية في الخريطة
+          currentStep: 2,
           status: "pending_payment", 
         }),
       });
@@ -97,7 +108,6 @@ export default function AchatStepOnePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // التوجه لصفحة الخريطة (المرحلة الثانية)
       router.push(`/player/orders/${data.order.id}`);
     } catch (error: any) {
       alert(error.message || "فشل في إنشاء الطلب");
@@ -134,10 +144,10 @@ export default function AchatStepOnePage() {
                   placeholder="أدخل المبلغ (Min: 10 DH)"
                   value={form.amount}
                   onChange={(e) => setForm(prev => ({ ...prev, amount: e.target.value }))}
-                  className={validationError ? "border-red-500/50" : ""}
+                  className={validationError ? "border-red-500/50 text-red-400" : ""}
                 />
                 <div className="mt-2 flex items-center justify-between px-1">
-                  <span className="text-[11px] text-white/40">المتاح لدى الوكيل: {agentMax} DH</span>
+                  <span className="text-[11px] text-white/40">المتاح لدى الوكيل: <b className="text-emerald-400">{agentMax} DH</b></span>
                   {validationError && <span className="text-[11px] text-red-400 font-bold">{validationError}</span>}
                 </div>
               </div>
@@ -165,7 +175,7 @@ export default function AchatStepOnePage() {
             <PrimaryButton 
               onClick={handleNextStep} 
               disabled={submitting || !!validationError || !form.amount || !form.username}
-              className="w-full py-4 text-base font-bold flex items-center justify-center gap-2"
+              className={`w-full py-4 text-base font-bold flex items-center justify-center gap-2 ${!!validationError ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {submitting ? "جاري المعالجة..." : "تأكيد والانتقال للدفع"}
               <ArrowRight size={18} />
@@ -198,7 +208,6 @@ export default function AchatStepOnePage() {
                       <MessageCircle size={20} /><span className="text-[10px] font-bold mt-1">Live Chat</span>
                     </button>
                   </div>
-                  <p className="mt-3 text-[10px] text-center text-white/30 italic">"Contact your agent for custom limits"</p>
                 </div>
               </div>
             </GlassCard>
