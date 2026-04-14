@@ -189,41 +189,32 @@ export function Shell({ children }: { children: ReactNode }) {
 type Role = "player" | "agent" | "admin";
 type NavItem = { href: string; label: string; icon: any; mobileLabel?: string };
 
-function getNav(role: Role, t: ReturnType<typeof useLanguage>["t"]) {
+function getNav(role: Role, t: any) {
   const player: NavItem[] = [
-    { href: "/player/dashboard", label: "Overview", icon: LayoutDashboard, mobileLabel: "Home" },
-    { href: "/player/achat", label: "New Order", icon: ShoppingCart, mobileLabel: "New" },
-    { href: "/player/orders", label: "Orders", icon: Package, mobileLabel: "Orders" },
-    { href: "/player/chat", label: "Chat", icon: MessageCircle, mobileLabel: "Chat" },
-    { href: "/player/winnings", label: "Winnings", icon: CircleDollarSign, mobileLabel: "Win" },
-    { href: "/player/profile", label: t("myProfile"), icon: UserRound, mobileLabel: "Profile" },
+    { href: "/player/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard, mobileLabel: "Home" },
+    { href: "/player/achat", label: t("newOrder") || "New Order", icon: ShoppingCart, mobileLabel: "New" },
+    { href: "/player/orders", label: t("orders") || "Orders", icon: Package, mobileLabel: "Orders" },
+    { href: "/player/chat", label: t("chat") || "Chat", icon: MessageCircle, mobileLabel: "Chat" },
+    { href: "/player/notifications", label: t("notifications") || "Notifications", icon: Bell, mobileLabel: "Notif" },
+    { href: "/player/profile", label: t("myProfile") || "Profile", icon: UserRound, mobileLabel: "Profile" },
   ];
+  
   const agent: NavItem[] = [
-    { href: "/agent/dashboard", label: "Overview", icon: LayoutDashboard },
-    { href: "/agent/orders", label: "Orders", icon: Package },
-    { href: "/agent/chat", label: "Chat", icon: MessageCircle },
-    { href: "/agent/add-player", label: "Add Player", icon: Users },
-    { href: "/agent/activations", label: "Activations", icon: ShieldCheck },
-    { href: "/agent/invite-agent", label: "Invite Agent", icon: Zap },
-    { href: "/agent/recharge", label: "Recharge", icon: Wallet },
-    { href: "/agent/withdrawals", label: "Withdrawals", icon: CircleDollarSign },
-    { href: "/agent/winner-requests", label: "Winner Requests", icon: Bell },
-    { href: "/agent/bonus", label: "Bonus", icon: Zap },
-    { href: "/agent/settings", label: "Settings", icon: Settings },
+    { href: "/agent/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
+    { href: "/agent/orders", label: t("orders") || "Orders", icon: Package },
+    { href: "/agent/chat", label: t("chat") || "Chat", icon: MessageCircle },
+    { href: "/agent/add-player", label: t("addPlayer") || "Add Player", icon: Users },
+    { href: "/agent/recharge", label: t("recharge") || "Recharge", icon: Wallet },
+    { href: "/agent/settings", label: t("settings") || "Settings", icon: Settings },
   ];
+
   const admin: NavItem[] = [
-    { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
-    { href: "/admin/agents", label: "Agents", icon: Users },
-    { href: "/admin/payment-methods", label: "Payment Methods", icon: Wallet },
-    { href: "/admin/recharge-requests", label: "Recharge Requests", icon: Wallet },
-    { href: "/admin/admins", label: "Admins", icon: Users },
-    { href: "/admin/orders", label: "Orders", icon: Package },
-    { href: "/admin/withdrawals", label: "Payouts", icon: CircleDollarSign },
-    { href: "/admin/branding", label: "Branding", icon: Sparkles },
-    { href: "/admin/launch-check", label: "Launch Check", icon: ShieldCheck },
-    { href: "/admin/analytics", label: "Analytics", icon: CreditCard },
-    { href: "/admin/fraud", label: "Fraud", icon: ShieldAlert },
+    { href: "/admin/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
+    { href: "/admin/agents", label: t("agents") || "Agents", icon: Users },
+    { href: "/admin/orders", label: t("orders") || "Orders", icon: Package },
+    { href: "/admin/branding", label: t("branding") || "Branding", icon: Sparkles },
   ];
+
   if (role === "player") return player;
   if (role === "agent") return agent;
   return admin;
@@ -276,18 +267,22 @@ useEffect(() => {
   return (
     <main dir={dir} className="min-h-screen bg-hero px-4 py-5 text-white md:px-6">
       <div className="mx-auto flex max-w-7xl gap-6">
-        <aside className="hidden w-72 shrink-0 lg:block">
-          <GlassCard className="sticky top-5 p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
-                <BrandMark />
-                <span>{branding.brandName}</span>
-              </Link>
-              <LanguageSwitcher />
-            </div>
+      <aside className="hidden w-72 shrink-0 lg:block">
+  {/* 🌐 حطينا اللغة الفوق بوحدها بشكل أنيق قبل المنيو */}
+  <div className="mb-4 flex justify-end">
+    <LanguageSwitcher />
+  </div>
 
-            <div className="space-y-2">
-              {nav.map((item) => {
+  <GlassCard className="sticky top-5 p-4">
+    <div className="mb-6 flex items-center gap-3 border-b border-white/5 pb-4">
+      <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
+        <BrandMark />
+        <span className="truncate">{branding.brandName}</span>
+      </Link>
+    </div>
+
+    <div className="space-y-1.5">
+      {nav.map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;
                 return (
@@ -316,14 +311,14 @@ useEffect(() => {
             </div>
 
             <button
-              onClick={logout}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
-          </GlassCard>
-        </aside>
+      onClick={logout}
+      className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+    >
+      <LogOut size={16} />
+      {t("logout") || "Logout"}
+    </button>
+  </GlassCard>
+</aside>
 
         <div className="min-w-0 flex-1 pb-24 lg:pb-0">
           <div className="mb-4 flex items-center justify-between lg:hidden">
