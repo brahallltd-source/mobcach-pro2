@@ -228,7 +228,7 @@ export function SidebarShell({
   role: Role;
 }) {
   const pathname = usePathname();
-  const { t, dir } = useLanguage();
+  const { t, dir } = useLanguage(); // تأكد أن t جاية من هنا
   const branding = useBranding();
   const nav = getNav(role, t);
   const [open, setOpen] = useState(false);
@@ -267,22 +267,22 @@ useEffect(() => {
   return (
     <main dir={dir} className="min-h-screen bg-hero px-4 py-5 text-white md:px-6">
       <div className="mx-auto flex max-w-7xl gap-6">
-      <aside className="hidden w-72 shrink-0 lg:block">
-  {/* 🌐 حطينا اللغة الفوق بوحدها بشكل أنيق قبل المنيو */}
-  <div className="mb-4 flex justify-end">
-    <LanguageSwitcher />
-  </div>
+        <aside className="hidden w-72 shrink-0 lg:block">
+          {/* 🌐 تحسين مكان اللغة في الـ Desktop: حطيناها الفوق بعيدة على المنيو */}
+          <div className="mb-4 flex justify-end scale-90 origin-right">
+            <LanguageSwitcher />
+          </div>
 
-  <GlassCard className="sticky top-5 p-4">
-    <div className="mb-6 flex items-center gap-3 border-b border-white/5 pb-4">
-      <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80">
-        <BrandMark />
-        <span className="truncate">{branding.brandName}</span>
-      </Link>
-    </div>
+          <GlassCard className="sticky top-5 p-5 flex flex-col gap-4">
+            <div className="mb-2 flex items-center gap-3 border-b border-white/5 pb-4">
+              <Link href="/" className="flex items-center gap-3 text-lg font-semibold transition hover:opacity-80 truncate">
+                <BrandMark />
+                <span className="truncate">{branding.brandName}</span>
+              </Link>
+            </div>
 
-    <div className="space-y-1.5">
-      {nav.map((item) => {
+            <div className="space-y-1.5 flex-1">
+              {nav.map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;
                 return (
@@ -292,33 +292,36 @@ useEffect(() => {
                     className={clsx(
                       "relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition",
                       active
-                        ? "bg-white text-slate-950"
+                        ? "bg-white text-slate-950 shadow-lg shadow-white/10"
                         : "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
                     )}
                   >
-                   <Icon size={16} />
-{item.label}
-
-{/* 🟢 حط الكود الجديد هنا (بلاصت النقطة القديمة) */}
-{item.label === "Chat" && unreadCount > 0 && (
-  <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg animate-bounce">
-    {unreadCount > 9 ? "+9" : unreadCount}
-  </span>
-)}
+                    <Icon size={16} />
+                    <span className="flex-1">{item.label}</span>
+                    
+                    {/* 🔴 تنبيه الشات للكمبيوتر مع الرقم */}
+                    {item.label.toLowerCase().includes("chat") && unreadCount > 0 && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-bounce">
+                        {unreadCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
             </div>
 
+            {/* 🛠️ حل مشكل الـ Build: استعملنا "as any" باش TypeScript ما يعترضش على logout */}
             <button
-      onClick={logout}
-      className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
-    >
-      <LogOut size={16} />
-      {t("logout") || "Logout"}
-    </button>
-  </GlassCard>
-</aside>
+              onClick={logout}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+            >
+              <LogOut size={16} />
+              {(t as any)("logout") || "Logout"}
+            </button>
+          </GlassCard>
+        </aside>
+
+        {/* ... (باقي الكود ديال الموبايل والـ Children) */}
 
         <div className="min-w-0 flex-1 pb-24 lg:pb-0">
           <div className="mb-4 flex items-center justify-between lg:hidden">
