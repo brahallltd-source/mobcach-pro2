@@ -34,13 +34,39 @@ export default function AgentChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. جلب قائمة اللاعبين (الزبائن)
+  // --- 🟢 دالة مسح التنبيهات للوكيل ---
+  const markAllAsRead = async () => {
+    try {
+      const saved = localStorage.getItem("mobcash_user");
+      if (!saved) return;
+      const user = JSON.parse(saved);
+      const role = String(user.role).toLowerCase();
+      const targetId = user.agentId || user.id;
+
+      const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
+      const data = await res.json();
+      
+      // جلب الإشعارات غير المقروءة فقط
+      const unreadNotifs = (data.notifications || []).filter((n: any) => !n.read);
+
+      for (const notif of unreadNotifs) {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: notif.id }),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to mark notifications as read", err);
+    }
+  };
+  // ---------------------------------------
+
   const loadConversations = async (currentAgentId: string) => {
     try {
       const res = await fetch(`/api/order-messages?listRole=agent&userEmail=${currentAgentId}`);
       const data = await res.json();
       
-      // استخراج اللاعبين بدون تكرار
       const uniquePlayers = new Map();
       (data.conversations || []).forEach((order: any) => {
         if (order.playerEmail && !uniquePlayers.has(order.playerEmail)) {
@@ -56,14 +82,11 @@ export default function AgentChatPage() {
     }
   };
 
-  // 2. جلب التاريخ الكامل للمحادثة مع لاعب محدد
   const loadMessages = async (currentAgentId: string, playerEmail: string) => {
     try {
       const res = await fetch(`/api/order-messages?playerEmail=${encodeURIComponent(playerEmail)}&agentId=${currentAgentId}`);
       const data = await res.json();
       setMessages(data.messages || []);
-      
-      // النزول التلقائي لآخر رسالة
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err) {
       console.error("Failed to load messages", err);
@@ -74,12 +97,17 @@ export default function AgentChatPage() {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
     const user = JSON.parse(saved);
-    const myAgentId = user.agentId; // الوكيل يمتلك agentId في التخزين المحلي
+    const myAgentId = user.agentId;
     setAgentId(myAgentId);
 
     loadConversations(myAgentId).finally(() => setLoading(false));
 
-    // تحديث تلقائي (Polling) كل 4 ثواني
+    if (activePlayer) {
+      loadMessages(myAgentId, activePlayer);
+      // ✅ مسح تنبيهات الوكيل عند فتح شات اللاعب
+      markAllAsRead();
+    }
+
     const timer = setInterval(() => {
       loadConversations(myAgentId);
       if (activePlayer) {
@@ -101,7 +129,7 @@ export default function AgentChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          senderRole: "agent", // المرسل هو الوكيل
+          senderRole: "agent",
           playerEmail: activePlayer,
           agentId: agentId,
           message: messageText,
@@ -110,11 +138,9 @@ export default function AgentChatPage() {
       loadMessages(agentId, activePlayer);
     } catch (error) {
       console.error("Send error", error);
-      alert("فشل إرسال الرسالة، جرب مرة أخرى.");
     }
   };
 
-  // فلترة اللاعبين في الـ Sidebar بناءً على البحث
   const filteredConversations = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return conversations;
@@ -139,9 +165,9 @@ export default function AgentChatPage() {
         subtitle="تواصل مع اللاعبين، راجع وصولات الدفع، وتابع تاريخ عملياتهم في مساحة عمل واحدة مدمجة."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-[350px_1fr] gap-4 h-[calc(100vh-160px)] min-h-[600px] mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-[350px_1fr] gap-4 h-[calc(100vh-180px)] min-h-[600px] mt-4">
         
-        {/* القائمة الجانبية (Sidebar) - قائمة الزبائن والبحث */}
+        {/* Sidebar */}
         <GlassCard className="flex flex-col overflow-hidden border-white/10">
           <div className="p-4 border-b border-white/10 bg-white/5 space-y-3">
             <div className="font-bold flex items-center gap-2 text-cyan-400">
@@ -162,10 +188,7 @@ export default function AgentChatPage() {
               filteredConversations.map((c) => (
                 <div
                   key={c.playerEmail}
-                  onClick={() => {
-                    setActivePlayer(c.playerEmail);
-                    loadMessages(agentId, c.playerEmail);
-                  }}
+                  onClick={() => setActivePlayer(c.playerEmail)}
                   className={`p-3 rounded-2xl cursor-pointer transition flex items-center gap-3 ${
                     activePlayer === c.playerEmail
                       ? "bg-cyan-500/20 border border-cyan-500/30"
@@ -189,11 +212,10 @@ export default function AgentChatPage() {
           </div>
         </GlassCard>
 
-        {/* مساحة الدردشة الرئيسية (Main Chat Area) */}
+        {/* Main Chat Area */}
         <GlassCard className="flex flex-col overflow-hidden relative border-white/10">
           {activePlayer ? (
             <>
-              {/* شريط معلومات اللاعب المفتوح */}
               <div className="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-cyan-400">{filteredConversations.find(c => c.playerEmail === activePlayer)?.gosportUsername}</h3>
@@ -201,19 +223,18 @@ export default function AgentChatPage() {
                 </div>
               </div>
 
-              {/* منطقة عرض الرسائل */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {messages.length > 0 ? (
                   messages.map((m) => {
                     const isSystem = m.senderRole === "system";
-                    const isMe = m.senderRole === "agent"; // الوكيل هو المرسل هنا
+                    const isMe = m.senderRole === "agent";
 
                     if (isSystem) {
                       return (
                         <div key={m.id} className="flex justify-center my-4">
-                          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                            {m.message.includes("✅") || m.message.includes("🏁") ? <CheckCircle size={14} /> : <Info size={14} />}
-                            <span className="font-semibold tracking-wide">{m.message}</span>
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2">
+                            {m.message.includes("✅") ? <CheckCircle size={14} /> : <Info size={14} />}
+                            <span className="font-semibold">{m.message}</span>
                           </div>
                         </div>
                       );
@@ -221,14 +242,8 @@ export default function AgentChatPage() {
 
                     return (
                       <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[85%] p-4 rounded-3xl text-sm shadow-lg ${
-                            isMe
-                              ? "bg-cyan-600 text-white rounded-tr-sm"
-                              : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"
-                          }`}
-                        >
-                          <p className="leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm ${isMe ? "bg-cyan-600 text-white rounded-tr-sm" : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"}`}>
+                          <p className="whitespace-pre-wrap">{m.message}</p>
                           <p className={`text-[10px] mt-2 font-mono ${isMe ? 'text-cyan-200/70 text-right' : 'text-white/40 text-left'}`}>
                             {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -237,42 +252,30 @@ export default function AgentChatPage() {
                     );
                   })
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-white/30 italic">
-                    <MessageCircle size={48} className="mb-3 opacity-20" />
-                    <p>لا توجد رسائل سابقة مع هذا اللاعب.</p>
+                  <div className="h-full flex flex-col items-center justify-center text-white/30 italic font-mono">
+                    <p>No messages yet.</p>
                   </div>
                 )}
                 <div ref={scrollRef} />
               </div>
 
-              {/* منطقة إدخال النص */}
               <div className="p-4 border-t border-white/10 bg-black/40 flex items-end gap-3">
                 <TextArea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="رد على اللاعب..."
-                  className="min-h-[55px] max-h-[120px] py-3.5 bg-white/5 border-white/10 focus:border-cyan-500/50 resize-none rounded-2xl"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
+                  className="min-h-[55px] max-h-[120px] bg-white/5 border-white/10 rounded-2xl"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 />
-                <PrimaryButton 
-                  onClick={handleSend} 
-                  disabled={!newMessage.trim()}
-                  className="h-[55px] px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex items-center justify-center"
-                >
-                  <Send size={20} className={newMessage.trim() ? "translate-x-0.5 transition-transform" : ""} />
+                <PrimaryButton onClick={handleSend} disabled={!newMessage.trim()} className="h-[55px] px-6 rounded-2xl bg-cyan-500 text-black font-bold">
+                  <Send size={20} />
                 </PrimaryButton>
               </div>
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-white/20">
               <MessageCircle size={72} className="mb-6 opacity-10" />
-              <p className="text-lg font-semibold tracking-wide">اختر لاعباً للبدء</p>
-              <p className="text-sm mt-2">حدد لاعباً من القائمة للاطلاع على المحادثة</p>
+              <p className="text-lg font-semibold">اختر لاعباً للبدء</p>
             </div>
           )}
         </GlassCard>

@@ -241,35 +241,30 @@ export function SidebarShell({
   const branding = useBranding();
   const nav = getNav(role, t);
   const [open, setOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // ✅ تحديث: جلب حالة التنبيهات من النظام الجديد (الإشعارات والشات)
-  useEffect(() => {
-    const checkUpdates = async () => {
-      try {
-        const saved = localStorage.getItem("mobcash_user");
-        if (!saved) return;
-        const user = JSON.parse(saved);
-        const role = String(user.role).toLowerCase();
-        // تأكد من هاد السطر وسط useEffect في ui.tsx
-        const targetId = role === "agent" ? (user.agentId || user.id) : (user.email || user.playerEmail);
+useEffect(() => {
+  const checkUpdates = async () => {
+    try {
+      const saved = localStorage.getItem("mobcash_user");
+      if (!saved) return;
+      const user = JSON.parse(saved);
+      const role = String(user.role).toLowerCase();
+      const targetId = role === "agent" ? (user.agentId || user.id) : (user.email || user.playerEmail);
 
-        // كنعيطو لـ API الإشعارات اللي صاوبنا باش نشوفو واش كاين شي حاجة Unread
-        const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
-        const data = await res.json();
-        
-        // إذا كان كاين على الأقل إشعار واحد ما مقريش، كنشعلو النقطة الحمراء
-        const unread = (data.notifications || []).some((n: any) => !n.read);
-        setHasUnread(unread);
-      } catch (err) {
-        // كنخليوه خاوي باش ما يعمرش الكونسول بالأخطاء إذا فشل الاتصال
-      }
-    };
+      const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
+      const data = await res.json();
+      
+      // 2. حساب عدد الإشعارات غير المقروءة
+      const count = (data.notifications || []).filter((n: any) => !n.read).length;
+      setUnreadCount(count);
+    } catch (err) {}
+  };
 
-    checkUpdates();
-    const interval = setInterval(checkUpdates, 15000); // كل 15 ثانية باش ما نتقلوش السيرفر
-    return () => clearInterval(interval);
-  }, []);
+  checkUpdates();
+  const interval = setInterval(checkUpdates, 10000);
+  return () => clearInterval(interval);
+}, []);
 
   const logout = () => {
     fetch("/api/logout", { method: "POST", credentials: "include" }).finally(() => {
@@ -306,13 +301,15 @@ export function SidebarShell({
                         : "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
                     )}
                   >
-                    <Icon size={16} />
-                    {item.label}
-                    
-                    {/* 🔴 تنبيه الشات للكمبيوتر */}
-                    {item.label === "Chat" && hasUnread && (
-                      <span className="ml-auto h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" />
-                    )}
+                   <Icon size={16} />
+{item.label}
+
+{/* 🟢 حط الكود الجديد هنا (بلاصت النقطة القديمة) */}
+{item.label === "Chat" && unreadCount > 0 && (
+  <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg animate-bounce">
+    {unreadCount > 9 ? "+9" : unreadCount}
+  </span>
+)}
                   </Link>
                 );
               })}
@@ -372,12 +369,14 @@ export function SidebarShell({
                         )}
                       >
                         <Icon size={16} />
-                        {item.label}
+{item.label}
 
-                        {/* 🔴 تنبيه الشات لقائمة الموبايل المنبثقة */}
-                        {item.label === "Chat" && hasUnread && (
-                          <span className="ml-auto h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" />
-                        )}
+{/* 🟢 حط الكود الجديد هنا */}
+{item.label === "Chat" && unreadCount > 0 && (
+  <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg animate-bounce">
+    {unreadCount > 9 ? "+9" : unreadCount}
+  </span>
+)}
                       </Link>
                     );
                   })}
@@ -416,12 +415,15 @@ export function SidebarShell({
                   )}
                 >
                   <div className="relative">
-                    <Icon size={16} />
-                    {/* 🔴 تنبيه الشات للشريط السفلي */}
-                    {item.label === "Chat" && hasUnread && (
-                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
-                    )}
-                  </div>
+  <Icon size={16} />
+  
+  {/* 🟢 التنبيه للشريط السفلي */}
+  {item.label === "Chat" && unreadCount > 0 && (
+    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-md">
+      {unreadCount}
+    </span>
+  )}
+</div>
                   <span className="mt-1">{item.mobileLabel || item.label}</span>
                 </Link>
               );

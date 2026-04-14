@@ -23,7 +23,6 @@ type Conversation = {
   agentId: string;
 };
 
-// 1. فصلنا محتوى الشات في دالة خاصة باش نقدرو نغلفوها بـ Suspense
 function ChatContent() {
   const searchParams = useSearchParams();
   const targetAgentId = searchParams.get("agentId");
@@ -35,6 +34,34 @@ function ChatContent() {
   const [loading, setLoading] = useState(true);
   const [playerEmail, setPlayerEmail] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // --- 🟢 الدالة الجديدة لمسح التنبيهات ---
+  const markAllAsRead = async () => {
+    try {
+      const saved = localStorage.getItem("mobcash_user");
+      if (!saved) return;
+      const user = JSON.parse(saved);
+      const role = String(user.role).toLowerCase();
+      const targetId = role === "agent" ? (user.agentId || user.id) : (user.email || user.playerEmail);
+
+      const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
+      const data = await res.json();
+      
+      // كنفلترو غير الإشعارات اللي مازال مالمقريينش (read: false)
+      const unreadNotifs = (data.notifications || []).filter((n: any) => !n.read);
+
+      for (const notif of unreadNotifs) {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: notif.id }),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to mark notifications as read", err);
+    }
+  };
+  // ---------------------------------------
 
   const loadConversations = async (email: string) => {
     try {
@@ -75,6 +102,8 @@ function ChatContent() {
 
     if (activeAgent) {
       loadMessages(user.email, activeAgent);
+      // ✅ مسح التنبيهات بمجرد فتح الشات مع الوكيل
+      markAllAsRead(); 
     }
 
     const timer = setInterval(() => {
@@ -120,7 +149,6 @@ function ChatContent() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-180px)] min-h-[500px]">
-        
         {/* Sidebar */}
         <GlassCard className="flex flex-col overflow-hidden border-white/10">
           <div className="p-4 border-b border-white/10 bg-white/5 font-bold flex items-center gap-2 text-cyan-400">
@@ -237,7 +265,6 @@ function ChatContent() {
   );
 }
 
-// 2. الصفحة الرئيسية تقوم فقط بتغليف المحتوى بـ Suspense
 export default function PlayerChatPage() {
   return (
     <SidebarShell role="player">
