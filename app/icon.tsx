@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 import { getPrisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export const size = {
   width: 32,
   height: 32,
@@ -14,19 +16,24 @@ export default async function Icon() {
   let logoUrl = "";
 
   if (prisma) {
-    const latest = await prisma.auditLog.findFirst({
-      where: {
-        action: "branding_updated",
-        entityType: "branding",
-        entityId: "global",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    try {
+      const latest = await prisma.auditLog.findFirst({
+        where: {
+          action: "branding_updated",
+          entityType: "branding",
+          entityId: "global",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
-    const meta = (latest?.meta || {}) as Record<string, any>;
-    logoUrl = String(meta.logoUrl || "").trim();
+      const meta = (latest?.meta || {}) as Record<string, any>;
+      logoUrl = String(meta.logoUrl || "").trim();
+    } catch (error) {
+      console.error("Icon DB Error:", error);
+      // في حالة فشل الاتصال بقاعدة البيانات، يكمل بلا ما يحبس السيرفر
+    }
   }
 
   if (logoUrl) {

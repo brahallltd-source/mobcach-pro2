@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageCircle, Send, CheckCircle, User, Info } from "lucide-react";
 import {
@@ -23,7 +23,8 @@ type Conversation = {
   agentId: string;
 };
 
-export default function PlayerChatPage() {
+// 1. فصلنا محتوى الشات في دالة خاصة باش نقدرو نغلفوها بـ Suspense
+function ChatContent() {
   const searchParams = useSearchParams();
   const targetAgentId = searchParams.get("agentId");
 
@@ -35,13 +36,11 @@ export default function PlayerChatPage() {
   const [playerEmail, setPlayerEmail] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. جلب قائمة الوكلاء اللي تعامل معاهم هاد اللاعب
   const loadConversations = async (email: string) => {
     try {
       const res = await fetch(`/api/order-messages?listRole=player&userEmail=${encodeURIComponent(email)}`);
       const data = await res.json();
       
-      // استخراج الوكلاء بدون تكرار
       const uniqueAgents = new Map();
       (data.conversations || []).forEach((order: any) => {
         if (order.agentId && !uniqueAgents.has(order.agentId)) {
@@ -54,14 +53,12 @@ export default function PlayerChatPage() {
     }
   };
 
-  // 2. جلب التاريخ الكامل للمحادثة مع الوكيل المحدد
   const loadMessages = async (email: string, agentId: string) => {
     try {
       const res = await fetch(`/api/order-messages?playerEmail=${encodeURIComponent(email)}&agentId=${agentId}`);
       const data = await res.json();
       setMessages(data.messages || []);
       
-      // النزول التلقائي لآخر رسالة
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err) {
       console.error("Failed to load messages", err);
@@ -80,7 +77,6 @@ export default function PlayerChatPage() {
       loadMessages(user.email, activeAgent);
     }
 
-    // تحديث تلقائي (Polling) كل 4 ثواني
     const timer = setInterval(() => {
       if (activeAgent) loadMessages(user.email, activeAgent);
     }, 4000);
@@ -92,7 +88,7 @@ export default function PlayerChatPage() {
     if (!newMessage.trim() || !activeAgent || !playerEmail) return;
 
     const messageText = newMessage;
-    setNewMessage(""); // تفريغ الحقل مباشرة لتجربة أسرع
+    setNewMessage(""); 
 
     try {
       await fetch("/api/order-messages", {
@@ -113,15 +109,11 @@ export default function PlayerChatPage() {
   };
 
   if (loading) {
-    return (
-      <SidebarShell role="player">
-        <LoadingCard text="جاري تحميل المحادثات..." />
-      </SidebarShell>
-    );
+    return <LoadingCard text="جاري تحميل المحادثات..." />;
   }
 
   return (
-    <SidebarShell role="player">
+    <>
       <PageHeader
         title="الدردشة المباشرة (Live Chat)"
         subtitle="تواصل مع وكلائك المعتمدين، ارسل وصولات الدفع، وتابع تحديثات طلباتك في مكان واحد."
@@ -129,7 +121,7 @@ export default function PlayerChatPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-180px)] min-h-[500px]">
         
-        {/* القائمة الجانبية (Sidebar) - قائمة الوكلاء */}
+        {/* Sidebar */}
         <GlassCard className="flex flex-col overflow-hidden border-white/10">
           <div className="p-4 border-b border-white/10 bg-white/5 font-bold flex items-center gap-2 text-cyan-400">
             <MessageCircle size={18} /> وكلاء تعاملت معهم
@@ -163,30 +155,27 @@ export default function PlayerChatPage() {
           </div>
         </GlassCard>
 
-        {/* مساحة الدردشة الرئيسية (Main Chat Area) */}
+        {/* Main Chat Area */}
         <GlassCard className="flex flex-col overflow-hidden relative border-white/10">
           {activeAgent ? (
             <>
-              {/* منطقة عرض الرسائل */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {messages.length > 0 ? (
                   messages.map((m) => {
                     const isSystem = m.senderRole === "system";
                     const isMe = m.senderRole === "player";
 
-                    // تصميم رسائل النظام المذهل (System Messages)
                     if (isSystem) {
                       return (
                         <div key={m.id} className="flex justify-center my-4">
                           <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-5 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                            {m.message.includes("✅") ? <CheckCircle size={14} /> : <Info size={14} />}
+                            {m.message.includes("✅") || m.message.includes("🏁") ? <CheckCircle size={14} /> : <Info size={14} />}
                             <span className="font-semibold tracking-wide">{m.message}</span>
                           </div>
                         </div>
                       );
                     }
 
-                    // تصميم رسائل الدردشة العادية (Player vs Agent)
                     return (
                       <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                         <div
@@ -213,7 +202,6 @@ export default function PlayerChatPage() {
                 <div ref={scrollRef} />
               </div>
 
-              {/* منطقة إدخال النص */}
               <div className="p-4 border-t border-white/10 bg-black/40 flex items-end gap-3">
                 <TextArea
                   value={newMessage}
@@ -245,6 +233,17 @@ export default function PlayerChatPage() {
           )}
         </GlassCard>
       </div>
+    </>
+  );
+}
+
+// 2. الصفحة الرئيسية تقوم فقط بتغليف المحتوى بـ Suspense
+export default function PlayerChatPage() {
+  return (
+    <SidebarShell role="player">
+      <Suspense fallback={<LoadingCard text="جاري تحضير المحادثات..." />}>
+        <ChatContent />
+      </Suspense>
     </SidebarShell>
   );
 }
