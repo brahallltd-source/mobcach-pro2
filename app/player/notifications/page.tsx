@@ -9,7 +9,7 @@ type Notification = {
   title: string; 
   message: string; 
   read: boolean; 
-  createdAt: string; // صلحنا السمية باش تطابق Prisma
+  createdAt: string; 
 };
 
 export default function PlayerNotificationsPage() {
@@ -21,18 +21,32 @@ export default function PlayerNotificationsPage() {
     if (!saved) return void (window.location.href = "/login");
     const user = JSON.parse(saved);
 
-    // 1. توحيد الحروف إلى صغيرة (lowercase) باش تطابق قاعدة البيانات
     const role = String(user.role).toLowerCase();
     
-    // 2. استخدام الإيميل للاعب (حيت هو باش كنسجلو الإشعارات)
-    const target = role === "agent" ? (user.agentId || "") : user.email;
+    // 💡 هادي هي "الشبكة" اللي غتصيد الإيميل بأي طريقة كان مكتوب بيها
+    const target = role === "agent" 
+      ? (user.agentId || user.id || "") 
+      : (user.email || user.playerEmail || user.id || "");
 
-    // 3. جلب الإشعارات
+    // 🕵️‍♂️ هاد السطر غادي يطبع لينا فالمتصفح شنو لقى بالضبط
+    console.log("🔍 DEBUG NOTIFICATIONS:", { 
+      extractedRole: role, 
+      extractedTarget: target,
+      originalUserData: user 
+    });
+
+    if (!target) {
+      console.error("❌ Target ID (Email) is missing from local storage!");
+      setLoading(false);
+      return;
+    }
+
     fetch(`/api/notifications?role=${encodeURIComponent(role)}&targetId=${encodeURIComponent(target)}`, { 
       cache: "no-store" 
     })
       .then((res) => res.json())
       .then((data) => setItems(data.notifications || []))
+      .catch((err) => console.error("Fetch Error:", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,7 +71,7 @@ export default function PlayerNotificationsPage() {
                     {item.title}
                   </h3>
                   <span className="text-xs uppercase tracking-[0.1em] text-white/40 font-mono">
-                    {new Date(item.createdAt).toLocaleString()}
+                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "Date unavailable"}
                   </span>
                 </div>
                 <p className={`mt-2 text-sm leading-6 ${!item.read ? 'text-white/80' : 'text-white/50'}`}>
