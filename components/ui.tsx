@@ -200,12 +200,17 @@ function getNav(role: Role, t: any) {
   ];
 
   const agent: NavItem[] = [
-    { href: "/agent/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
-    { href: "/agent/orders", label: t("orders") || "Orders", icon: Package },
-    { href: "/agent/chat", label: t("chat") || "Chat", icon: MessageCircle },
-    { href: "/agent/add-player", label: t("addPlayer") || "Add Player", icon: Users },
-    { href: "/agent/recharge", label: t("recharge") || "Recharge", icon: Wallet },
-    { href: "/agent/settings", label: t("settings") || "Settings", icon: Settings },
+    { href: "/agent/dashboard", label: "Overview", icon: LayoutDashboard },
+    { href: "/agent/orders", label: "Orders", icon: Package },
+    { href: "/agent/chat", label: "Chat", icon: MessageCircle },
+    { href: "/agent/add-player", label: "Add Player", icon: Users },
+    { href: "/agent/activations", label: "Activations", icon: ShieldCheck },
+    { href: "/agent/invite-agent", label: "Invite Agent", icon: Zap },
+    { href: "/agent/recharge", label: "Recharge", icon: Wallet },
+    { href: "/agent/withdrawals", label: "Withdrawals", icon: CircleDollarSign },
+    { href: "/agent/winner-requests", label: "Winner Requests", icon: Bell },
+    { href: "/agent/bonus", label: "Bonus", icon: Zap },
+    { href: "/agent/settings", label: "Settings", icon: Settings },
   ];
 
   // 🟢 هاد الجزء هو لي كان ناقص ودير المشكل:
