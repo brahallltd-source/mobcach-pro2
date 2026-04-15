@@ -92,12 +92,25 @@ export async function POST(req: Request) {
       }
 
       if (!user) {
-        const passwordHash = await hashPassword("123456");
+        // 🟢 الإصلاح الجذري: كناخدو المودباس الحقيقي من الطلب ديال الوكيل
+        const appData = application as any;
+        let finalPasswordHash = "";
+        
+        // كنقلبو واش المودباس مخبي فـ password ولا passwordHash
+        if (appData.passwordHash) {
+          finalPasswordHash = appData.passwordHash;
+        } else if (appData.password) {
+          finalPasswordHash = await hashPassword(appData.password);
+        } else {
+          // هاد السطر غيخدم فقط إلا كان شي خطأ فـ الفورمير ديال التسجيل وماصيفطش المودباس
+          finalPasswordHash = await hashPassword("123456"); 
+        }
+
         user = await tx.user.create({
           data: {
             email: application.email,
             username: application.username,
-            passwordHash,
+            passwordHash: finalPasswordHash, // 👈 دابا غيتحط المودباس اللي اختار هو
             role: "PLAYER",
             status: "ACTIVE",
             frozen: false,
@@ -111,7 +124,6 @@ export async function POST(req: Request) {
       });
 
       if (!agentRecord) {
-        // ✅ الإصلاح النهائي: كنعطيو كاع الحقول لي طالبة السكيما ديالك
         agentRecord = await tx.agent.create({
           data: {
             userId: user.id,
