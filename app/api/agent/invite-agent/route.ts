@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 
 function mapInvite(log: any) {
   const meta = (log.meta || {}) as Record<string, any>;
-
   return {
     id: log.id,
     referrer_agent_id: meta.referrer_agent_id || log.entityId || "",
@@ -24,22 +23,10 @@ function mapInvite(log: any) {
 export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json(
-        { message: "Database not available", invites: [] },
-        { status: 500 }
-      );
-    }
-
     const { searchParams } = new URL(req.url);
     const agentId = String(searchParams.get("agentId") || "").trim();
 
-    if (!agentId) {
-      return NextResponse.json(
-        { message: "agentId is required", invites: [] },
-        { status: 400 }
-      );
-    }
+    if (!agentId) return NextResponse.json({ message: "agentId is required", invites: [] }, { status: 400 });
 
     const logs = await prisma.auditLog.findMany({
       where: {
@@ -47,77 +34,52 @@ export async function GET(req: Request) {
         entityType: "agent_invite",
         entityId: agentId,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({
-      invites: logs.map(mapInvite),
-    });
+    return NextResponse.json({ invites: logs.map(mapInvite) });
   } catch (error) {
-    console.error("GET INVITE AGENT ERROR:", error);
-    return NextResponse.json(
-      { message: "Something went wrong. Please try again.", invites: [] },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Error fetching invites", invites: [] }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json(
-        { message: "Database not available" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const agentId = String(body.agentId || "").trim();
     const type = String(body.type || "").trim();
-    const invitedAgentEmail = String(body.invitedAgentEmail || "")
-      .trim()
-      .toLowerCase();
+    const invitedAgentEmail = String(body.invitedAgentEmail || "").trim().toLowerCase();
 
-    if (!agentId) {
-      return NextResponse.json(
-        { message: "agentId is required" },
-        { status: 400 }
-      );
-    }
+    if (!agentId) return NextResponse.json({ message: "agentId is required" }, { status: 400 });
 
-    // 🟢 الإصلاح الرئيسي: جلب الإيميل من جدول اليوزر المربوط
-    const referrerAgent = await prisma.agent.findUnique({
-      where: { id: agentId },
-      include: {
-        user: {
-          select: { email: true }
-        }
+    // 🟢 إصلاح ذكي: البحث بـ ID الوكيل أو ID المستخدم مع جلب بيانات اليوزر
+    const referrerAgent = await prisma.agent.findFirst({
+      where: {
+        OR: [
+          { id: agentId },
+          { userId: agentId }
+        ]
       },
+      include: { user: true }
     });
 
     if (!referrerAgent) {
-      return NextResponse.json(
-        { message: "Referrer agent not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: "Referrer agent not found" }, { status: 404 });
     }
 
     if (type === "generate") {
-      const code = `AG-${String(agentId).slice(-6)}-${Date.now()
-        .toString()
-        .slice(-4)}`;
+      // استعملنا referrerAgent.id لضمان أن الكود ديما مربوط بـ Agent ID الحقيقي
+      const code = `AG-${String(referrerAgent.id).slice(-6)}-${Date.now().toString().slice(-4)}`;
       const inviteLink = `/apply/agent?ref=${encodeURIComponent(code)}`;
 
       const log = await prisma.auditLog.create({
         data: {
           action: "agent_invite_generated",
           entityType: "agent_invite",
-          entityId: agentId,
+          entityId: referrerAgent.id,
           meta: {
-            referrer_agent_id: agentId,
+            referrer_agent_id: referrerAgent.id,
             invited_agent_email: invitedAgentEmail,
             invite_code: code,
             invite_link: inviteLink,
@@ -135,81 +97,51 @@ export async function POST(req: Request) {
       });
     }
 
+    // منطق المكافأة (Bonus)
     const logs = await prisma.auditLog.findMany({
       where: {
         action: "agent_invite_generated",
         entityType: "agent_invite",
-        entityId: agentId,
-      },
-      orderBy: {
-        createdAt: "desc",
+        entityId: referrerAgent.id,
       },
     });
 
     const related = logs.map(mapInvite);
-    const totalRechargeAmount = related.reduce(
-      (sum, item) => sum + Number(item.total_recharge_amount || 0),
-      0
-    );
+    const totalRechargeAmount = related.reduce((sum, item) => sum + Number(item.total_recharge_amount || 0), 0);
     const invitedAgentsCount = related.length;
 
     if (related.some((item) => item.bonus_awarded)) {
-      return NextResponse.json(
-        { message: "Agent referral bonus already awarded" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Bonus already awarded" }, { status: 400 });
     }
 
     if (!(invitedAgentsCount >= 5 || totalRechargeAmount >= 5000)) {
-      return NextResponse.json(
-        { message: "Threshold not reached yet" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Threshold not reached" }, { status: 400 });
     }
 
-    await creditWallet(agentId, 500, "invite_agent_bonus", {
+    await creditWallet(referrerAgent.id, 500, "invite_agent_bonus", {
       invitedAgentsCount,
       totalRechargeAmount,
-      targetAmount: 5000,
-      targetAgents: 5,
     });
 
     for (const log of logs) {
       const meta = (log.meta || {}) as Record<string, any>;
-
       await prisma.auditLog.update({
         where: { id: log.id },
-        data: {
-          meta: {
-            ...meta,
-            bonus_awarded: true,
-            updated_at: new Date().toISOString(),
-          },
-        },
+        data: { meta: { ...meta, bonus_awarded: true, updated_at: new Date().toISOString() } },
       });
     }
 
     await createNotification({
       targetRole: "agent",
-      targetId: agentId,
-      title: "Agent invite bonus awarded",
-      message: "You received 500 DH for inviting agents.",
+      targetId: referrerAgent.id,
+      title: "Bonus awarded",
+      message: "You received 500 DH.",
     });
 
-    return NextResponse.json({
-      message: "Agent invite bonus awarded successfully",
-      summary: {
-        agentId,
-        invitedAgentsCount,
-        totalRechargeAmount,
-        bonusAmount: 500,
-      },
-    });
-  } catch (error) {
-    console.error("POST INVITE AGENT ERROR:", error);
-    return NextResponse.json(
-      { message: "Something went wrong. Please try again." },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Bonus awarded successfully" });
+
+  } catch (error: any) {
+    console.error("INVITE ERROR:", error);
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
