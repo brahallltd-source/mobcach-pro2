@@ -58,8 +58,7 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("GET INVITE AGENT ERROR:", error);
     return NextResponse.json(
-      { message: `Something went wrong
-We could not complete your request right now. Please try again.`, invites: [] },
+      { message: "Something went wrong. Please try again.", invites: [] },
       { status: 500 }
     );
   }
@@ -89,11 +88,13 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🟢 الإصلاح الرئيسي: جلب الإيميل من جدول اليوزر المربوط
     const referrerAgent = await prisma.agent.findUnique({
       where: { id: agentId },
-      select: {
-        id: true,
-        email: true,
+      include: {
+        user: {
+          select: { email: true }
+        }
       },
     });
 
@@ -207,8 +208,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("POST INVITE AGENT ERROR:", error);
     return NextResponse.json(
-      { message: `Something went wrong
-We could not complete your request right now. Please try again.`, },
+      { message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
