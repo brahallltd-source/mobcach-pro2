@@ -2,20 +2,27 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { requireAdminPermission } from "@/lib/server-auth";
 
+// 1. هاد السطر كيحيد داك التحذير ديال bcryptjs
+export const runtime = "nodejs"; 
+
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  // 2. فـ Next.js 15، الـ params ولات Promise
+  { params }: { params: Promise<{ id: string }> } 
 ) {
+  // 3. خاصنا نديرو await للـ params عاد نجبدو الـ id
+  const resolvedParams = await params;
+  const { id } = resolvedParams;
+
   const access = await requireAdminPermission("agents");
   if (!access.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   try {
     const prisma = getPrisma();
-    const { id } = params; // هادا هو الـ Agent ID
     const body = await req.json();
     const { action, amount, status } = body;
 
-    // 1. تعديل الرصيد يدوياً
+    // تعديل الرصيد يدوياً
     if (action === "update_balance") {
       const updatedAgent = await prisma.agent.update({
         where: { id },
@@ -24,14 +31,14 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: updatedAgent });
     }
 
-    // 2. تعطيل أو تفعيل الحساب
+    // تعطيل أو تفعيل الحساب
     if (action === "update_status") {
       const agent = await prisma.agent.findUnique({ where: { id }, select: { userId: true } });
       if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
       const updatedUser = await prisma.user.update({
         where: { id: agent.userId },
-        data: { status: status }, // ACTIVE أو SUSPENDED
+        data: { status: status }, 
       });
       return NextResponse.json({ success: true, data: updatedUser });
     }

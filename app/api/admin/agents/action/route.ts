@@ -1,3 +1,6 @@
+import { getPrisma } from "@/lib/db";
+import { NextResponse } from "next/server";
+
 export async function PATCH(req: Request) {
     const { agentId, userId, action, value } = await req.json();
     const prisma = getPrisma();
