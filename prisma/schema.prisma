@@ -12,7 +12,7 @@ model User {
   email             String             @unique
   username          String             @unique
   passwordHash      String
-  role              UserRole
+  role              String             @default("PLAYER") // ADMIN, AGENT, PLAYER
   playerStatus      String?
   assignedAgentId   String?
   agentId           String?
@@ -24,6 +24,8 @@ model User {
   auditLogs         AuditLog[]
   notifications     Notification[]
   player            Player?
+  status            String             @default("ACTIVE")
+  agentProfile      Agent?
 }
 
 model AgentApplication {
@@ -72,7 +74,7 @@ model Agent {
   email            String             @unique
   phone            String
   country          String?
-  status           String
+  status           String             @default("ACTIVE")
   referralCode     String?            @unique
   online           Boolean            @default(false)
   note             String?
@@ -89,6 +91,8 @@ model Agent {
   orders           Order[]
   paymentMethods   PaymentMethod[]
   wallet           Wallet?
+  userId           String             @unique
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Order {

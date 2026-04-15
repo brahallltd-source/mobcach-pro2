@@ -211,10 +211,17 @@ function getNav(role: Role, t: any) {
   // 🟢 هاد الجزء هو لي كان ناقص ودير المشكل:
   const admin: NavItem[] = [
     { href: "/admin/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
-    { href: "/admin/agents", label: t("agents") || "Agents", icon: Users },
+    { href: "/admin/agent-applications", label: "Applications", icon: Users }, // هادي صفحة قبول/رفض الطلبات
+    { href: "/admin/agents", label: "Agent List", icon: Users }, // 👈 هادي اللائحة الجديدة ديال الوكلاء
+    { href: "/admin/payment-methods", label: t("paymentMethods") || "Payment Methods", icon: Wallet },
+    { href: "/admin/recharge-requests", label: t("rechargeRequests") || "Recharge Requests", icon: Wallet },
+    { href: "/admin/admins", label: t("admins") || "Admins", icon: Users },
     { href: "/admin/orders", label: t("orders") || "Orders", icon: Package },
+    { href: "/admin/withdrawals", label: t("withdrawals") || "Payouts", icon: CircleDollarSign },
     { href: "/admin/branding", label: t("branding") || "Branding", icon: Sparkles },
+    { href: "/admin/launch-check", label: t("launchCheck") || "Launch Check", icon: ShieldCheck },
     { href: "/admin/analytics", label: t("analytics") || "Analytics", icon: CreditCard },
+    { href: "/admin/fraud", label: t("fraud") || "Fraud", icon: ShieldAlert },
   ];
 
   if (role === "player") return player;

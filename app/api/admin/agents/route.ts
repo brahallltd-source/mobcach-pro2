@@ -1,43 +1,41 @@
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
 import { getPrisma } from "@/lib/db";
 
-export const runtime = "nodejs";
-
 export async function GET() {
-  const access = await requireAdminPermission("agents");
-
-  if (!access.ok) {
-    return NextResponse.json(
-      { success: false, message: access.message },
-      { status: access.status }
-    );
-  }
+  const prisma = getPrisma();
 
   try {
-    const prisma = getPrisma();
+    console.log("🔍 Fetching all agents for admin...");
 
-    if (!prisma) {
-      return NextResponse.json(
-        { success: false, message: "Database not available" },
-        { status: 500 }
-      );
-    }
-
-    const agents = await prisma.agent.findMany({
-      orderBy: { createdAt: "desc" },
+    // كنقلبو فـ جدول الـ User على كاع لي عندهم Role هو AGENT
+    const agents = await prisma.user.findMany({
+      where: {
+        role: "AGENT",
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        // التكامل السحري: كنجيبو معلومات المحفظة من الجدول الآخر
+        agentProfile: {
+          select: {
+            id: true,
+            availableBalance: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc", // الجديد هو اللول
+      },
     });
 
-    return NextResponse.json({ success: true, data: agents });
-  } catch (error) {
-    console.error("GET AGENTS ERROR:", error);
+    return NextResponse.json(agents);
+  } catch (error: any) {
+    console.error("🔥 Error fetching agents:", error.message);
     return NextResponse.json(
-      {
-        success: false,
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        data: [],
-      },
+      { error: "تعذر جلب قائمة الوكلاء" },
       { status: 500 }
     );
   }
