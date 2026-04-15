@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -23,9 +22,12 @@ export default function InviteAgentPage() {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
     const current = JSON.parse(saved);
-    if (current.role !== "agent") return void (window.location.href = "/login");
+    if (String(current.role).toLowerCase() !== "agent") return void (window.location.href = "/login");
+    
     setUser(current);
-    load(current.agentId).finally(() => setLoading(false));
+    // 🟢 الإصلاح 1: نخدمو بـ agentId ولا id لي كاين
+    const currentAgentId = current.agentId || current.id;
+    load(currentAgentId).finally(() => setLoading(false));
   }, []);
 
   const eligible = useMemo(() => {
@@ -34,27 +36,39 @@ export default function InviteAgentPage() {
   }, [records]);
 
   const generateInvite = async () => {
-    if (!user?.agentId) return;
+    // 🟢 الإصلاح 2: نتأكدو بلي عندنا ID قبل ما نحبسو الكود
+    const currentAgentId = user?.agentId || user?.id;
+    if (!currentAgentId) {
+      alert("مشكل في بيانات الحساب، المرجو تسجيل الدخول مرة أخرى.");
+      return;
+    }
+
     const res = await fetch("/api/agent/invite-agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId: user.agentId, type: "generate", invitedAgentEmail: email }),
+      body: JSON.stringify({ 
+        agentId: currentAgentId, 
+        type: "generate", 
+        invitedAgentEmail: email 
+      }),
     });
+    
     const data = await res.json();
-    if (!res.ok) return alert(data.message || "Failed to generate invite");
+    
+    if (!res.ok) {
+      return alert(data.message || "Failed to generate invite");
+    }
+    
     setInviteCode(data.invite?.invite_code || "");
     setInviteLink(data.inviteLink || "");
-    await load(user.agentId);
+    await load(currentAgentId);
   };
 
   const copyInvite = async () => {
     const base = typeof window !== "undefined" ? window.location.origin : "";
-    const text = `Agent invite code: ${inviteCode}
-Invite link: ${base}${inviteLink}`;
+    const text = `Agent invite code: ${inviteCode}\nInvite link: ${base}${inviteLink}`;
     await navigator.clipboard.writeText(text);
-    alert(`Invite copied
-
-      You can now share the invite link with the new agent.`);
+    alert(`Invite copied!\n\nYou can now share the invite link with the new agent.`);
   };
 
   if (loading || !user) return <SidebarShell role="agent"><LoadingCard text="Loading invite agent..." /></SidebarShell>;
