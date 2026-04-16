@@ -20,26 +20,25 @@ export async function POST(req: Request) {
     const phone = String(body.phone || "").trim();
 
     if (!email || !username || !password || !phone) {
-      return NextResponse.json({ message: "Username, email, phone and password are required" }, { status: 400 });
+      return NextResponse.json({ message: "جميع الحقول مطلوبة" }, { status: 400 });
     }
 
-    const existingEmail = await prisma.user.findFirst({ where: { email } });
-    if (existingEmail) {
-      return NextResponse.json({ message: "Email already exists" }, { status: 400 });
-    }
+    // فحص التكرار
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email }, { username }] }
+    });
 
-    const existingUsername = await prisma.user.findFirst({ where: { username } });
-    if (existingUsername) {
-      return NextResponse.json({ message: "Username already exists" }, { status: 400 });
+    if (existingUser) {
+      return NextResponse.json({ message: "البريد الإلكتروني أو اسم المستخدم موجود مسبقاً" }, { status: 400 });
     }
 
     const passwordHash = await hashPassword(password);
 
     let assignedAgentId: string | null = null;
-    let playerStatus: "active" | "inactive" = "inactive";
-    let nextStep = "select-agent"; // أوتوماتيكيا كيمشي يختار وكيل إلا ما دخلش الكود
+    let playerStatus: string = "inactive"; 
+    let nextStep = "/player/select-agent"; // المسار الافتراضي
 
-    // 🟢 الحل الجذري: استقبال الكود والبحث الشامل
+    // 🟢 البحث عن الوكيل (تطوير البحث)
     const agentInput = String(body.agent_code || "").trim();
 
     if (agentInput !== "") {
@@ -50,21 +49,19 @@ export async function POST(req: Request) {
             { referralCode: agentInput },
             { id: agentInput }
           ],
-          // التأكد أن الوكيل نشط
-          status: { in: ["ACTIVE", "active"] } 
+          // ⚠️ التعديل هنا: نقبل الوكيل حتى لو كان يلاه تكريا حسابه
+          status: { in: ["ACTIVE", "active", "account_created", "pending"] } 
         },
       });
 
-      if (!agent) {
-        return NextResponse.json(
-          { message: "Invalid agent code / كود الوكيل أو اسم المستخدم غير صحيح" },
-          { status: 400 }
-        );
+      if (agent) {
+        assignedAgentId = agent.id;
+        playerStatus = "inactive"; // كيبقى inactive حتى يفعلو الوكيل من Activations
+        nextStep = "/player/dashboard"; // كيدوز للداشبورد مباشرة
+      } else {
+        // إذا دخل كود غلط، نوقفه هنا أحسن ما نخليه يكمل
+        return NextResponse.json({ message: "كود الوكيل غير صحيح أو الوكيل غير موجود" }, { status: 400 });
       }
-
-      assignedAgentId = agent.id;
-      playerStatus = "active";
-      nextStep = "dashboard"; // حيت ديجا دخل الكود، يديوه نيشان للداشبورد
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -74,9 +71,8 @@ export async function POST(req: Request) {
           username,
           passwordHash,
           role: "PLAYER",
-          playerStatus,
+          playerStatus: playerStatus as any,
           assignedAgentId,
-          frozen: false,
         },
       });
 
@@ -87,11 +83,9 @@ export async function POST(req: Request) {
           lastName: String(body.last_name || ""),
           username,
           phone: normalizePhoneWithCountry(phone, body.country || "Morocco"),
-          city: String(body.city || ""),
-          country: String(body.country || "Morocco"),
-          dateOfBirth: String(body.date_of_birth || ""),
-          status: playerStatus,
+          status: playerStatus as any,
           assignedAgentId,
+          country: String(body.country || "Morocco"),
         },
       });
 
@@ -100,25 +94,19 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: assignedAgentId
-        ? "Account created and linked to agent ✅"
-        : "Account created successfully ✅",
       user: {
         id: result.user.id,
         email: result.user.email,
         username: result.user.username,
         role: "player",
-        player_status: result.user.playerStatus,
-        assigned_agent_id: result.user.assignedAgentId || undefined,
-        created_at: result.user.createdAt,
+        status: result.user.playerStatus,
+        assigned_agent_id: result.user.assignedAgentId,
       },
-      nextStep: nextStep, // 👈 التوجيه الذكي
+      nextStep: nextStep, // 👈 هادي غيستعملها الـ Frontend للتوجيه
     });
-  } catch (error) {
-    console.error("REGISTER PLAYER ERROR:", error);
-    return NextResponse.json(
-      { message: "حدث خطأ أثناء التسجيل، يرجى المحاولة لاحقاً." },
-      { status: 500 }
-    );
+
+  } catch (error: any) {
+    console.error("REGISTER ERROR:", error);
+    return NextResponse.json({ message: "خطأ في السيرفر" }, { status: 500 });
   }
 }
