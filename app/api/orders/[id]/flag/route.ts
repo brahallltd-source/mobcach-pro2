@@ -6,11 +6,15 @@ export const runtime = "nodejs";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } 
 ) {
   try {
     const prisma = getPrisma();
-    const orderId = params.id;
+    
+    // 🟢 استخراج id من الـ Promise (ضروري في Next.js 15)
+    const resolvedParams = await params;
+    const orderId = resolvedParams.id;
+    
     const body = await req.json();
     const { note, reportedByRole, reporterId } = body;
 
@@ -18,14 +22,16 @@ export async function POST(
       return NextResponse.json({ message: "المرجو كتابة سبب الإبلاغ" }, { status: 400 });
     }
 
+    // التأكد من وجود الطلب
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       return NextResponse.json({ message: "الطلب غير موجود" }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    // تنفيذ العملية في Transaction
+    await prisma.$transaction(async (tx) => {
       // 1. تغيير حالة الطلب
-      const updatedOrder = await tx.order.update({
+      await tx.order.update({
         where: { id: orderId },
         data: { 
           status: "flagged_for_review",
@@ -34,26 +40,24 @@ export async function POST(
         },
       });
 
-      // 2. تسجيل التقرير (Flag) في قاعدة البيانات
-      const flag = await tx.fraudFlag.create({
+      // 2. تسجيل البلاغ
+      await tx.fraudFlag.create({
         data: {
           orderId: orderId,
           type: `manual_flag_by_${reportedByRole}`,
           note: `[بواسطة: ${reportedByRole}] - ${note}`,
-          score: 100, // نعطيوها سكور طالع باش تبان للإدارة كحالة مستعجلة
+          score: 100, 
           resolved: false,
         },
       });
-
-      return { updatedOrder, flag };
     });
 
-    // 3. إرسال إشعار للإدارة (ADMIN)
+    // 3. إرسال إشعار للإدارة
     await createNotification({
       targetRole: "admin",
-      targetId: "admin", // أو ID ديال الإدارة يلا كان محدد
+      targetId: "admin",
       title: "🚨 طلب مشبوه جديد",
-      message: `تم الإبلاغ عن الطلب ${order.amount} DH من طرف ${reportedByRole}. السبب: ${note}`,
+      message: `تم الإبلاغ عن الطلب بقيمة ${order.amount} DH. السبب: ${note}`,
     });
 
     return NextResponse.json({ 

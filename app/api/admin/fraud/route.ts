@@ -1,60 +1,92 @@
 import { NextResponse } from "next/server";
-import { dataPath, readJsonArray } from "@/lib/json";
+import { getPrisma } from "@/lib/db";
 
-export const runtime = "nodejs";
+// 🟢 هادي ضرورية باش Next.js ما يحاولش يدير ليها Cache فـ وقت الـ Build
+export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) { // 👈 زدنا req هنا باش يتهنى الـ build
   try {
-    const orders = readJsonArray<any>(dataPath("orders.json"));
-    const hashes = readJsonArray<any>(dataPath("proof_hashes.json"));
-    const suspiciousOrders = orders.filter((order) => order.review_required || order.status === "flagged_for_review" || (order.suspicious_flags || []).length);
-    const duplicateHashes = hashes.filter((item) => Number(item.duplicate_count || 1) > 1);
-
-    const items = suspiciousOrders.map((order) => {
-      const flags = Array.isArray(order.suspicious_flags) ? order.suspicious_flags : [];
-      const score = Math.min(100,
-        (order.review_required ? 35 : 0) +
-        (order.status === "flagged_for_review" ? 25 : 0) +
-        (flags.includes("duplicate_proof_hash") ? 30 : 0) +
-        (order.proof_duplicate_detected ? 10 : 0)
-      );
-      return {
-        id: order.id,
-        orderId: order.id,
-        playerEmail: order.playerEmail,
-        agentId: order.agentId,
-        amount: order.amount,
-        status: order.status,
-        proof_url: order.proofUrl || "",
-        proof_hash: order.proof_hash || "",
-        flags,
-        score,
-        created_at: order.createdAt,
-        updated_at: order.updatedAt,
-        review_reason: order.review_reason || "",
-      };
-    }).sort((a, b) => b.score - a.score || String(b.updated_at).localeCompare(String(a.updated_at)));
-
-    return NextResponse.json({
-      summary: {
-        suspiciousOrders: items.length,
-        duplicateHashes: duplicateHashes.length,
-        pendingFlags: items.filter((item) => item.status !== "completed").length,
-      },
-      items,
-      duplicateHashes,
+    const prisma = getPrisma();
+    
+    // 1. جلب البلاغات مع معلومات اللاعب (عبر اليوزر) والوكيل
+    const flags = await prisma.fraudFlag.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        order: {
+          include: {
+            player: {
+              include: {
+                user: true 
+              }
+            },
+            agent: true
+          }
+        }
+      }
     });
+
+    // 2. تنسيق البيانات
+    const formattedFlags = flags.map((flag: any) => ({
+      ...flag,
+      order: {
+        ...flag.order,
+        player: {
+          email: flag.order?.player?.user?.email || flag.order?.player?.username || "N/A",
+          username: flag.order?.player?.username || "N/A",
+        },
+        agent: {
+          email: flag.order?.agent?.email || flag.order?.agent?.username || "N/A",
+          username: flag.order?.agent?.username || "N/A",
+        }
+      }
+    }));
+
+    // 3. حساب الإحصائيات
+    const summary = {
+      suspiciousOrders: formattedFlags.length,
+      pendingFlags: formattedFlags.filter((f: any) => !f.resolved).length,
+      highRisk: formattedFlags.filter((f: any) => f.score >= 70).length,
+    };
+
+    return NextResponse.json({ items: formattedFlags, summary });
   } catch (error) {
-    console.error("ADMIN FRAUD ERROR:", error);
-    return NextResponse.json(
-      {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        summary: null,
-        items: [],
-        duplicateHashes: [],
-      },
-      { status: 500 }
-    );
+    console.error("ADMIN FRAUD API ERROR:", error);
+    return NextResponse.json({ items: [], summary: null }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const prisma = getPrisma();
+    const { flagId, orderId, action, note } = await req.json();
+
+    if (action === "resolve") {
+      await prisma.$transaction([
+        prisma.fraudFlag.update({ 
+          where: { id: flagId }, 
+          data: { resolved: true, note: `[حل الإدارة]: ${note || 'بدون ملاحظات'}` } 
+        }),
+        prisma.order.update({ 
+          where: { id: orderId }, 
+          data: { status: "proof_uploaded", reviewRequired: false } // 👈 حيدنا السينيال هنا دقة وحدة
+        })
+      ]);
+    } else if (action === "reopen") {
+      await prisma.$transaction([
+        prisma.fraudFlag.update({ 
+          where: { id: flagId }, 
+          data: { resolved: false, note: `[معاد فتحه]: ${note || 'بدون ملاحظات'}` } 
+        }),
+        prisma.order.update({ 
+          where: { id: orderId }, 
+          data: { status: "flagged_for_review", reviewRequired: true } 
+        })
+      ]);
+    }
+
+    return NextResponse.json({ success: true, message: "تم تحديث حالة البلاغ بنجاح" });
+  } catch (error) {
+    console.error("ADMIN FRAUD POST ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ فني أثناء المعالجة" }, { status: 500 });
   }
 }

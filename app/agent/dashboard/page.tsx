@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { RevenueAreaChart } from "@/components/charts";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatCard } from "@/components/ui";
-import { Users, ShoppingBag, Clock, ShieldAlert } from "lucide-react";
+import { Users, ShoppingBag, Clock, ShieldAlert, XCircle } from "lucide-react";
 
-type AgentUser = { role: string; email: string; agentId?: string; username?: string };
+// زدنا حالة الوكيل (status) باش نقدرو نتحكمو فـ باج الانتظار
+type AgentUser = { role: string; email: string; agentId?: string; username?: string; status?: string };
 type Wallet = { balance: number };
 type Order = { id: string; status: string; amount: number };
 type BonusProfile = { pendingBonus?: number; volume?: number; energy?: number; completedOrders?: number };
@@ -15,7 +16,7 @@ export default function AgentDashboardPage() {
   const [user, setUser] = useState<AgentUser | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [playersCount, setPlayersCount] = useState(0); // حالة عدد اللاعبين
+  const [playersCount, setPlayersCount] = useState(0); 
   const [bonus, setBonus] = useState<BonusProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +32,7 @@ export default function AgentDashboardPage() {
     Promise.all([
       fetch(`/api/agent/wallet?agentId=${agentIdEnc}`, { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/agent/orders?email=${encodeURIComponent(current.email)}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/agent/my-players?agentId=${agentIdEnc}`, { cache: "no-store" }).then((r) => r.json()), // API جديد للاعبين
+      fetch(`/api/agent/my-players?agentId=${agentIdEnc}`, { cache: "no-store" }).then((r) => r.json()), 
       fetch(`/api/agent/bonus?agentId=${agentIdEnc}`, { cache: "no-store" }).then((r) => r.json()),
     ]).then(([walletData, ordersData, playersData, bonusData]) => {
       setWallet(walletData.wallet || null);
@@ -41,7 +42,6 @@ export default function AgentDashboardPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // حساب الطلبات حسب الحالة
   const newOrders = orders.filter((item) => item.status === "pending_payment" || item.status === "proof_uploaded").length;
   const waitingOrders = orders.filter((item) => item.status === "agent_approved_waiting_player").length;
   const flagged = orders.filter((item) => item.status === "flagged_for_review").length;
@@ -57,6 +57,43 @@ export default function AgentDashboardPage() {
   if (loading) return <SidebarShell role="agent"><LoadingCard text="Loading agent dashboard..." /></SidebarShell>;
   if (!user) return null;
 
+  // 🟢 حالة الوكيل قيد المراجعة (يلاه تسجل)
+  if (user?.status === "pending" || user?.status === "account_created") {
+    return (
+      <SidebarShell role="agent">
+        <GlassCard className="p-10 text-center max-w-2xl mx-auto mt-10 border-amber-500/20">
+          <Clock size={64} className="mx-auto text-amber-500 mb-6 animate-pulse" />
+          <h2 className="text-3xl font-bold text-amber-400">طلبك قيد المراجعة</h2>
+          <p className="mt-4 text-lg text-white/70 leading-relaxed">
+            تم استلام طلبك للعمل كوكيل بنجاح. ستقوم الإدارة بمراجعة بياناتك والرد عليك في غضون <span className="font-bold text-white">24 ساعة كحد أقصى</span>.
+          </p>
+          <p className="mt-2 text-sm text-white/40">المرجو التحقق من حسابك لاحقاً.</p>
+        </GlassCard>
+      </SidebarShell>
+    );
+  }
+
+  // 🔴 حالة الوكيل المرفوض
+  if (user?.status === "rejected" || user?.status === "REJECTED") {
+    return (
+      <SidebarShell role="agent">
+        <GlassCard className="p-10 text-center max-w-2xl mx-auto mt-10 border-red-500/30 bg-red-500/5">
+          <XCircle size={64} className="mx-auto text-red-500 mb-6" />
+          <h2 className="text-3xl font-bold text-red-400">تم رفض طلبك</h2>
+          <p className="mt-4 text-lg text-white/70 leading-relaxed">
+            عذراً، لم توافق الإدارة على طلبك للانضمام كوكيل في الوقت الحالي. يمكنك التسجيل واستخدام المنصة كلاعب عادي.
+          </p>
+          <div className="mt-8 flex justify-center">
+            <Link href="/registre/player">
+              <PrimaryButton className="px-8 py-4 text-lg">التسجيل كلاعب بدلاً من ذلك</PrimaryButton>
+            </Link>
+          </div>
+        </GlassCard>
+      </SidebarShell>
+    );
+  }
+
+  // 🟢 الداشبورد العادي للوكيل المقبول
   return (
     <SidebarShell role="agent">
       <PageHeader
@@ -86,24 +123,31 @@ export default function AgentDashboardPage() {
               value={`${wallet?.balance || 0} DH`} 
               hint="رصيدك المتوفر حالياً" 
             />
-            <StatCard 
-              label="New Orders" 
-              value={String(newOrders)} 
-              hint="طلبات في انتظارك" 
-              onClick={() => window.location.href = "/agent/orders"} 
-            />
-            <StatCard 
-              label="My Players" 
-              value={String(playersCount)} 
-              hint="إدارة اللاعبين المسجلين" 
-              onClick={() => window.location.href = "/agent/my-players"}
-            />
-            <StatCard 
-              label="Waiting Orders" 
-              value={String(waitingOrders)} 
-              hint="طلبات قيد المعالجة" 
-              onClick={() => window.location.href = "/agent/orders"}
-            />
+            
+            {/* 🟢 غلفنا الخانات بـ Link باش نحيدو مشكل TypeScript ديال onClick */}
+            <Link href="/agent/orders" className="block transition hover:scale-[1.02]">
+              <StatCard 
+                label="New Orders" 
+                value={String(newOrders)} 
+                hint="طلبات في انتظارك" 
+              />
+            </Link>
+
+            <Link href="/agent/my-players" className="block transition hover:scale-[1.02]">
+              <StatCard 
+                label="My Players" 
+                value={String(playersCount)} 
+                hint="إدارة اللاعبين المسجلين" 
+              />
+            </Link>
+
+            <Link href="/agent/orders" className="block transition hover:scale-[1.02]">
+              <StatCard 
+                label="Waiting Orders" 
+                value={String(waitingOrders)} 
+                hint="طلبات قيد المعالجة" 
+              />
+            </Link>
           </div>
         </div>
       </GlassCard>

@@ -124,7 +124,7 @@ export async function unlockEnergyReward(agentId: string) {
 }
 
 /**
- * 5. تطبيق المكافآت المعلقة عند الشحن (المهمة اللي طلبنا قبيلة)
+ * 5. تطبيق المكافآت المعلقة عند الشحن
  */
 export async function applyPendingBonusesToRecharge(agentId: string, adminEmail: string) {
   const prisma = getPrisma();
@@ -151,4 +151,50 @@ export async function applyPendingBonusesToRecharge(agentId: string, adminEmail:
   ]);
 
   return { totalApplied, count: pendingRewards.length };
+}
+
+
+// ============================================================================
+// 🟢 6. نظام الإحالة (Referral System) - باش ما يضربش ليك الـ Build 🟢
+// ============================================================================
+
+// تأكدي من وجود كلمة export
+export async function createReferral(payload: { playerUserId: string; playerEmail: string; referredByAgentId: string }) {
+  const prisma = getPrisma();
+  return await prisma.referral.create({
+    data: {
+      playerUserId: payload.playerUserId,
+      playerEmail: payload.playerEmail,
+      referredByAgentId: payload.referredByAgentId,
+      rewardStatus: "PENDING",
+    }
+  });
+}
+
+export async function rewardReferralOnFirstOrder(playerEmail: string, orderId: string, amount: number) {
+  const prisma = getPrisma();
+  const ref = await prisma.referral.findFirst({
+    where: { playerEmail, rewardStatus: "PENDING" }
+  });
+  
+  if (ref) {
+    const reward = amount * 0.05; // 5% من أول شحن كبونيس للوكيل
+    
+    await prisma.referral.update({
+      where: { id: ref.id },
+      data: {
+        rewardStatus: "COMPLETED",
+        firstOrderReward: reward,
+        rewardedOrderId: orderId
+      }
+    });
+  }
+}
+
+export async function getReferralRows(agentId: string) {
+  const prisma = getPrisma();
+  return await prisma.referral.findMany({
+    where: { referredByAgentId: agentId },
+    orderBy: { createdAt: "desc" }
+  });
 }

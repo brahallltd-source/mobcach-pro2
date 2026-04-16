@@ -107,7 +107,9 @@ export default function PlayerSelectAgentPage() {
     }
 
     if (data.user) localStorage.setItem("mobcash_user", JSON.stringify(data.user));
-    window.location.href = `/player/achat/${agentId}`;
+    
+    // 🟢 التعديل السحري هنا: توجيه اللاعب مباشرة للداشبورد عوض صفحة الشراء
+    window.location.href = "/player/dashboard";
   };
 
   const availableMethods = useMemo(() => {

@@ -1,59 +1,90 @@
 import { NextResponse } from "next/server";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
+import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
     const { orderId, action, note } = await req.json();
+
     if (!orderId || !action) {
       return NextResponse.json({ message: "orderId and action are required" }, { status: 400 });
     }
 
-    const path = dataPath("orders.json");
-    const orders = readJsonArray<any>(path);
-    const index = orders.findIndex((item) => item.id === orderId);
-    if (index === -1) {
-      return NextResponse.json({ message: "Order not found" }, { status: 404 });
-    }
+    // 1. قلب على آخر بلاغ (Flag) تدار لهاد الطلب
+    const latestFlag = await prisma.fraudFlag.findFirst({
+      where: { orderId: orderId },
+      orderBy: { createdAt: 'desc' }
+    });
 
-    const order = orders[index];
-    const next = { ...order, updated_at: nowIso() };
+    // 2. تحديث الطلب والبلاغ في عملية واحدة (Transaction)
+    const result = await prisma.$transaction(async (tx) => {
+      let updatedOrder;
 
-    if (action === "resolve") {
-      next.review_required = false;
-      next.review_reason = note || "Resolved by admin fraud center";
-      next.fraud_resolution = {
-        action: "resolved",
-        note: note || "Resolved by admin fraud center",
-        at: nowIso(),
-      };
-      if (next.status === "flagged_for_review") {
-        next.status = "proof_uploaded";
+      if (action === "resolve") {
+        // أ. تحديث حالة البلاغ إلى "محلول"
+        if (latestFlag) {
+          await tx.fraudFlag.update({
+            where: { id: latestFlag.id },
+            data: { 
+              resolved: true, 
+              note: `[تم الحل بواسطة الإدارة]: ${note || 'لا توجد ملاحظة'}` 
+            }
+          });
+        }
+        
+        // ب. إرجاع الطلب لحالة "تم رفع الوصل" باش الوكيل يكمل خدمتو
+        updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: "proof_uploaded",
+            reviewRequired: false,
+            reviewReason: note || "Resolved by admin fraud center",
+            updatedAt: new Date()
+          }
+        });
+
+      } else if (action === "reopen") {
+        // أ. إعادة فتح البلاغ
+        if (latestFlag) {
+          await tx.fraudFlag.update({
+            where: { id: latestFlag.id },
+            data: { 
+              resolved: false, 
+              note: `[إعادة فتح البلاغ]: ${note || 'لا توجد ملاحظة'}` 
+            }
+          });
+        }
+
+        // ب. تجميد الطلب مرة أخرى
+        updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: "flagged_for_review",
+            reviewRequired: true,
+            reviewReason: note || "Reopened by admin fraud center",
+            updatedAt: new Date()
+          }
+        });
+      } else {
+        throw new Error("Invalid action");
       }
-    } else if (action === "reopen") {
-      next.review_required = true;
-      next.status = "flagged_for_review";
-      next.review_reason = note || "Reopened by admin fraud center";
-      next.fraud_resolution = {
-        action: "reopened",
-        note: note || "Reopened by admin fraud center",
-        at: nowIso(),
-      };
-    } else {
-      return NextResponse.json({ message: "Invalid action" }, { status: 400 });
-    }
 
-    orders[index] = next;
-    writeJsonArray(path, orders);
+      return updatedOrder;
+    });
 
     return NextResponse.json({
-      message: action === "resolve" ? "Fraud case resolved successfully" : "Fraud case reopened successfully",
-      order: next,
+      success: true,
+      message: action === "resolve" ? "تم حل المشكلة بنجاح" : "تم إعادة فتح المشكلة",
+      order: result,
     });
+
   } catch (error) {
     console.error("ADMIN FRAUD REVIEW ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json(
+      { message: "حدث خطأ أثناء معالجة الطلب. يرجى المحاولة لاحقاً." }, 
+      { status: 500 }
+    );
   }
 }
