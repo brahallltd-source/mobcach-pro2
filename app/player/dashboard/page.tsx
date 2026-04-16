@@ -41,7 +41,8 @@ type AgentSummary = {
   country?: string;
 };
 
-type Winner = {
+// 🟢 عوضنا Winner بـ Order
+type Order = {
   id: string;
   amount: number;
   status: string;
@@ -69,7 +70,9 @@ export default function PlayerDashboardPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [assignedAgent, setAssignedAgent] = useState<AgentSummary | null>(null);
   const [availableAgents, setAvailableAgents] = useState<AgentSummary[]>([]);
-  const [winner, setWinner] = useState<Winner | null>(null);
+  
+  // 🟢 حالة جديدة لتخزين آخر طلب
+  const [latestOrder, setLatestOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -99,14 +102,13 @@ export default function PlayerDashboardPage() {
       fetch(`/api/agents/discovery`, { cache: "no-store" }).then((res) =>
         res.json()
       ),
+      // 🟢 جبنا الطلبات ديال اللاعب بلاصة السحوبات
       fetch(
-        `/api/player/winnings?playerEmail=${encodeURIComponent(
-          parsedUser.email
-        )}`,
+        `/api/player/orders?email=${encodeURIComponent(parsedUser.email)}`,
         { cache: "no-store" }
       ).then((res) => res.json()),
     ])
-      .then(([notificationsData, agentsData, winningsData]) => {
+      .then(([notificationsData, agentsData, ordersData]) => {
         const allAgents: AgentSummary[] = agentsData.agents || [];
         setNotifications(notificationsData.notifications || []);
         setAvailableAgents(allAgents);
@@ -118,7 +120,10 @@ export default function PlayerDashboardPage() {
           ) || null;
 
         setAssignedAgent(nextAgent);
-        setWinner(winningsData.winner || null);
+
+        // 🟢 كناخدو غير الطلب الأول (أحدث واحد)
+        const playerOrders = ordersData.orders || [];
+        setLatestOrder(playerOrders.length > 0 ? playerOrders[0] : null);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -214,10 +219,11 @@ export default function PlayerDashboardPage() {
           }
         />
 
+        {/* 🟢 ها هي الخانة ديال آخر طلب تريكْلات */}
         <StatCard
-          label="Winning status"
-          value={winner ? `${winner.amount} DH` : "No winnings"}
-          hint={winner ? winner.status : "No payout request yet"}
+          label="Latest order"
+          value={latestOrder ? `${latestOrder.amount} DH` : "No orders yet"}
+          hint={latestOrder ? `Status: ${latestOrder.status.replace(/_/g, ' ')}` : "Create a new recharge request"}
         />
       </div>
 
