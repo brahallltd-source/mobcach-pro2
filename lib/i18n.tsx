@@ -1,3 +1,8 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect } from "react";
+
+// --- 1. الإعدادات ---
 export type Lang = "fr" | "ar" | "en";
 
 export const LANGS: { value: Lang; label: string; dir: "ltr" | "rtl" }[] = [
@@ -8,9 +13,9 @@ export const LANGS: { value: Lang; label: string; dir: "ltr" | "rtl" }[] = [
 
 export const defaultLang: Lang = "fr";
 
+// --- 2. القاموس (Dictionaries) ---
 const dictionaries = {
   en: {
-    // ... الكلمات القديمة التي أرسلتها ...
     brand: "GS365Cash",
     overview: "Overview",
     newOrder: "New Order",
@@ -25,7 +30,6 @@ const dictionaries = {
     logout: "Logout",
     notifications: "Notifications",
     myProfile: "My Profile",
-    // بقية الكلمات...
     heroTitle: "Recharge with confidence...",
     heroBody: "A premium workspace...",
     login: "Login",
@@ -110,7 +114,6 @@ const dictionaries = {
     logout: "Déconnexion",
     notifications: "Notifications",
     myProfile: "Mon profil",
-    // بقية الكلمات...
     heroTitle: "Rechargez en toute confiance...",
     heroBody: "Un espace premium...",
     login: "Connexion",
@@ -123,7 +126,7 @@ const dictionaries = {
     continueNext: "Suivant",
     selectAgent: "Choisissez votre agent",
     filters: "Filtres",
-    paymentMethods: "Méthodes de paiement",
+    paymentMethods: "Méثode de paiement",
     countryRegion: "Pays / Région",
     amount: "Montant",
     paymentTime: "Temps de paiement",
@@ -195,7 +198,6 @@ const dictionaries = {
     logout: "تسجيل الخروج",
     notifications: "التنبيهات",
     myProfile: "ملفي الشخصي",
-    // بقية الكلمات...
     heroTitle: "اشترِ بثقة، اختر الوكيل المناسب وادفع بالطريقة التي تناسبك.",
     heroBody: "منصة احترافية للاعبين والوكلاء والإدارة مع دعم ثلاثي اللغات وتجربة شراء حديثة ومحاسبة محافظ ومراجعة آمنة للطلبات.",
     login: "تسجيل الدخول",
@@ -267,8 +269,69 @@ const dictionaries = {
   },
 } as const;
 
-export type TranslationKey = keyof (typeof dictionaries)["en"];
+export type TranslationKey = keyof typeof dictionaries["en"];
+
+// --- 3. المحرك المصلح (Context API) ---
+interface LanguageContextType {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: TranslationKey) => string;
+  dir: "ltr" | "rtl";
+}
+
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState<Lang>(defaultLang);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("app_lang") as Lang;
+    if (saved && ["fr", "ar", "en"].includes(saved)) {
+      setLangState(saved);
+    }
+    setMounted(true);
+  }, []);
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    localStorage.setItem("app_lang", l);
+    document.cookie = `lang=${l}; path=/; max-age=31536000`;
+  };
+
+  const t = (key: TranslationKey) => {
+    return (
+      dictionaries[lang][key as keyof typeof dictionaries["en"]] ||
+      dictionaries.en[key as keyof typeof dictionaries["en"]] ||
+      key
+    );
+  };
+
+  const dir = LANGS.find((l) => l.value === lang)?.dir || "ltr";
+
+  // لمنع Hydration Mismatch
+  if (!mounted) {
+    return <div style={{ visibility: "hidden" }}>{children}</div>;
+  }
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t, dir }}>
+      <div 
+        dir={dir} 
+        className={`${lang === "ar" ? "font-arabic" : ""} min-h-screen`}
+      >
+        {children}
+      </div>
+    </LanguageContext.Provider>
+  );
+}
+
+export function useTranslation() {
+  const context = useContext(LanguageContext);
+  if (!context) throw new Error("useTranslation must be used within LanguageProvider");
+  return context;
+}
 
 export function translate(lang: Lang, key: TranslationKey) {
-  return dictionaries[lang]?.[key] || dictionaries.en[key] || key;
+  return dictionaries[lang]?.[key as keyof typeof dictionaries["en"]] || dictionaries.en[key] || key;
 }
