@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { 
   CheckCircle2, CreditCard, Upload, Copy, MessageCircle, 
-  AlertCircle, Clock, ChevronRight, Zap, Phone, Info
+  AlertCircle, Clock, ChevronRight, Zap, Phone, Info, Flag // 👈 زدنا Flag هنا
 } from "lucide-react";
 import {
   GlassCard, 
@@ -12,7 +12,7 @@ import {
   SidebarShell, 
   PrimaryButton, 
   DangerButton, 
-  EmptyState // ✅ أضفنا هذا الاستيراد لحل مشكلة الخطأ
+  EmptyState 
 } from "@/components/ui";
 
 type Order = {
@@ -24,7 +24,7 @@ type Order = {
   gosportUsername?: string;
   proofUrl?: string;
   createdAt: string;
-  agent?: { phone: string; fullName: string }; // أضفنا بيانات الوكيل للواتساب
+  agent?: { phone: string; fullName: string }; 
 };
 
 export default function PlayerOrderMapPage({ params }: { params: Promise<{ orderId: string }> }) {
@@ -32,12 +32,20 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
   const orderId = resolvedParams.orderId;
   const router = useRouter();
 
+  const [currentUser, setCurrentUser] = useState<any>(null); // 👈 زدنا حالة المستخدم
   const [order, setOrder] = useState<Order | null>(null);
   const [methods, setMethods] = useState<any[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<any>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [isFlagging, setIsFlagging] = useState(false); // 👈 حالة الإبلاغ
+
+  useEffect(() => {
+    // جلب بيانات اللاعب من التخزين المحلي
+    const savedUser = localStorage.getItem("mobcash_user");
+    if (savedUser) setCurrentUser(JSON.parse(savedUser));
+  }, []);
 
   const loadData = async () => {
     try {
@@ -81,9 +89,39 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
     }
   };
 
+  // 🟢 دالة الإبلاغ (Flag) الجديدة
+  const handleFlagOrder = async () => {
+    const reason = window.prompt("المرجو كتابة سبب الإبلاغ عن هذا الطلب (سيتم تحويله للإدارة):");
+    if (!reason || reason.trim() === "") return;
+
+    setIsFlagging(true);
+    try {
+      const res = await fetch(`/api/orders/${order?.id}/flag`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          note: reason,
+          reportedByRole: "player", 
+          reporterId: currentUser?.id || "unknown"
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message); 
+        await loadData(); // تحديث البيانات بلا مانحتاجو Reload للصفحة
+      } else {
+        alert(data.message || "فشل في إرسال البلاغ");
+      }
+    } catch (error) {
+      alert("حدث خطأ في الاتصال بالخادم.");
+    } finally {
+      setIsFlagging(false);
+    }
+  };
+
   if (loading) return <SidebarShell role="player"><LoadingCard text="تحميل الخريطة..." /></SidebarShell>;
   
-  // ✅ حل مشكلة EmptyState: تأكد أنه معرف في @/components/ui
   if (!order) return (
     <SidebarShell role="player">
       <EmptyState title="الطلب غير موجود" subtitle="تأكد من رقم الطلب أو تواصل مع الدعم" />
@@ -93,10 +131,12 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
   // منطق مراحل الخريطة (Steps)
   const isStep1Done = true;
   const isStep2Active = order.status === "pending_payment";
-  const isStep2Done = ["proof_uploaded", "agent_approved_waiting_player", "completed"].includes(order.status);
+  const isStep2Done = ["proof_uploaded", "agent_approved_waiting_player", "completed", "flagged_for_review"].includes(order.status);
   const isStep3Active = order.status === "agent_approved_waiting_player";
   const isStep3Done = order.status === "completed";
-  const isFlagged = order.status === "flagged"; // حالة الفلاج (التنبيه)
+  
+  // 🟢 تحديد حالة الفلاج الحقيقية
+  const isFlagged = order.status === "flagged_for_review"; 
 
   return (
     <SidebarShell role="player">
@@ -116,9 +156,21 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
           </div>
         </GlassCard>
 
-        {/* المرحلة ٢: اختيار البنك والرفع */}
-        {isStep2Active && (
+        {/* 🚨 حالة الفلاج (الإبلاغ للإدارة) */}
+        {isFlagged && (
+          <GlassCard className="p-10 text-center space-y-6 border-red-500/30 bg-red-500/5 animate-in fade-in">
+            <div className="mx-auto h-20 w-20 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center animate-pulse">
+              <AlertCircle size={40} />
+            </div>
+            <h3 className="text-2xl font-bold text-red-400">الطلب قيد مراجعة الإدارة</h3>
+            <p className="text-white/60">تم الإبلاغ عن هذا الطلب لوجود مشكلة. الإدارة تراجع التفاصيل حالياً وسيتم حل المشكلة في أقرب وقت.</p>
+          </GlassCard>
+        )}
+
+        {/* المرحلة ٢: اختيار البنك والرفع (تختفي إذا كان الطلب مبلوكي) */}
+        {isStep2Active && !isFlagged && (
           <GlassCard className="p-6 md:p-8 space-y-6 border-cyan-500/20 animate-in fade-in zoom-in-95">
+            {/* ... الكود ديال اختيار البنك والرفع بقى كما هو ... */}
             <div className="flex items-center gap-3 text-cyan-400">
               <Info size={24} />
               <h2 className="text-xl font-bold">المرحلة الثانية: بيانات الدفع</h2>
@@ -166,7 +218,7 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
           </GlassCard>
         )}
 
-        {/* الحالة: انتظار المراجعة أو الفلاج */}
+        {/* الحالة: انتظار المراجعة */}
         {order.status === "proof_uploaded" && (
           <GlassCard className="p-10 text-center space-y-6 border-yellow-500/20">
             <div className="mx-auto h-20 w-20 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center animate-pulse">
@@ -191,16 +243,28 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
         )}
 
         {/* أزرار الدعم والتواصل */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <button onClick={() => router.push(`/player/chat?orderId=${order.id}`)} className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 p-4 hover:bg-white/10 transition">
-            <MessageCircle size={18} /> Chat
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <button onClick={() => router.push(`/player/chat?orderId=${order.id}`)} className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 p-4 hover:bg-white/10 transition text-sm">
+            <MessageCircle size={18} /> محادثة
           </button>
-          {/* ✅ واتساب ديناميكي باستخدام رقم الوكيل من الطلب */}
-          <a href={`https://wa.me/${order.agent?.phone}`} target="_blank" className="flex items-center justify-center gap-2 rounded-2xl bg-green-500/10 p-4 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition">
-            <Phone size={18} /> WhatsApp
+          
+          <a href={`https://wa.me/${order.agent?.phone}`} target="_blank" className="flex items-center justify-center gap-2 rounded-2xl bg-green-500/10 p-4 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition text-sm">
+            <Phone size={18} /> واتساب
           </a>
-          {!isStep3Done && (
-            <DangerButton onClick={() => {/* دالة الإلغاء */}}>إلغاء الطلب</DangerButton>
+
+          {/* 🟢 زر الإبلاغ (Flag) - يظهر فقط إذا لم يكتمل الطلب ولم يتم الإبلاغ عنه */}
+          {!isStep3Done && !isFlagged && (
+            <button 
+              onClick={handleFlagOrder}
+              disabled={isFlagging}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-red-500/10 p-4 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition disabled:opacity-50 text-sm"
+            >
+              <Flag size={18} /> {isFlagging ? "جاري..." : "إبلاغ المشرف"}
+            </button>
+          )}
+
+          {!isStep3Done && !isFlagged && (
+            <DangerButton className="text-sm" onClick={() => {/* دالة الإلغاء */}}>إلغاء الطلب</DangerButton>
           )}
         </div>
       </div>

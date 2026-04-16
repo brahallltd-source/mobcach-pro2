@@ -2,8 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AlertTriangle, MessageCircle, Phone, XCircle, CheckCircle } from "lucide-react";
-import Link from "next/link";
+import { AlertTriangle, MessageCircle, XCircle, CheckCircle, Flag } from "lucide-react";
 import {
   GlassCard,
   PageHeader,
@@ -18,6 +17,8 @@ import {
 export default function AgentOrderDetailPage() {
   const params = useParams<{ orderId: string }>();
   const router = useRouter();
+  
+  const [currentUser, setCurrentUser] = useState<any>(null); // 👈 زدنا المستخدم
   const [order, setOrder] = useState<any>(null);
   const [agentData, setAgentData] = useState<any>(null);
   const [message, setMessage] = useState("");
@@ -25,11 +26,13 @@ export default function AgentOrderDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isFlagging, setIsFlagging] = useState(false); // 👈 حالة السينيال
 
   const load = async () => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return;
     const user = JSON.parse(saved);
+    setCurrentUser(user);
 
     try {
       const [orderRes, profileRes] = await Promise.all([
@@ -55,7 +58,6 @@ export default function AgentOrderDetailPage() {
     return () => clearInterval(timer);
   }, [params.orderId]);
 
-  // ✅ تعريف دالة postAction المفقودة
   const postAction = async (url: string, body: any) => {
     setBusy(true);
     try {
@@ -76,7 +78,6 @@ export default function AgentOrderDetailPage() {
     } finally { setBusy(false); }
   };
 
-  // ✅ تعريف دالة إرسال الرسائل
   const handleSendMessage = () => {
     if (!message.trim()) return;
     postAction("/api/order-messages", { 
@@ -86,7 +87,6 @@ export default function AgentOrderDetailPage() {
     });
   };
 
-  // ✅ دالة الإلغاء
   const handleReject = async () => {
     if (!cancelReason.trim()) return alert("يرجى كتابة سبب الإلغاء");
     setBusy(true);
@@ -106,10 +106,42 @@ export default function AgentOrderDetailPage() {
     } finally { setBusy(false); }
   };
 
+  // 🟢 دالة الإبلاغ (Flag) الخاصة بالوكيل
+  const handleFlagOrder = async () => {
+    const reason = window.prompt("المرجو كتابة سبب الإبلاغ عن هذا الطلب (مثال: وصل مزور، لاعب لا يستجيب). سيتم تحويله للإدارة:");
+    if (!reason || reason.trim() === "") return;
+
+    setIsFlagging(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/flag`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          note: reason,
+          reportedByRole: "agent", 
+          reporterId: currentUser?.id || "unknown"
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        await load(); // تحديث الصفحة
+      } else {
+        alert(data.message || "فشل في إرسال البلاغ");
+      }
+    } catch (error) {
+      alert("حدث خطأ في الاتصال بالخادم.");
+    } finally {
+      setIsFlagging(false);
+    }
+  };
+
   if (loading) return <SidebarShell role="agent"><LoadingCard text="Loading..." /></SidebarShell>;
   if (!order) return <SidebarShell role="agent"><GlassCard className="p-10 text-center">Order not found.</GlassCard></SidebarShell>;
 
   const hasEnoughBalance = (agentData?.balance || 0) >= order.amount;
+  const isFlagged = order.status === "flagged_for_review"; // 👈 التحقق واش مبلّغ عليه
 
   return (
     <SidebarShell role="agent">
@@ -141,7 +173,18 @@ export default function AgentOrderDetailPage() {
               </div>
             )}
 
-            {order.status === "proof_uploaded" && (
+            {/* 🚨 رسالة الإبلاغ للإدارة */}
+            {isFlagged && (
+              <div className="mt-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-3 animate-pulse">
+                <AlertTriangle size={28} />
+                <div>
+                  <p className="font-bold text-lg">الطلب قيد مراجعة الإدارة</p>
+                  <p className="text-sm opacity-80">تم الإبلاغ عن هذا الطلب. تم تجميد الإجراءات مؤقتاً في انتظار قرار الإدارة.</p>
+                </div>
+              </div>
+            )}
+
+            {order.status === "proof_uploaded" && !isFlagged && (
               <div className="mt-8 flex flex-col gap-3">
                 {!hasEnoughBalance && (
                   <div className="p-4 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm flex gap-3">
@@ -164,6 +207,18 @@ export default function AgentOrderDetailPage() {
                   </DangerButton>
                 </div>
               </div>
+            )}
+
+            {/* 🟢 زر الإبلاغ (Flag) - يظهر للوكيل فقط إذا كان الطلب مفتوحاً */}
+            {!["completed", "cancelled", "flagged_for_review"].includes(order.status) && (
+              <button 
+                onClick={handleFlagOrder}
+                disabled={isFlagging || busy}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 py-3 text-sm font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+              >
+                <Flag size={18} />
+                {isFlagging ? "جاري الإرسال..." : "إبلاغ الإدارة بوجود مشكلة (سينيال)"}
+              </button>
             )}
           </GlassCard>
         </div>
