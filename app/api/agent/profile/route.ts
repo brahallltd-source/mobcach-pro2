@@ -4,25 +4,48 @@ import { getPrisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const agentId = searchParams.get("agentId");
-  const prisma = getPrisma();
-
-  if (!agentId) return NextResponse.json({ status: "error" }, { status: 400 });
-
   try {
-    const agent = await prisma.agent.findUnique({
-      where: { id: agentId },
-      select: { status: true, username: true }
+    const { searchParams } = new URL(req.url);
+    const agentId = searchParams.get("agentId");
+    const prisma = getPrisma();
+
+    if (!agentId) return NextResponse.json({ status: "ERROR", message: "Missing ID" }, { status: 400 });
+
+    // 🟢 البحث الشامل: كنقلبو فـ جدول Agent بالـ ID ديالو أو بالـ userId
+    let agent = await prisma.agent.findFirst({
+      where: {
+        OR: [
+          { id: agentId },
+          { userId: agentId }
+        ]
+      },
+      select: { status: true, username: true, id: true }
     });
 
-    if (!agent) return NextResponse.json({ status: "not_found" }, { status: 404 });
+    // 🟠 إلا مالقيناش Agent، واش هاد اليوزر أصلاً كاين فـ جدول User؟
+    if (!agent) {
+      const user = await prisma.user.findUnique({
+        where: { id: agentId },
+        select: { status: true, username: true, role: true }
+      });
+
+      if (user && user.role === "AGENT") {
+        return NextResponse.json({ 
+          status: user.status || "PENDING", 
+          username: user.username 
+        });
+      }
+      
+      return NextResponse.json({ status: "NOT_FOUND" }, { status: 404 });
+    }
 
     return NextResponse.json({ 
       status: agent.status, 
-      username: agent.username 
+      username: agent.username,
+      realAgentId: agent.id 
     });
+
   } catch (error) {
-    return NextResponse.json({ status: "error" }, { status: 500 });
+    return NextResponse.json({ status: "ERROR" }, { status: 500 });
   }
 }
