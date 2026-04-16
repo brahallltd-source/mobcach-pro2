@@ -92,17 +92,21 @@ export async function POST(req: Request) {
       }
 
       if (!user) {
-        // 🟢 الإصلاح الجذري: كناخدو المودباس الحقيقي من الطلب ديال الوكيل
         const appData = application as any;
         let finalPasswordHash = "";
         
-        // كنقلبو واش المودباس مخبي فـ password ولا passwordHash
-        if (appData.passwordHash) {
-          finalPasswordHash = appData.passwordHash;
-        } else if (appData.password) {
-          finalPasswordHash = await hashPassword(appData.password);
+        // 🟢 الإصلاح الذكي والمهم هنا:
+        // نتحقق أولاً هل المودباس ديجا مشفر في قاعدة البيانات (يبدأ بـ $2)
+        const rawPassword = appData.passwordHash || appData.password || "";
+        
+        if (rawPassword.startsWith("$2")) {
+          // إذا كان ديجا مشفر، نأخذه كما هو
+          finalPasswordHash = rawPassword;
+        } else if (rawPassword) {
+          // إذا كان نص عادي، نقوم بتشفيره
+          finalPasswordHash = await hashPassword(rawPassword);
         } else {
-          // هاد السطر غيخدم فقط إلا كان شي خطأ فـ الفورمير ديال التسجيل وماصيفطش المودباس
+          // احتياط أخير إذا كان المودباس مفقود تماماً
           finalPasswordHash = await hashPassword("123456"); 
         }
 
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
           data: {
             email: application.email,
             username: application.username,
-            passwordHash: finalPasswordHash, // 👈 دابا غيتحط المودباس اللي اختار هو
+            passwordHash: finalPasswordHash,
             role: "PLAYER",
             status: "ACTIVE",
             frozen: false,
