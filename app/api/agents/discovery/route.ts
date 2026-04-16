@@ -1,13 +1,12 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-// أضفنا هاد الأسطر باش ما يبقاش الكاش قديم واللاعب ديما يشوف الرصيد الجديد
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
 
@@ -15,57 +14,72 @@ export async function GET() {
       return NextResponse.json({ agents: [] });
     }
 
-    const users = await prisma.user.findMany({
-      where: {
-        role: "AGENT",
-        frozen: false,
-        agentId: {
-          not: null,
-        },
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        agentId: true,
-      },
-    });
+    // 1. قراءة الفلتر من الرابط (URL)
+    const { searchParams } = new URL(req.url);
+    const countryFilter = searchParams.get("country") || "";
+    const methodFilter = searchParams.get("method") || "All";
+    const amountFilter = Number(searchParams.get("amount")) || 0;
 
-    const agentIds = users
-      .map((user) => user.agentId)
-      .filter(Boolean) as string[];
-
-    if (!agentIds.length) {
-      return NextResponse.json({ agents: [] });
-    }
-
+    // 2. جلب الوكلاء النشيطين مع المحفظة وطرق الدفع
     const agentProfiles = await prisma.agent.findMany({
       where: {
-        id: { in: agentIds },
-        status: "account_created",
+        // جمعنا الحالات بجوج باش نضمنو أننا ما زكلنا حتى وكيل
+        status: { in: ["ACTIVE", "active", "account_created"] }, 
       },
       include: {
-        wallet: true, // ✅ أهم سطر: جلب المحفظة من قاعدة البيانات
+        wallet: true, // المحفظة باش نعرفو الرصيد
+        paymentMethods: true, // طرق الدفع باش يخدم الفلتر
+        user: true, // باش نتأكدو أن الحساب مامبلوكيش (frozen)
       },
       orderBy: { updatedAt: "desc" },
     });
 
-    const agents = agentProfiles.map((agent: any) => ({
-      agentId: agent.id,
-      display_name: agent.fullName || agent.username || agent.email,
-      username: agent.username,
-      email: agent.email,
-      online: agent.online,
-      rating: agent.rating,
-      trades_count: agent.tradesCount,
-      response_minutes: agent.responseMinutes,
-      updated_at: agent.updatedAt,
-      country: agent.country || "",
-      // ✅ ربط الرصيد الحقيقي من جدول المحفظة ليظهر للاعب
-      balance: agent.wallet?.balance || 0, 
-    }));
+    // 3. تنسيق البيانات بالأسماء اللي كيتسناها Frontend
+    let formattedAgents = agentProfiles
+      .filter((agent) => agent.user?.frozen === false)
+      .map((agent: any) => {
+        const methods = agent.paymentMethods ? agent.paymentMethods.map((m: any) => m.methodName) : [];
+        
+        return {
+          agentId: agent.id,
+          display_name: agent.fullName || agent.username || agent.email,
+          username: agent.username,
+          email: agent.email,
+          online: agent.online,
+          rating: agent.rating || 95, // عطيناهم تقييم افتراضي
+          trades_count: agent.tradesCount || 0,
+          response_minutes: agent.responseMinutes || 15,
+          updated_at: agent.updatedAt,
+          country: agent.country || "",
+          available_balance: agent.wallet?.balance || 0, // 👈 السمية اللي كيتسناها الـ Frontend!
+          min_limit: 50, // الحد الأدنى
+          max_limit: 10000, // الحد الأقصى
+          verified: agent.verified || false,
+          featured: (agent.rating || 95) >= 90,
+          bank_methods: methods, // 👈 باش يخدم الفلتر ديال All و CIH...
+        };
+      });
 
-    return NextResponse.json({ agents });
+    // 4. تطبيق الفلتر (الدولة، طريقة الدفع، المبلغ)
+    if (countryFilter) {
+      formattedAgents = formattedAgents.filter(
+        (a) => a.country.toLowerCase() === countryFilter.toLowerCase()
+      );
+    }
+
+    if (methodFilter && methodFilter !== "All") {
+      formattedAgents = formattedAgents.filter(
+        (a) => a.bank_methods.includes(methodFilter)
+      );
+    }
+
+    if (amountFilter > 0) {
+      formattedAgents = formattedAgents.filter(
+        (a) => a.available_balance >= amountFilter
+      );
+    }
+
+    return NextResponse.json({ agents: formattedAgents });
   } catch (error) {
     console.error("AGENT DISCOVERY ERROR:", error);
     return NextResponse.json(

@@ -9,10 +9,7 @@ export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
     if (!prisma) {
-      return NextResponse.json(
-        { message: "Database not available" },
-        { status: 500 }
-      );
+      return NextResponse.json({ message: "Database not available" }, { status: 500 });
     }
 
     const body = await req.json();
@@ -23,10 +20,7 @@ export async function POST(req: Request) {
     const phone = String(body.phone || "").trim();
 
     if (!email || !username || !password || !phone) {
-      return NextResponse.json(
-        { message: "Username, email, phone and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Username, email, phone and password are required" }, { status: 400 });
     }
 
     const existingEmail = await prisma.user.findFirst({ where: { email } });
@@ -43,49 +37,34 @@ export async function POST(req: Request) {
 
     let assignedAgentId: string | null = null;
     let playerStatus: "active" | "inactive" = "inactive";
+    let nextStep = "select-agent"; // أوتوماتيكيا كيمشي يختار وكيل إلا ما دخلش الكود
 
-    const agentUsername = String(body.agent_username || "").trim();
-    const agentCode = String(body.agent_code || "").trim();
+    // 🟢 الحل الجذري: استقبال الكود والبحث الشامل
+    const agentInput = String(body.agent_code || "").trim();
 
-    // 🔥 ربط عن طريق username
-    if (agentUsername) {
-      const agentUser = await prisma.user.findFirst({
-        where: {
-          username: agentUsername,
-          role: "AGENT",
-          frozen: false,
-        },
-      });
-
-      if (!agentUser || !agentUser.agentId) {
-        return NextResponse.json(
-          { message: "Invalid agent username" },
-          { status: 400 }
-        );
-      }
-
-      assignedAgentId = agentUser.agentId;
-      playerStatus = "active";
-    }
-
-    // 🔥 ربط عن طريق code
-    if (!assignedAgentId && agentCode) {
+    if (agentInput !== "") {
       const agent = await prisma.agent.findFirst({
         where: {
-          referralCode: agentCode,
-          status: "account_created",
+          OR: [
+            { username: agentInput },
+            { referralCode: agentInput },
+            { id: agentInput }
+          ],
+          // التأكد أن الوكيل نشط
+          status: { in: ["ACTIVE", "active"] } 
         },
       });
 
       if (!agent) {
         return NextResponse.json(
-          { message: "Invalid agent code" },
+          { message: "Invalid agent code / كود الوكيل أو اسم المستخدم غير صحيح" },
           { status: 400 }
         );
       }
 
       assignedAgentId = agent.id;
       playerStatus = "active";
+      nextStep = "dashboard"; // حيت ديجا دخل الكود، يديوه نيشان للداشبورد
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -133,13 +112,12 @@ export async function POST(req: Request) {
         assigned_agent_id: result.user.assignedAgentId || undefined,
         created_at: result.user.createdAt,
       },
-      nextStep: "dashboard",
+      nextStep: nextStep, // 👈 التوجيه الذكي
     });
   } catch (error) {
     console.error("REGISTER PLAYER ERROR:", error);
     return NextResponse.json(
-      { message: `Something went wrong
-We could not complete your request right now. Please try again.`, },
+      { message: "حدث خطأ أثناء التسجيل، يرجى المحاولة لاحقاً." },
       { status: 500 }
     );
   }
