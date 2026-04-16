@@ -1,82 +1,114 @@
 import { NextResponse } from "next/server";
+import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+// 1. جلب طلبات السحب الخاصة بالوكيل (للمراجعة)
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get("agentId");
-    if (!agentId) return NextResponse.json({ message: "agentId is required" }, { status: 400 });
+    const prisma = getPrisma();
 
-    const withdrawals = readJsonArray<any>(dataPath("withdrawals.json"))
-      .filter((item) => String(item.agentId) === String(agentId))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (!agentId || !prisma) {
+      return NextResponse.json({ message: "agentId مطلوب", withdrawals: [] }, { status: 400 });
+    }
 
-    return NextResponse.json({ withdrawals });
+    const withdrawals = await prisma.withdrawal.findMany({
+      where: { agentId: String(agentId) },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // تنسيق البيانات للـ Frontend (Snake Case)
+    const formatted = withdrawals.map((w) => ({
+      ...w,
+      created_at: w.createdAt,
+      updated_at: w.updatedAt,
+    }));
+
+    return NextResponse.json({ withdrawals: formatted });
   } catch (error) {
     console.error("AGENT WITHDRAWALS GET ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, withdrawals: [] }, { status: 500 });
+    return NextResponse.json({ message: "خطأ في جلب البيانات", withdrawals: [] }, { status: 500 });
   }
 }
 
+// 2. موافقة أو رفض طلب السحب من طرف الوكيل
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
+
     const { withdrawalId, action, note } = await req.json();
+
     if (!withdrawalId || !["approve", "reject"].includes(action)) {
-      return NextResponse.json({ message: "withdrawalId and valid action are required" }, { status: 400 });
+      return NextResponse.json({ message: "البيانات المطلوبة غير كاملة" }, { status: 400 });
     }
 
-    const path = dataPath("withdrawals.json");
-    const withdrawals = readJsonArray<any>(path);
-    const users = readJsonArray<any>(dataPath("users.json"));
+    // أ. البحث عن الطلب والتأكد أنه مازال قيد الانتظار (pending)
+    const withdrawal = await prisma.withdrawal.findUnique({
+      where: { id: withdrawalId },
+      include: { player: { include: { user: true } } }
+    });
 
-    const index = withdrawals.findIndex((item) => item.id === withdrawalId);
-    if (index === -1) return NextResponse.json({ message: "Withdrawal request not found" }, { status: 404 });
-    if (withdrawals[index].status !== "pending") return NextResponse.json({ message: "This request can no longer be reviewed by the agent" }, { status: 400 });
+    if (!withdrawal) {
+      return NextResponse.json({ message: "طلب السحب غير موجود" }, { status: 404 });
+    }
 
-    withdrawals[index] = {
-      ...withdrawals[index],
-      status: action === "approve" ? "agent_approved" : "rejected",
-      agent_note: String(note || "").trim(),
-      updated_at: nowIso(),
-      agent_reviewed_at: nowIso(),
-    };
+    if (withdrawal.status !== "pending") {
+      return NextResponse.json({ message: "هذا الطلب تمت معالجته مسبقاً" }, { status: 400 });
+    }
 
-    writeJsonArray(path, withdrawals);
+    // ب. تحديث الحالة فـ الداتابيز
+    // ملاحظة: استعملنا "sent" للموافقة (بمعنى أرسلت للآدمين) و "rejected" للرفض
+    const updatedStatus = action === "approve" ? "sent" : "rejected";
 
-    const playerUser = users.find((item) => String(item.email) === String(withdrawals[index].playerEmail));
+    const updatedWithdrawal = await prisma.withdrawal.update({
+      where: { id: withdrawalId },
+      data: {
+        status: updatedStatus,
+        adminNote: note || "", // استعملنا adminNote لتخزين ملاحظة الوكيل
+        updatedAt: new Date(),
+      },
+    });
 
+    // ج. نظام الإشعارات
     if (action === "approve") {
-      createNotification({
+      // إشعار للآدمين باش يدير الفيرمان
+      await createNotification({
         targetRole: "admin",
-        targetId: "admin-1",
-        title: "Payout approved by agent",
-        message: `The winning payout for ${withdrawals[index].playerEmail} is now ready for admin transfer.`,
+        targetId: "admin",
+        title: "طلب سحب مؤكد من وكيل ✅",
+        message: `الوكيل أكد طلب السحب الخاص بـ ${withdrawal.playerEmail}. المبلغ: ${withdrawal.amount} DH.`,
       });
-      if (playerUser?.id) {
-        createNotification({
-          targetRole: "player",
-          targetId: playerUser.id,
-          title: "Your payout was approved by the agent",
-          message: "Admin is now waiting to send your winning funds.",
-        });
-      }
-    } else if (playerUser?.id) {
-      createNotification({
+
+      // إشعار للاعب
+      await createNotification({
         targetRole: "player",
-        targetId: playerUser.id,
-        title: "Payout request rejected",
-        message: "Your payout request was rejected by the agent. Please verify your submitted details and try again.",
+        targetId: withdrawal.player.userId,
+        title: "تم تأكيد طلبك من الوكيل",
+        message: "تمت الموافقة على طلبك، الإدارة الآن بصدد تحويل المبلغ إليك.",
+      });
+    } else {
+      // إشعار للاعب فـ حالة الرفض
+      await createNotification({
+        targetRole: "player",
+        targetId: withdrawal.player.userId,
+        title: "تم رفض طلب السحب ❌",
+        message: "نعتذر، تم رفض طلبك من طرف الوكيل. يرجى مراجعة التفاصيل والمحاولة مرة أخرى.",
       });
     }
 
-    return NextResponse.json({ message: action === "approve" ? "Withdrawal approved by agent" : "Withdrawal rejected", withdrawal: withdrawals[index] });
-  } catch (error) {
+    return NextResponse.json({ 
+      success: true,
+      message: action === "approve" ? "تم تأكيد الطلب وإرساله للإدارة" : "تم رفض الطلب بنجاح", 
+      withdrawal: updatedWithdrawal 
+    });
+
+  } catch (error: any) {
     console.error("AGENT WITHDRAWALS POST ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json({ message: "حدث خطأ أثناء معالجة الطلب" }, { status: 500 });
   }
 }

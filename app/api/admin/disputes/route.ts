@@ -1,34 +1,80 @@
 import { NextResponse } from "next/server";
+import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+// 🟢 جلب كاع النزاعات
 export async function GET() {
-  return NextResponse.json({ disputes: readJsonArray<any>(dataPath("disputes.json")) });
+  try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ disputes: [] }, { status: 500 });
+
+    const disputes = await prisma.dispute.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        order: true // باش الآدمين يعرف المعلومات ديال الطلب ديريكت
+      }
+    });
+
+    return NextResponse.json({ disputes });
+  } catch (error) {
+    console.error("GET DISPUTES ERROR:", error);
+    return NextResponse.json({ disputes: [], message: "Error fetching data" }, { status: 500 });
+  }
 }
 
+// 🔵 معالجة النزاع (حل أو رفض)
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
     const { disputeId, status, admin_note } = await req.json();
-    const disputesPath = dataPath("disputes.json");
-    const ordersPath = dataPath("orders.json");
-    const disputes = readJsonArray<any>(disputesPath);
-    const orders = readJsonArray<any>(ordersPath);
-    const index = disputes.findIndex((item) => item.id === disputeId);
-    if (index === -1) return NextResponse.json({ message: "Dispute not found" }, { status: 404 });
-    disputes[index] = { ...disputes[index], status: status || "resolved", admin_note: admin_note || "", updated_at: nowIso() };
-    const orderIndex = orders.findIndex((item) => item.id === disputes[index].orderId);
-    if (orderIndex !== -1 && disputes[index].status === "resolved" && orders[orderIndex].status === "flagged_for_review") {
-      orders[orderIndex] = { ...orders[orderIndex], review_required: false, review_reason: "", updated_at: nowIso() };
+
+    if (!disputeId) {
+      return NextResponse.json({ message: "disputeId is required" }, { status: 400 });
     }
-    writeJsonArray(disputesPath, disputes);
-    writeJsonArray(ordersPath, orders);
-    createNotification({ targetRole: "player", targetId: disputes[index].playerEmail, title: "Dispute updated", message: `Dispute for order ${disputes[index].orderId} was updated by admin.` });
-    return NextResponse.json({ message: "Dispute updated successfully ✅", dispute: disputes[index] });
-  } catch (error) {
-    console.error("ADMIN DISPUTE ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+
+    // 1. تنفيذ التحديث فـ Transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // أ. تحديث حالة النزاع
+      const updatedDispute = await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
+          status: status || "resolved",
+          adminNote: admin_note || "",
+        },
+      });
+
+      // ب. إذا تحل النزاع، كنحيدو الـ Flag من الطلب (Order)
+      if (updatedDispute.status === "resolved") {
+        await tx.order.update({
+          where: { id: updatedDispute.orderId },
+          data: {
+            reviewRequired: false,
+            reviewReason: "",
+          }
+        });
+      }
+
+      return updatedDispute;
+    });
+
+    // 2. إرسال إشعار للاعب
+    await createNotification({
+      targetRole: "player",
+      targetId: result.playerEmail,
+      title: "تحديث بخصوص النزاع",
+      message: `تم تحديث حالة النزاع الخاص بالطلب ${result.orderId} من طرف الإدارة.`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "تم تحديث النزاع بنجاح ✅",
+      dispute: result,
+    });
+  } catch (error: any) {
+    console.error("ADMIN DISPUTE POST ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ أثناء معالجة النزاع" }, { status: 500 });
   }
 }

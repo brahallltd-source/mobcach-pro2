@@ -1,29 +1,72 @@
 import { NextResponse } from "next/server";
+import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
+
     const { orderId, reason } = await req.json();
-    if (!orderId) return NextResponse.json({ message: "orderId is required" }, { status: 400 });
-    const ordersPath = dataPath("orders.json");
-    const disputesPath = dataPath("disputes.json");
-    const orders = readJsonArray<any>(ordersPath);
-    const disputes = readJsonArray<any>(disputesPath);
-    const index = orders.findIndex((item) => item.id === orderId);
-    if (index === -1) return NextResponse.json({ message: "Order not found" }, { status: 404 });
-    const order = orders[index];
-    orders[index] = { ...order, review_required: true, review_reason: reason || "Manual review requested", status: "flagged_for_review", updated_at: nowIso() };
-    disputes.unshift({ id: uid("dispute"), orderId: order.id, playerEmail: order.playerEmail, agentId: order.agentId, reason: reason || "Manual review requested", status: "open", admin_note: "", created_at: nowIso(), updated_at: nowIso() });
-    writeJsonArray(ordersPath, orders);
-    writeJsonArray(disputesPath, disputes);
-    createNotification({ targetRole: "admin", targetId: "admin", title: "Order flagged", message: `Order ${order.id} was flagged for review.` });
-    return NextResponse.json({ message: "Order flagged for review ✅", order: orders[index] });
-  } catch (error) {
+    if (!orderId) {
+      return NextResponse.json({ message: "orderId مطلوب" }, { status: 400 });
+    }
+
+    // 1. فحص وجود الطلب ومعلوماته
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      return NextResponse.json({ message: "الطلب غير موجود" }, { status: 404 });
+    }
+
+    // 2. التنفيذ فـ Transaction واحدة (تحديث الطلب + إنشاء نزاع)
+    const result = await prisma.$transaction(async (tx) => {
+      // أ. تحديث حالة الطلب
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          reviewRequired: true,
+          reviewReason: reason || "Manual review requested",
+          status: "flagged_for_review",
+          updatedAt: new Date()
+        }
+      });
+
+      // ب. إنشاء سجل نزاع (Dispute) جديد
+      const newDispute = await tx.dispute.create({
+        data: {
+          orderId: order.id,
+          playerEmail: order.playerEmail,
+          reason: reason || "Manual review requested",
+          status: "pending", // أو "open" حسب الـ Enum اللي عندك
+        }
+      });
+
+      return { updatedOrder, newDispute };
+    });
+
+    // 3. إرسال إشعار للإدارة (Admin)
+    await createNotification({
+      targetRole: "admin",
+      targetId: "admin",
+      title: "طلب مشبوه 🚩",
+      message: `قام الوكيل بتبليغ عن الطلب ${order.id}. السبب: ${reason || "مراجعة يدوية"}.`
+    });
+
+    return NextResponse.json({ 
+      success: true,
+      message: "تم إرسال الطلب للمراجعة وفتح نزاع بنجاح ✅", 
+      order: result.updatedOrder 
+    });
+
+  } catch (error: any) {
     console.error("FLAG ORDER ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json({ 
+      message: "حدث خطأ أثناء محاولة التبليغ عن الطلب." 
+    }, { status: 500 });
   }
 }

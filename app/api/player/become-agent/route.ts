@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { normalize } from "@/lib/json";
 import { normalizePhoneWithCountry } from "@/lib/countries";
 import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
+// 🟢 ضرورية باش ديما يجيب حالة الطلب "لايف"
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
@@ -17,9 +18,10 @@ export async function GET(req: Request) {
     const email = String(searchParams.get("email") || "").trim().toLowerCase();
 
     if (!userId && !email) {
-      return NextResponse.json({ message: "userId or email is required", application: null }, { status: 400 });
+      return NextResponse.json({ message: "userId أو email مطلوب", application: null }, { status: 400 });
     }
 
+    // البحث عن آخر طلب تصيفط
     const application = await prisma.agentApplication.findFirst({
       where: userId ? { userId } : { email },
       orderBy: { createdAt: "desc" },
@@ -28,8 +30,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ application: application || null });
   } catch (error) {
     console.error("GET BECOME AGENT ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, application: null }, { status: 500 });
+    return NextResponse.json({ message: "حدث خطأ أثناء جلب بيانات الطلب", application: null }, { status: 500 });
   }
 }
 
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
     }
 
     const { userId, name, phone, email, note, username, country } = await req.json();
+    
     const cleanUserId = String(userId || "").trim();
     const cleanName = String(name || "").trim();
     const cleanEmail = String(email || "").trim().toLowerCase();
@@ -50,18 +52,20 @@ export async function POST(req: Request) {
     const cleanNote = String(note || "").trim();
 
     if (!cleanUserId || !cleanName || !cleanPhone || !cleanEmail) {
-      return NextResponse.json({ message: "userId, name, phone and email are required" }, { status: 400 });
+      return NextResponse.json({ message: "المرجو ملء جميع الحقول الإجبارية" }, { status: 400 });
     }
 
+    // 1. التأكد من وجود المستخدم وحالته
     const user = await prisma.user.findUnique({ where: { id: cleanUserId } });
     if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
+      return NextResponse.json({ message: "المستخدم غير موجود" }, { status: 404 });
     }
 
     if (user.role === "AGENT") {
-      return NextResponse.json({ message: "This account is already an agent" }, { status: 400 });
+      return NextResponse.json({ message: "هذا الحساب هو وكيل بالفعل" }, { status: 400 });
     }
 
+    // 2. فحص واش كاين شي طلب ديجا "Pending"
     const existing = await prisma.agentApplication.findFirst({
       where: {
         userId: cleanUserId,
@@ -70,9 +74,13 @@ export async function POST(req: Request) {
     });
 
     if (existing) {
-      return NextResponse.json({ message: "You already have a pending application", application: existing }, { status: 400 });
+      return NextResponse.json({ 
+        message: "لديك طلب قيد المراجعة بالفعل، يرجى الانتظار.", 
+        application: existing 
+      }, { status: 400 });
     }
 
+    // 3. إنشاء طلب الوكيل الجديد
     const application = await prisma.agentApplication.create({
       data: {
         userId: cleanUserId,
@@ -87,12 +95,12 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      message: "Agent application submitted successfully ✅",
+      success: true,
+      message: "تم إرسال طلب الانضمام لفريق الوكلاء بنجاح ✅ سيتصل بك الإدارة قريباً.",
       application,
     });
   } catch (error) {
-    console.error("CREATE BECOME AGENT APPLICATION ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    console.error("CREATE AGENT APPLICATION ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ فني أثناء إرسال طلبك" }, { status: 500 });
   }
 }

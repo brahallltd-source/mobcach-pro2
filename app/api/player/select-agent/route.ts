@@ -3,7 +3,7 @@ import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic"; // ضرورية لـ Next.js 15
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "بيانات ناقصة: البريد الإلكتروني أو معرف الوكيل" }, { status: 400 });
     }
 
-    // 1. جلب اليوزر (اللاعب)
+    // 1. جلب اليوزر (اللاعب) من قاعدة البيانات
     const user = await prisma.user.findFirst({
       where: { email: cleanEmail, role: "PLAYER" },
     });
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "بروفايل اللاعب غير موجود" }, { status: 404 });
     }
 
-    // 3. جلب الوكيل (البحث عن أي حالة نشطة)
+    // 3. التأكد من وجود الوكيل وصلاحية حالته
     const agent = await prisma.agent.findFirst({
       where: {
         id: cleanAgentId,
@@ -52,18 +52,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "الوكيل المختار غير متاح حالياً" }, { status: 404 });
     }
 
-    // 4. تنفيذ العملية في Transaction واحدة لضمان سلامة البيانات
+    // 4. تنفيذ العمليات داخل Transaction لضمان التزامن
     const result = await prisma.$transaction(async (tx) => {
-      // تحديث اليوزر
+      // تحديث حالة اليوزر
       const updatedUser = await tx.user.update({
         where: { id: user.id },
         data: {
           assignedAgentId: cleanAgentId,
-          playerStatus: "active", // نفعلوه باش يقدر يدخل للداشبورد
+          playerStatus: "active", 
         },
       });
 
-      // تحديث البروفايل
+      // تحديث حالة البروفايل
       const updatedPlayer = await tx.player.update({
         where: { id: player.id },
         data: {
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         },
       });
 
-      // إدارة سجل التفعيل (Activation)
+      // 🟢 حل مشكلة الـ upsert: البحث أولاً ثم التحديث أو الإنشاء
       const existingActivation = await tx.activation.findFirst({
         where: { playerUserId: user.id },
       });
@@ -85,7 +85,6 @@ export async function POST(req: Request) {
             agentId: cleanAgentId,
             playerEmail: updatedUser.email,
             username: updatedUser.username,
-            whatsapp: updatedPlayer.phone || "",
             status: "pending_activation",
           },
         });
@@ -96,14 +95,14 @@ export async function POST(req: Request) {
             playerUserId: updatedUser.id,
             playerEmail: updatedUser.email,
             username: updatedUser.username,
-            passwordPlain: "123456", // كلمة سر افتراضية للتغيير
+            passwordPlain: "", // 🟢 تم إخلاؤه ليعبئه الوكيل يدوياً
             whatsapp: updatedPlayer.phone || "",
             status: "pending_activation",
           },
         });
       }
 
-      // تسجيل سجل تتبع للطلبات (اختياري حسب منطقك)
+      // تسجيل سجل تتبع لعملية الربط
       await tx.order.create({
         data: {
           agentId: cleanAgentId,
@@ -118,40 +117,40 @@ export async function POST(req: Request) {
       return { updatedUser, updatedPlayer };
     });
 
-    // 5. الإشعارات
+    // 5. إرسال الإشعارات (مع await لضمان التنفيذ)
     await createNotification({
       targetRole: "agent",
       targetId: cleanAgentId,
-      title: "لاعب جديد",
-      message: `قام ${cleanEmail} باختيارك كوكيل له.`,
+      title: "لاعب جديد مربوط",
+      message: `قام اللاعب ${result.updatedUser.username} باختيارك كوكيل له.`,
     });
 
     await createNotification({
       targetRole: "player",
       targetId: user.id,
       title: "تم الربط بنجاح",
-      message: "تم ربط حسابك بالوكيل بنجاح. يمكنك الآن البدء بطلب الشحن.",
+      message: "تم ربط حسابك بالوكيل. يمكنك البدء بطلب الشحن الآن.",
     });
 
+    // 6. الرد النهائي بالبيانات المطلوبة للـ LocalStorage
     return NextResponse.json({
       success: true,
-      message: "تم اختيار الوكيل بنجاح ✅",
+      message: "تم ربط الوكيل بنجاح ✅",
       user: {
         id: result.updatedUser.id,
         email: result.updatedUser.email,
         username: result.updatedUser.username,
         role: "player",
-        player_status: result.updatedUser.playerStatus,
-        assigned_agent_id: result.updatedUser.assignedAgentId,
+        player_status: "active", 
+        assigned_agent_id: cleanAgentId,
         created_at: result.updatedUser.createdAt,
       },
-      player: result.updatedPlayer,
     });
 
   } catch (error: any) {
     console.error("SELECT AGENT ERROR:", error);
     return NextResponse.json({ 
-      message: "حدث خطأ أثناء عملية الربط، المرجو المحاولة لاحقاً." 
+      message: "حدث خطأ غير متوقع أثناء عملية الربط." 
     }, { status: 500 });
   }
 }

@@ -95,6 +95,20 @@ model Agent {
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model WinnerRequest {
+  id          String   @id @default(uuid())
+  playerEmail String
+  agentId     String
+  amount      Float
+  note        String?
+  status      String   @default("pending") // pending, approved, rejected
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([playerEmail])
+}
+
 model Order {
   id                String         @id @default(uuid())
   agentId           String
@@ -116,6 +130,7 @@ model Order {
   agent             Agent          @relation(fields: [agentId], references: [id])
   player            Player?        @relation(fields: [playerId], references: [id])
   messages          OrderMessage[]
+  disputes          Dispute[]
 }
 
 model OrderMessage {
@@ -304,6 +319,29 @@ model RechargeRequest {
   pendingBonusApplied Float    @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime
+}
+
+model Complaint {
+  id          String   @id @default(uuid())
+  playerEmail String
+  subject     String
+  message     String
+  adminReply  String?
+  status      String   @default("pending") // pending, resolved
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Dispute {
+  id          String   @id @default(uuid())
+  orderId     String
+  playerEmail String
+  reason      String?
+  adminNote   String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 enum UserRole {

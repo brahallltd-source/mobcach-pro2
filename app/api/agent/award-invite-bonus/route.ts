@@ -1,28 +1,101 @@
 import { NextResponse } from "next/server";
-import { creditWallet } from "@/lib/wallet";
+import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database error" }, { status: 500 });
+
     const { agentId } = await req.json();
-    if (!agentId) return NextResponse.json({ message: "agentId is required" }, { status: 400 });
-    const invitesPath = dataPath("agent_invites.json");
-    const invites = readJsonArray<any>(invitesPath);
-    const related = invites.filter((item) => String(item.agentId) === String(agentId));
-    const totalRechargeAmount = related.reduce((sum, item) => sum + Number(item.total_recharge_amount || 0), 0);
-    if (totalRechargeAmount < 3000) return NextResponse.json({ message: "Invite bonus threshold of 3000 DH not reached yet" }, { status: 400 });
-    if (related.some((item) => item.bonus_awarded)) return NextResponse.json({ message: "Invite bonus already awarded" }, { status: 400 });
-    creditWallet(agentId, 200, "invite_bonus", { targetAmount: 3000 });
-    const updated = invites.map((item) => String(item.agentId) === String(agentId) ? { ...item, bonus_awarded: true, updated_at: nowIso() } : item);
-    writeJsonArray(invitesPath, updated);
-    createNotification({ targetRole: "agent", targetId: String(agentId), title: "Player invite bonus awarded", message: "You received 200 DH player invite bonus." });
-    return NextResponse.json({ message: "Player invite bonus awarded successfully ✅", summary: { agentId, totalRechargeAmount, bonusAmount: 200 } });
-  } catch (error) {
-    console.error("AWARD INVITE BONUS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    if (!agentId) return NextResponse.json({ message: "agentId مطلوب" }, { status: 400 });
+
+    // 1. جلب الدعوات (Referrals) الخاصة بهذا الوكيل
+    const referrals = await prisma.referral.findMany({
+      where: { referredByAgentId: String(agentId) }
+    });
+
+    if (referrals.length === 0) {
+      return NextResponse.json({ message: "لا توجد دعوات مسجلة لهذا الوكيل" }, { status: 404 });
+    }
+
+    // 2. حساب إجمالي شحنات اللاعبين المدعوين من جدول الطلبات (Orders)
+    // لأن جدول Referral عندك مافيهش حقل total_recharge، غانحسبوه من الـ Orders المكتملة
+    const referredPlayerEmails = referrals.map(r => r.playerEmail);
+    
+    const orders = await prisma.order.findMany({
+      where: {
+        playerEmail: { in: referredPlayerEmails },
+        status: "completed"
+      },
+      select: { amount: true }
+    });
+
+    const totalRechargeAmount = orders.reduce((sum, order) => sum + order.amount, 0);
+
+    // 3. التحقق من الشرط (3000 درهم)
+    if (totalRechargeAmount < 3000) {
+      return NextResponse.json({ 
+        message: `لم يتم بلوغ الحد الأدنى 3000 DH (الحالي: ${totalRechargeAmount} DH)` 
+      }, { status: 400 });
+    }
+
+    // 4. التحقق واش المكافأة ديجا تعطات
+    if (referrals.some(r => r.rewardStatus === "claimed")) {
+      return NextResponse.json({ message: "تم منح مكافأة الدعوة مسبقاً" }, { status: 400 });
+    }
+
+    // 5. التحديث فـ Transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // أ. جلب المحفظة
+      const wallet = await tx.wallet.findUnique({ where: { agentId } });
+      if (!wallet) throw new Error("Wallet not found");
+
+      // ب. زيادة الرصيد
+      const updatedWallet = await tx.wallet.update({
+        where: { agentId },
+        data: { balance: { increment: 200 } }
+      });
+
+      // ج. تسجيل العملية فـ WalletLedger (بلاصة Transaction)
+      await tx.walletLedger.create({
+        data: {
+          agentId,
+          walletId: wallet.id,
+          type: "CREDIT",
+          amount: 200,
+          reason: "Invite bonus: 3000 DH threshold reached",
+          meta: { totalVolume: totalRechargeAmount }
+        }
+      });
+
+      // د. تحديث حالة الـ Referrals
+      await tx.referral.updateMany({
+        where: { referredByAgentId: agentId },
+        data: { rewardStatus: "claimed" }
+      });
+
+      return updatedWallet;
+    });
+
+    // 6. الإشعار
+    await createNotification({
+      targetRole: "agent",
+      targetId: agentId,
+      title: "مكافأة دعوات اللاعبين ✅",
+      message: "مبروك! حصلت على 200 درهم مكافأة مقابل نشاط لاعبيك المدعوين."
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      newBalance: result.balance,
+      totalVolume: totalRechargeAmount 
+    });
+
+  } catch (error: any) {
+    console.error("AWARD BONUS ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ أثناء معالجة المكافأة" }, { status: 500 });
   }
 }

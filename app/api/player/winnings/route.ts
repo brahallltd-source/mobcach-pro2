@@ -3,7 +3,9 @@ import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+// دالة لتنسيق البيانات المرسلة للـ Frontend
 function mapWithdrawal(item: any) {
   return {
     id: item.id,
@@ -16,269 +18,160 @@ function mapWithdrawal(item: any) {
     swift: item.swift || null,
     gosportUsername: item.gosportUsername || null,
     kind: item.kind || null,
-    winnerOrderId: item.winnerOrderId || null,
   };
 }
 
 export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json({ winning: null, history: [] }, { status: 500 });
-    }
+    if (!prisma) return NextResponse.json({ history: [] }, { status: 500 });
 
     const { searchParams } = new URL(req.url);
-    const playerEmail = String(searchParams.get("playerEmail") || "")
-      .trim()
-      .toLowerCase();
+    const playerEmail = String(searchParams.get("playerEmail") || "").trim().toLowerCase();
 
     if (!playerEmail) {
-      return NextResponse.json(
-        { message: "playerEmail is required", winning: null, history: [] },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "الإيميل مطلوب", history: [] }, { status: 400 });
     }
 
-    const playerUser = await prisma.user.findFirst({
-      where: {
-        email: playerEmail,
-        role: "PLAYER",
-      },
-    });
-
-    if (!playerUser) {
-      return NextResponse.json({ winning: null, history: [] });
-    }
-
+    // 1. جلب بيانات اللاعب والوكيل المربوط به
     const player = await prisma.player.findFirst({
-      where: { userId: playerUser.id },
+      where: { user: { email: playerEmail } },
+      include: { user: true }
     });
 
-    const winningOrder = await prisma.order.findFirst({
-      where: {
-        playerEmail,
-        status: "completed",
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-
-    let history: any[] = [];
-
-    if (player) {
-      history = await prisma.withdrawal.findMany({
-        where: {
-          playerId: player.id,
-          kind: "winner",
-        },
-        orderBy: { createdAt: "desc" },
-      });
+    if (!player) {
+      return NextResponse.json({ message: "حساب اللاعب غير موجود", history: [] });
     }
+
+    // 2. جلب تاريخ السحوبات السابقة (الأرباح فقط)
+    const history = await prisma.withdrawal.findMany({
+      where: {
+        playerId: player.id,
+        kind: "winner",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 3. نرسلو معلومات التنبيه (Rules) باش الـ Frontend يعرضهم للاعب
+    const info = {
+      rules: [
+        { 
+          min: 100, 
+          max: 6000, 
+          time: "خلال نصف يوم", 
+          method: "Gichet Automatic (Cash Sans Carte)", 
+          note: "ستصلك رسالة نصية (SMS/WhatsApp) برمز السحب." 
+        },
+        { 
+          min: 6001, 
+          max: 30000, 
+          time: "خلال 24 ساعة", 
+          method: "تحويل بنكي محلي (Virement National)", 
+          note: "يتم التحويل للحساب البنكي المصرح به." 
+        },
+        { 
+          min: 30001, 
+          max: null, // 👈 null كتعني "بدون سقف"
+          time: "3 أيام إلى أسبوع", 
+          method: "تحويل بنكي دولي (International Transfer)", 
+          note: "يتم التحويل مباشرة من الشركة الأم بعد التصريح." 
+        }
+      ],
+      assignedAgentId: player.assignedAgentId
+    };
 
     return NextResponse.json({
-      winning: winningOrder
-        ? {
-            id: winningOrder.id,
-            amount: Number(winningOrder.amount || 0),
-            gosport365_username: winningOrder.gosportUsername || null,
-            status: winningOrder.status,
-            created_at: winningOrder.createdAt,
-          }
-        : null,
+      playerInfo: {
+        username: player.username,
+        email: player.user.email,
+        agentId: player.assignedAgentId
+      },
       history: history.map(mapWithdrawal),
+      info
     });
   } catch (error) {
-    console.error("PLAYER WINNINGS GET ERROR:", error);
-    return NextResponse.json(
-      { message: `Something went wrong
-We could not complete your request right now. Please try again.`, winning: null, history: [] },
-      { status: 500 }
-    );
+    console.error("WINNINGS GET ERROR:", error);
+    return NextResponse.json({ history: [] }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json(
-        { message: "Database not available" },
-        { status: 500 }
-      );
-    }
+    if (!prisma) return NextResponse.json({ message: "Database error" }, { status: 500 });
 
     const body = await req.json();
+    const { 
+      playerEmail, amount, method, 
+      gosportUsername, gosportPassword,
+      rib, swift, cashProvider, fullName, phone, city 
+    } = body;
 
-    const playerEmail = String(body.playerEmail || "").trim().toLowerCase();
-    const orderId = String(body.orderId || "").trim();
-    const method = String(body.method || "").trim();
-    const amount = Number(body.amount || 0);
-
-    const gosportUsername = String(body.gosportUsername || "").trim();
-    const gosportPassword = String(body.gosportPassword || "").trim();
-
-    const rib = String(body.rib || "").trim();
-    const swift = String(body.swift || "").trim();
-    const cashProvider = String(body.cashProvider || "").trim();
-    const fullName = String(body.fullName || "").trim();
-    const phone = String(body.phone || "").trim();
-    const city = String(body.city || "").trim();
-
-    if (!playerEmail || !orderId || !method || !amount) {
-      return NextResponse.json(
-        { message: "playerEmail, orderId, method and amount are required" },
-        { status: 400 }
-      );
+    if (!playerEmail || !amount || !gosportUsername || !gosportPassword) {
+      return NextResponse.json({ message: "جميع معلومات الحساب والمبلغ مطلوبة" }, { status: 400 });
     }
 
-    if (!gosportUsername || !gosportPassword) {
-      return NextResponse.json(
-        { message: "GoSport365 username and password are required" },
-        { status: 400 }
-      );
-    }
-
-    if (!["bank", "cash"].includes(method)) {
-      return NextResponse.json(
-        { message: "Invalid withdrawal method" },
-        { status: 400 }
-      );
-    }
-
-    if (method === "bank" && (!rib || !swift)) {
-      return NextResponse.json(
-        { message: "RIB and SWIFT are required for bank withdrawal" },
-        { status: 400 }
-      );
-    }
-
-    if (method === "cash" && (!cashProvider || !fullName || !phone || !city)) {
-      return NextResponse.json(
-        { message: "Cash withdrawal fields are required" },
-        { status: 400 }
-      );
-    }
-
-    const playerUser = await prisma.user.findFirst({
-      where: {
-        email: playerEmail,
-        role: "PLAYER",
-      },
-    });
-
-    if (!playerUser) {
-      return NextResponse.json(
-        { message: "Player user not found" },
-        { status: 404 }
-      );
-    }
-
+    // 1. جلب اللاعب والوكيل المسؤول عنه
     const player = await prisma.player.findFirst({
-      where: { userId: playerUser.id },
+      where: { user: { email: playerEmail } },
+      include: { user: true }
     });
 
-    if (!player) {
-      return NextResponse.json(
-        { message: "Player profile not found" },
-        { status: 404 }
-      );
-    }
+    if (!player) return NextResponse.json({ message: "اللاعب غير موجود" }, { status: 404 });
 
-    const order = await prisma.order.findFirst({
-      where: {
-        id: orderId,
-        playerEmail,
-        status: "completed",
-      },
-    });
+    // 2. التحقق من مبلغ السحب وتطبيق القواعد
+    let finalStatus = "pending";
+    if (amount < 100) return NextResponse.json({ message: "أقل مبلغ للتصريح هو 100 درهم" }, { status: 400 });
 
-    if (!order) {
-      return NextResponse.json(
-        { message: "Winning order not found" },
-        { status: 404 }
-      );
-    }
-
-    if (amount > Number(order.amount || 0)) {
-      return NextResponse.json(
-        { message: "Requested amount exceeds available winning balance" },
-        { status: 400 }
-      );
-    }
-
-    const lastWinnerRequest = await prisma.withdrawal.findFirst({
-      where: {
-        playerId: player.id,
-        winnerOrderId: order.id,
-        kind: "winner",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    if (lastWinnerRequest) {
-      const createdAt = new Date(lastWinnerRequest.createdAt).getTime();
-      const now = Date.now();
-      const diffHours = (now - createdAt) / (1000 * 60 * 60);
-
-      if (
-        diffHours < 24 &&
-        ["pending", "sent", "completed"].includes(lastWinnerRequest.status)
-      ) {
-        const remainingHours = Math.ceil(24 - diffHours);
-
-        return NextResponse.json(
-          {
-            message: `You can send a new winning payout request after ${remainingHours} hour(s).`,
-          },
-          { status: 400 }
-        );
-      }
-    }
-
+    // 3. إنشاء طلب السحب (التصريح بالربح)
     const withdrawal = await prisma.withdrawal.create({
       data: {
         playerId: player.id,
         playerEmail,
-        agentId: order.agentId,
-        amount,
-        method,
+        agentId: player.assignedAgentId, // ربط الطلب بالوكيل الخاص باللاعب
+        amount: Number(amount),
+        method: method, // bank or cash
         status: "pending",
+        kind: "winner",
+        gosportUsername,
+        // تخزين الباسوورد فـ ملاحظة الإدارة بشكل آمن
+        adminNote: `GoSport Password: ${gosportPassword} | Note: طلب ربح جديد`,
         rib: method === "bank" ? rib : null,
         swift: method === "bank" ? swift : null,
         cashProvider: method === "cash" ? cashProvider : null,
-        fullName: method === "cash" ? fullName : null,
-        phone: method === "cash" ? phone : null,
-        city: method === "cash" ? city : null,
-        kind: "winner",
-        gosportUsername,
-        winnerOrderId: order.id,
-        adminNote: `GoSport365 password: ${gosportPassword}`,
-      },
+        fullName: fullName || player.firstName + " " + player.lastName,
+        phone: phone || player.phone,
+        city: city || ""
+      }
     });
 
-    const adminUsers = await prisma.user.findMany({
-      where: { role: "ADMIN" },
-      select: { id: true },
-    });
-
-    for (const admin of adminUsers) {
+    // 4. إشعارات للآدمين وللوكيل
+    // إشعار للوكيل باش يتفقد الحساب
+    if (player.assignedAgentId) {
       await createNotification({
-        userId: admin.id,
-        targetRole: "admin",
-        targetId: admin.id,
-        title: "New winning payout request",
-        message: `A winning payout request of ${amount} DH was submitted by ${playerEmail}.`,
+        targetRole: "agent",
+        targetId: player.assignedAgentId,
+        title: "تأكيد ربح لاعب 🏆",
+        message: `اللاعب ${player.username} صرح بربح ${amount} DH. المرجو التفقد.`
       });
     }
 
-    return NextResponse.json({
-      message: "Winning payout request sent to admin successfully",
-      withdrawal: mapWithdrawal(withdrawal),
+    // إشعار للآدمين
+    await createNotification({
+      targetRole: "admin",
+      targetId: "admin",
+      title: "طلب سحب أرباح جديد",
+      message: `لاعب صرح بربح ${amount} DH. الطريقة: ${method}.`
     });
+
+    return NextResponse.json({
+      success: true,
+      message: "تم إرسال تصريح الربح بنجاح ✅. سيتم معالجة طلبك حسب السلم الزمني للمبالغ.",
+      withdrawal: mapWithdrawal(withdrawal)
+    });
+
   } catch (error) {
-    console.error("PLAYER WINNINGS POST ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    console.error("WINNINGS POST ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ أثناء إرسال الطلب" }, { status: 500 });
   }
 }

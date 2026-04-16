@@ -1,52 +1,71 @@
 import { NextResponse } from "next/server";
-import { dataPath, readJsonArray, writeJsonArray } from "@/lib/json";
-import { EXECUTION_TIME_OPTIONS } from "@/lib/payment-options";
+import { getPrisma } from "@/lib/db";
+import { hashPassword } from "@/lib/security";
+import { EXECUTION_TIME_OPTIONS } from "@/lib/payment-options"; // 🟢 رجعنا الاستيراد
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId");
-    if (!agentId) return NextResponse.json({ message: "agentId is required", agent: null, profile: null }, { status: 400 });
-    const agent = readJsonArray<any>(dataPath("agents.json")).find((item) => String(item.id) === String(agentId)) || null;
-    const profile = readJsonArray<any>(dataPath("agent_profiles.json")).find((item) => String(item.agentId) === String(agentId)) || null;
-    return NextResponse.json({ agent, profile });
-  } catch (error) {
-    console.error("GET AGENT SETTINGS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, agent: null, profile: null }, { status: 500 });
-  }
-}
-
 export async function POST(req: Request) {
   try {
-    const { agentId, email, phone, response_minutes } = await req.json();
-    if (!agentId || !email || !phone || !response_minutes) return NextResponse.json({ message: "agentId, email, phone and response_minutes are required" }, { status: 400 });
-    const minutes = Number(response_minutes);
-    if (!EXECUTION_TIME_OPTIONS.includes(minutes)) return NextResponse.json({ message: "Invalid execution time" }, { status: 400 });
-    const agentsPath = dataPath("agents.json");
-    const profilesPath = dataPath("agent_profiles.json");
-    const usersPath = dataPath("users.json");
-    const agents = readJsonArray<any>(agentsPath);
-    const profiles = readJsonArray<any>(profilesPath);
-    const users = readJsonArray<any>(usersPath);
-    const agentIndex = agents.findIndex((item) => String(item.id) === String(agentId));
-    if (agentIndex === -1) return NextResponse.json({ message: "Agent not found" }, { status: 404 });
-    const duplicateEmail = agents.find((item, index) => index !== agentIndex && String(item.email || "").toLowerCase() === String(email).toLowerCase());
-    if (duplicateEmail) return NextResponse.json({ message: "Email already used by another agent" }, { status: 400 });
-    agents[agentIndex] = { ...agents[agentIndex], email: String(email).trim(), phone: String(phone).trim(), updated_at: new Date().toISOString() };
-    const profileIndex = profiles.findIndex((item) => String(item.agentId) === String(agentId));
-    if (profileIndex !== -1) profiles[profileIndex] = { ...profiles[profileIndex], response_minutes: minutes };
-    const userIndex = users.findIndex((item) => String(item.agentId) === String(agentId));
-    if (userIndex !== -1) users[userIndex] = { ...users[userIndex], email: String(email).trim() };
-    writeJsonArray(agentsPath, agents);
-    writeJsonArray(profilesPath, profiles);
-    writeJsonArray(usersPath, users);
-    return NextResponse.json({ message: "Settings updated successfully", agent: agents[agentIndex], profile: profileIndex !== -1 ? profiles[profileIndex] : null });
-  } catch (error) {
-    console.error("UPDATE AGENT SETTINGS ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    const prisma = getPrisma();
+    const body = await req.json();
+    const { agentId, email, phone, responseMinutes, password, bankMethods } = body;
+
+    if (!agentId) return NextResponse.json({ message: "agentId مطلوب" }, { status: 400 });
+
+    // 🟢 التأكد من أن وقت الاستجابة مسموح به
+    const minutes = Number(responseMinutes);
+    if (!EXECUTION_TIME_OPTIONS.includes(minutes)) {
+      return NextResponse.json({ message: "وقت الاستجابة غير صالحة" }, { status: 400 });
+    }
+
+    // 1. فحص تكرار الإيميل (عند يوزر آخر)
+    const existingUser = await prisma.user.findFirst({
+      where: { 
+        email: email.trim().toLowerCase(), 
+        NOT: { agentProfile: { id: agentId } } 
+      }
+    });
+
+    if (existingUser) {
+      return NextResponse.json({ message: "هذا البريد الإلكتروني مستخدم بالفعل" }, { status: 400 });
+    }
+
+    // 2. تحديث البيانات
+    const result = await prisma.$transaction(async (tx) => {
+      const agent = await tx.agent.findUnique({ where: { id: agentId } });
+      if (!agent) throw new Error("Agent not found");
+
+      // تحديث اليوزر (Email + Password)
+      const userUpdate: any = { email: email.trim().toLowerCase() };
+      if (password && password.length >= 6) {
+        userUpdate.passwordHash = await hashPassword(password);
+      }
+
+      await tx.user.update({
+        where: { id: agent.userId },
+        data: userUpdate,
+      });
+
+      // تحديث بروفايل الوكيل والبنوك
+      return await tx.agent.update({
+        where: { id: agentId },
+        data: {
+          phone: phone.trim(),
+          responseMinutes: minutes,
+          paymentMethods: {
+            deleteMany: {}, // كنمسحو القدام
+            create: bankMethods?.map((name: string) => ({ methodName: name })) || []
+          }
+        },
+        include: { paymentMethods: true, user: true }
+      });
+    });
+
+    return NextResponse.json({ message: "تم تحديث إعدادات الوكيل ✅", agent: result });
+
+  } catch (error: any) {
+    console.error("AGENT SETTINGS ERROR:", error);
+    return NextResponse.json({ message: "فشل تحديث الإعدادات" }, { status: 500 });
   }
 }

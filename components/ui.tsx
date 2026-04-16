@@ -524,17 +524,22 @@ export function StatCard({
   label,
   value,
   hint,
+  icon
 }: {
   label: string;
   value: string;
   hint?: string;
+  icon?: React.ReactNode
 }) {
   return (
-    <GlassCard className="p-5">
-      <p className="text-sm text-white/50">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
-      {hint ? <p className="mt-2 text-sm text-white/45">{hint}</p> : null}
-    </GlassCard>
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/40">{label}</p>
+        {icon && <div className="text-cyan-400">{icon}</div>} {/* 🟢 عرض الأيقونة هنا */}
+      </div>
+      <h3 className="text-2xl font-bold text-white">{value}</h3>
+      {hint && <p className="mt-1 text-xs text-white/30">{hint}</p>}
+    </div>
   );
 }
 

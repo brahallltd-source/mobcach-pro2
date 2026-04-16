@@ -1,30 +1,81 @@
 import { NextResponse } from "next/server";
+import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { dataPath, nowIso, readJsonArray, uid, writeJsonArray } from "@/lib/json";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+// 🟢 جلب الشكايات الخاصة باللاعب (عبر الإيميل)
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const email = searchParams.get("email");
-  const complaints = readJsonArray<any>(dataPath("complaints.json"));
-  return NextResponse.json({ complaints: complaints.filter((item) => !email || item.playerEmail === email) });
+  try {
+    const { searchParams } = new URL(req.url);
+    const email = searchParams.get("email");
+    const prisma = getPrisma();
+
+    if (!prisma) return NextResponse.json({ complaints: [] }, { status: 500 });
+
+    // جلب الشكايات مع الفلترة بالإيميل إذا وجد
+    const complaints = await prisma.complaint.findMany({
+      where: email ? { playerEmail: email } : {},
+      orderBy: { createdAt: "desc" },
+    });
+
+    // تنسيق البيانات لتتوافق مع الـ Frontend (Snake Case)
+    const formatted = complaints.map((c) => ({
+      ...c,
+      created_at: c.createdAt,
+      updated_at: c.updatedAt,
+      admin_reply: c.adminReply, // توافق مع الحقل فـ JSON القديم
+    }));
+
+    return NextResponse.json({ complaints: formatted });
+  } catch (error) {
+    console.error("GET PLAYER COMPLAINTS ERROR:", error);
+    return NextResponse.json({ complaints: [], message: "Error fetching data" }, { status: 500 });
+  }
 }
 
+// 🔵 إرسال شكاية جديدة من طرف اللاعب
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
+
     const { playerEmail, subject, message } = await req.json();
-    if (!playerEmail || !subject || !message) return NextResponse.json({ message: "playerEmail, subject and message are required" }, { status: 400 });
-    const path = dataPath("complaints.json");
-    const complaints = readJsonArray<any>(path);
-    const complaint = { id: uid("complaint"), playerEmail, subject, message, status: "open", admin_reply: "", created_at: nowIso(), updated_at: nowIso() };
-    complaints.unshift(complaint);
-    writeJsonArray(path, complaints);
-    createNotification({ targetRole: "admin", targetId: "admin", title: "New complaint", message: `${playerEmail} opened a complaint.` });
-    return NextResponse.json({ message: "Complaint submitted successfully ✅", complaint });
-  } catch (error) {
-    console.error("PLAYER COMPLAINT ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+
+    if (!playerEmail || !subject || !message) {
+      return NextResponse.json({ message: "المرجو ملء جميع الحقول المطلوبة" }, { status: 400 });
+    }
+
+    // 1. إنشاء الشكاية فـ الداتابيز
+    const complaint = await prisma.complaint.create({
+      data: {
+        playerEmail,
+        subject,
+        message,
+        status: "pending", // الحالة الافتراضية
+      },
+    });
+
+    // 2. إشعار الآدمين بوجود شكاية جديدة
+    await createNotification({
+      targetRole: "admin",
+      targetId: "admin",
+      title: "شكاية جديدة ⚠️",
+      message: `قام اللاعب ${playerEmail} بفتح شكاية بخصوص: ${subject}.`,
+    });
+
+    return NextResponse.json({ 
+      success: true,
+      message: "تم إرسال شكواك بنجاح ✅", 
+      complaint: {
+        ...complaint,
+        created_at: complaint.createdAt
+      } 
+    });
+
+  } catch (error: any) {
+    console.error("PLAYER COMPLAINT POST ERROR:", error);
+    return NextResponse.json({ message: "حدث خطأ أثناء إرسال الشكاية" }, { status: 500 });
   }
 }

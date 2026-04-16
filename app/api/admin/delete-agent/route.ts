@@ -1,33 +1,66 @@
 import { NextResponse } from "next/server";
-import { dataPath, normalize, readJsonArray, writeJsonArray } from "@/lib/json";
+import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
+
     const { agentId } = await req.json();
-    if (!agentId) return NextResponse.json({ message: "agentId is required" }, { status: 400 });
-    const agentsPath = dataPath("agents.json");
-    const usersPath = dataPath("users.json");
-    const playersPath = dataPath("players.json");
-    const methodsPath = dataPath("agent_payment_methods.json");
-    const ordersPath = dataPath("orders.json");
-    const agents = readJsonArray<any>(agentsPath);
-    const users = readJsonArray<any>(usersPath);
-    const players = readJsonArray<any>(playersPath);
-    const methods = readJsonArray<any>(methodsPath);
-    const orders = readJsonArray<any>(ordersPath);
-    const agent = agents.find((item) => String(item.id) === String(agentId));
-    if (!agent) return NextResponse.json({ message: "Agent not found" }, { status: 404 });
-    writeJsonArray(agentsPath, agents.filter((item) => String(item.id) !== String(agentId)));
-    writeJsonArray(usersPath, users.filter((item) => String(item.agentId || "") !== String(agentId) && !(normalize(item.email) === normalize(agent.email) && item.role === "agent")));
-    writeJsonArray(playersPath, players.map((item) => String(item.assigned_agent_id) === String(agentId) ? { ...item, assigned_agent_id: "", status: "inactive" } : item));
-    writeJsonArray(methodsPath, methods.filter((item) => String(item.agentId) !== String(agentId)));
-    writeJsonArray(ordersPath, orders.map((item) => String(item.agentId) === String(agentId) && item.status !== "completed" ? { ...item, status: "flagged_for_review", review_required: true } : item));
-    return NextResponse.json({ message: "Agent deleted successfully" });
-  } catch (error) {
+    if (!agentId) return NextResponse.json({ message: "agentId مطلوب" }, { status: 400 });
+
+    // 1. فحص وجود الوكيل
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      include: { user: true }
+    });
+
+    if (!agent) {
+      return NextResponse.json({ message: "الوكيل غير موجود" }, { status: 404 });
+    }
+
+    // 2. تنفيذ عملية المسح والتنظيف في Transaction واحدة لضمان السلامة
+    await prisma.$transaction(async (tx) => {
+      
+      // أ. تحرير اللاعبين المربوطين (ردهم Inactive وحيد ليهم الـ Agent)
+      await tx.player.updateMany({
+        where: { assignedAgentId: agentId },
+        data: {
+          assignedAgentId: null,
+          status: "inactive"
+        }
+      });
+
+      // ب. التعامل مع الطلبات (Orders) التي لم تكتمل
+      // الطلبات المكتملة كتبقى للتاريخ، والطلبات الجارية كتسينيالاو (Flagged)
+      await tx.order.updateMany({
+        where: {
+          agentId: agentId,
+          status: { not: "completed" }
+        },
+        data: {
+          status: "flagged_for_review",
+          reviewRequired: true
+        }
+      });
+
+      // ج. مسح اليوزر (بما أن العلاقة فيها onDelete: Cascade، المسح غايقيس الـ Agent والـ Wallet والـ PaymentMethods أوتوماتيكياً)
+      await tx.user.delete({
+        where: { id: agent.userId }
+      });
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "تم حذف الوكيل بنجاح وتنظيف كافة البيانات المرتبطة ✅" 
+    });
+
+  } catch (error: any) {
     console.error("DELETE AGENT ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json({ 
+      message: "حدث خطأ أثناء محاولة حذف الوكيل، قد يكون مرتبطاً ببيانات لا يمكن حذفها." 
+    }, { status: 500 });
   }
 }

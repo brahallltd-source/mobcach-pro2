@@ -23,44 +23,47 @@ export async function GET(req: Request) {
     // 2. جلب الوكلاء النشيطين مع المحفظة وطرق الدفع
     const agentProfiles = await prisma.agent.findMany({
       where: {
-        // جمعنا الحالات بجوج باش نضمنو أننا ما زكلنا حتى وكيل
-        status: { in: ["ACTIVE", "active", "account_created"] }, 
+        // نضمن جلب الوكلاء اللي حالتهم تسمح بالربط
+        status: { in: ["ACTIVE", "active", "account_created", "pending"] }, 
       },
       include: {
-        wallet: true, // المحفظة باش نعرفو الرصيد
-        paymentMethods: true, // طرق الدفع باش يخدم الفلتر
-        user: true, // باش نتأكدو أن الحساب مامبلوكيش (frozen)
+        wallet: true, 
+        paymentMethods: true, 
+        user: true, 
       },
       orderBy: { updatedAt: "desc" },
     });
 
-    // 3. تنسيق البيانات بالأسماء اللي كيتسناها Frontend
+    // 3. تنسيق البيانات
     let formattedAgents = agentProfiles
-      .filter((agent) => agent.user?.frozen === false)
+      .filter((agent) => agent.user?.frozen === false) // حماية: ما نبينوش اللي مبلوكيين
       .map((agent: any) => {
-        const methods = agent.paymentMethods ? agent.paymentMethods.map((m: any) => m.methodName) : [];
+        const methods = agent.paymentMethods 
+          ? agent.paymentMethods.map((m: any) => m.methodName) 
+          : [];
         
         return {
-          agentId: agent.id,
+          // 🟢 هاد الـ ID هو اللي كيتستعمل فـ دالة handleDirectSelectAgent
+          agentId: agent.id, 
           display_name: agent.fullName || agent.username || agent.email,
           username: agent.username,
           email: agent.email,
           online: agent.online,
-          rating: agent.rating || 95, // عطيناهم تقييم افتراضي
+          rating: agent.rating || 98, 
           trades_count: agent.tradesCount || 0,
-          response_minutes: agent.responseMinutes || 15,
+          response_minutes: agent.responseMinutes || 5,
           updated_at: agent.updatedAt,
-          country: agent.country || "",
-          available_balance: agent.wallet?.balance || 0, // 👈 السمية اللي كيتسناها الـ Frontend!
-          min_limit: 50, // الحد الأدنى
-          max_limit: 10000, // الحد الأقصى
+          country: agent.country || "Morocco",
+          available_balance: agent.wallet?.balance || 0,
+          min_limit: 50,
+          max_limit: 10000,
           verified: agent.verified || false,
           featured: (agent.rating || 95) >= 90,
-          bank_methods: methods, // 👈 باش يخدم الفلتر ديال All و CIH...
+          bank_methods: methods, 
         };
       });
 
-    // 4. تطبيق الفلتر (الدولة، طريقة الدفع، المبلغ)
+    // 4. تطبيق الفلتر (Logic)
     if (countryFilter) {
       formattedAgents = formattedAgents.filter(
         (a) => a.country.toLowerCase() === countryFilter.toLowerCase()
@@ -80,10 +83,11 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ agents: formattedAgents });
-  } catch (error) {
-    console.error("AGENT DISCOVERY ERROR:", error);
+
+  } catch (error: any) {
+    console.error("AGENT DISCOVERY ERROR:", error.message);
     return NextResponse.json(
-      { message: "حدث خطأ أثناء جلب قائمة الوكلاء", agents: [] },
+      { message: "تعذر جلب قائمة الوكلاء حالياً", agents: [] },
       { status: 500 }
     );
   }

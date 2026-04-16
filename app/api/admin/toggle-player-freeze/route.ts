@@ -1,28 +1,61 @@
 import { NextResponse } from "next/server";
-import { dataPath, nowIso, readJsonArray, writeJsonArray } from "@/lib/json";
+import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
+
     const { playerId } = await req.json();
-    if (!playerId) return NextResponse.json({ message: "playerId is required" }, { status: 400 });
-    const playersPath = dataPath("players.json");
-    const usersPath = dataPath("users.json");
-    const players = readJsonArray<any>(playersPath);
-    const users = readJsonArray<any>(usersPath);
-    const index = players.findIndex((item) => String(item.id) === String(playerId));
-    if (index === -1) return NextResponse.json({ message: "Player not found" }, { status: 404 });
-    const nextFrozen = !Boolean(players[index].frozen);
-    players[index] = { ...players[index], frozen: nextFrozen, updated_at: nowIso() };
-    const userIndex = users.findIndex((item) => item.id === players[index].user_id);
-    if (userIndex !== -1) users[userIndex] = { ...users[userIndex], frozen: nextFrozen };
-    writeJsonArray(playersPath, players);
-    writeJsonArray(usersPath, users);
-    return NextResponse.json({ message: nextFrozen ? "Player frozen" : "Player unfrozen", player: players[index] });
-  } catch (error) {
+    if (!playerId) {
+      return NextResponse.json({ message: "playerId مطلوب" }, { status: 400 });
+    }
+
+    // 1. جلب اللاعب مع معلومات اليوزر المرتبط به
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      include: { user: true }
+    });
+
+    if (!player || !player.user) {
+      return NextResponse.json({ message: "اللاعب أو حساب المستخدم غير موجود" }, { status: 404 });
+    }
+
+    // 2. تحديد حالة التجميد القادمة (عكس الحالية)
+    const nextFrozenStatus = !player.user.frozen;
+
+    // 3. تحديث الداتابيز فـ Transaction واحدة
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      // تحديث حالة التجميد فـ جدول اليوزر (المسؤول عن Login)
+      const user = await tx.user.update({
+        where: { id: player.userId },
+        data: { 
+          frozen: nextFrozenStatus,
+          updatedAt: new Date()
+        }
+      });
+
+      // ملاحظة: إذا كان عندك حقل status فـ Player بغيتي تبدلو مع التجميد، زيدو هنا
+      // مثلاً: await tx.player.update({ where: { id: playerId }, data: { status: nextFrozenStatus ? "FROZEN" : "ACTIVE" } });
+
+      return user;
+    });
+
+    return NextResponse.json({ 
+      success: true,
+      message: nextFrozenStatus ? "تم تجميد حساب اللاعب ❄️" : "تم إلغاء تجميد حساب اللاعب ✅", 
+      player: {
+        ...player,
+        frozen: updatedUser.frozen
+      }
+    });
+
+  } catch (error: any) {
     console.error("TOGGLE PLAYER FREEZE ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, }, { status: 500 });
+    return NextResponse.json({ 
+      message: "حدث خطأ أثناء محاولة تغيير حالة حساب اللاعب." 
+    }, { status: 500 });
   }
 }
