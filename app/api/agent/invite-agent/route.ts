@@ -24,15 +24,31 @@ export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
     const { searchParams } = new URL(req.url);
-    const agentId = String(searchParams.get("agentId") || "").trim();
+    const rawId = String(searchParams.get("agentId") || "").trim();
 
-    if (!agentId) return NextResponse.json({ message: "agentId is required", invites: [] }, { status: 400 });
+    if (!rawId) return NextResponse.json({ message: "agentId is required", invites: [] }, { status: 400 });
 
+    // 🟢 البحث بـ ID الوكيل أو ID المستخدم
+    const agent = await prisma.agent.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { userId: rawId }
+        ]
+      }
+    });
+
+    // إذا مالقيناش الوكيل، نرجعو لائحة خاوية
+    if (!agent) {
+      return NextResponse.json({ invites: [] });
+    }
+
+    // 🟢 هادا هو الكود اللي كان ناقص عندك!
     const logs = await prisma.auditLog.findMany({
       where: {
         action: "agent_invite_generated",
         entityType: "agent_invite",
-        entityId: agentId,
+        entityId: agent.id, // نخدمو بـ ID الحقيقي
       },
       orderBy: { createdAt: "desc" },
     });
@@ -53,7 +69,6 @@ export async function POST(req: Request) {
 
     if (!agentId) return NextResponse.json({ message: "agentId is required" }, { status: 400 });
 
-    // 🟢 إصلاح ذكي: البحث بـ ID الوكيل أو ID المستخدم مع جلب بيانات اليوزر
     const referrerAgent = await prisma.agent.findFirst({
       where: {
         OR: [
@@ -69,7 +84,6 @@ export async function POST(req: Request) {
     }
 
     if (type === "generate") {
-      // استعملنا referrerAgent.id لضمان أن الكود ديما مربوط بـ Agent ID الحقيقي
       const code = `AG-${String(referrerAgent.id).slice(-6)}-${Date.now().toString().slice(-4)}`;
       const inviteLink = `/apply/agent?ref=${encodeURIComponent(code)}`;
 
@@ -97,7 +111,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // منطق المكافأة (Bonus)
     const logs = await prisma.auditLog.findMany({
       where: {
         action: "agent_invite_generated",
