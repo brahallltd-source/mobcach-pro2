@@ -8,27 +8,28 @@ export async function GET() {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ agents: [] });
 
-    const agents = await (prisma.user as any).findMany({
-      where: { role: "AGENT" },
+    // 🟢 كنجبدو الوكلاء من جدول Agent (فين مسجلين بصح)
+    const agents = await prisma.agent.findMany({
       include: {
-        wallet: true,
-        agentProfile: true
+        user: true,   // باش نجيبو الحالة ديالهم من User
+        wallet: true  // باش نجيبو الصولد الجديد
       },
       orderBy: { createdAt: "desc" }
     });
 
-    const formattedAgents = agents.map((u: any) => ({
-      id: u.id,
-      fullName: u.agentProfile?.fullName || u.username,
-      username: u.username || "بدون اسم",
-      email: u.email,
-      status: u.status || "ACTIVE",
-      availableBalance: u.wallet?.balance ?? u.agentProfile?.availableBalance ?? 0,
-      country: u.agentProfile?.country || "MA"
+    const formattedAgents = agents.map((a: any) => ({
+      id: a.userId, // 🟢 مهم جداً: صيفطنا userId باش الأزرار يقدرو يبدلو المودباس
+      fullName: a.fullName || a.user?.username || "بدون اسم",
+      username: a.username || a.user?.username,
+      email: a.email || a.user?.email,
+      status: a.user?.status || a.status || "ACTIVE",
+      availableBalance: a.wallet?.balance ?? a.availableBalance ?? 0,
+      country: a.country || "MA"
     }));
 
     return NextResponse.json({ agents: formattedAgents });
   } catch (error) {
+    console.error("FETCH AGENTS ERROR:", error);
     return NextResponse.json({ agents: [] });
   }
 }
