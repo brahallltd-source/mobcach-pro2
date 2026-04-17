@@ -63,10 +63,10 @@ export default function AgentRechargePage() {
   const loadData = async (agentId: string) => {
     try {
       const [walletRes, methodsRes, requestsRes] = await Promise.all([
-        fetch(`/api/agent/wallet?agentId=${encodeURIComponent(agentId)}`),
-        // 🟢 المسمار 2: عيطنا على الـ API الـ Public اللي مسموح للوكيل يشوفو
-        fetch(`/api/admin/payment-methods-public`), 
-        fetch(`/api/agent/topup-requests?agentId=${encodeURIComponent(agentId)}`),
+        fetch(`/api/agent/wallet?agentId=${encodeURIComponent(agentId)}`, { cache: "no-store" }),
+        // 🟢 المسمار: فرضنا عليه ما يخزنش النتيجة (no-store)
+        fetch(`/api/admin/payment-methods-public`, { cache: "no-store" }), 
+        fetch(`/api/agent/topup-requests?agentId=${encodeURIComponent(agentId)}`, { cache: "no-store" }),
       ]);
 
       const walletData = await walletRes.json();
@@ -75,15 +75,19 @@ export default function AgentRechargePage() {
 
       setWallet(walletData.wallet || null);
       setMethods(methodsData.methods || []);
+      
+      // ترتيب الطلبات (الجديد هو الأول)
       setRequests((requestsData.requests || []).sort((a: any, b: any) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ));
 
-      if (!form.admin_method_id && (methodsData.methods || []).length > 0) {
+      // اختيار أول طريقة تلقائياً إذا كانت المصفوفة غير خاوية
+      if (methodsData.methods && methodsData.methods.length > 0) {
         setForm(prev => ({ ...prev, admin_method_id: methodsData.methods[0].id }));
       }
     } catch (err) {
       console.error("Failed to load recharge data", err);
+      toast.error("Error loading payment methods");
     }
   };
 

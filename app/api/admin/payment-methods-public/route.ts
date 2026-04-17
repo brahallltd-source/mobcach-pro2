@@ -1,21 +1,26 @@
+// 🟢 المسمار 1: منع الـ Caching باش الداتا تكون ديما جديدة
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-export const runtime = "nodejs";
-
-const prisma = new PrismaClient();
+// 🟢 المسمار 2: استعمل Singleton Prisma (ما تخدمش بـ new PrismaClient هنا)
+import { getPrisma } from "@/lib/db"; 
 
 export async function GET() {
   try {
+    const prisma = getPrisma();
+    
     const methods = await prisma.paymentMethod.findMany({
       where: {
         ownerRole: "ADMIN",
-        active: true,
+        active: true, // تأكد بلي راهم ACTIVE فـ الداتابيز
       },
       orderBy: {
         createdAt: "desc",
       },
     });
+
+    console.log(`🔍 Found ${methods.length} active methods for agents`);
 
     return NextResponse.json({
       methods: methods.map((item) => ({
@@ -28,21 +33,11 @@ export async function GET() {
         wallet_address: item.walletAddress,
         network: item.network,
         phone: item.phone,
-        fee_percent: item.feePercent,
         active: item.active,
-        created_at: item.createdAt,
-        updated_at: item.updatedAt,
       })),
     });
   } catch (error) {
-    console.error("PUBLIC ADMIN PAYMENT METHODS GET ERROR:", error);
-    return NextResponse.json(
-      {
-        message:
-          "Something went wrong. We could not complete your request right now. Please try again.",
-        methods: [],
-      },
-      { status: 500 }
-    );
+    console.error("PUBLIC METHODS ERROR:", error);
+    return NextResponse.json({ methods: [] }, { status: 500 });
   }
 }
