@@ -2,27 +2,29 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // هادي باش نتفاداو مشاكل bcrypt اللي طالعين ف الـ build
 
 export async function GET() {
   try {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ methods: [] });
 
-    // 🟢 الحل القطعي: كنجيبو كاع الطرق اللي Active بلا فلتر ديال Roles
-    // هكا غايبانو للوكيل بزز كيفما كان نوعهم
+    // كنجيبو كاع الطرق اللي active
     const methods = await prisma.paymentMethod.findMany({
       where: {
-        active: true 
+        active: true,
+        ownerRole: "ADMIN"
       }
     });
 
-    // 🟢 الفينيسيون: كنأكدو أن الأسماء هي اللي كيتسنى الـ Frontend
+    // 🟢 تحويل البيانات باش الـ Frontend يقرأ "method_name"
     const formatted = methods.map(m => ({
       ...m,
-      method_name: m.methodName || m.method_name, // جربهم بجوج باش ما نغلطوش
+      method_name: (m as any).methodName, // استعملنا methodName ديال الداتابيز
       id: m.id
     }));
 
+    console.log(`✅ Found ${formatted.length} admin methods`);
     return NextResponse.json({ methods: formatted });
   } catch (error) {
     return NextResponse.json({ methods: [] });
