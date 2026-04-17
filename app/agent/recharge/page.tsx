@@ -67,7 +67,7 @@ export default function AgentRechargePage() {
       const data = await res.json();
 
       if (res.ok) {
-        setForm(prev => ({ ...prev, proof_url: data.proof.url }));
+        setForm(prev => ({ ...prev, proofUrl: data.proof.url })); // توحيد المسمى لـ proofUrl
         toast.success("تم رفع الوصل بنجاح ✅");
       } else {
         toast.error(data.message || "فشل الرفع");
@@ -93,10 +93,10 @@ export default function AgentRechargePage() {
       const res = await fetch("/api/agent/topup-requests", {
         method: "POST",
         body: JSON.stringify({
-          ...form,
+          ...form, // سيحتوي الآن على proofUrl الصحيح
           agentId,
           agentEmail: email,
-          admin_method_name: selectedMethod?.methodName || selectedMethod?.method_name
+          adminMethodName: selectedMethod?.methodName || selectedMethod?.method_name
         })
       });
       if (res.ok) {

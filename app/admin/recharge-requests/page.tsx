@@ -43,20 +43,36 @@ export default function AdminRechargeRequestsPage() {
         {requests.length === 0 && <p className="text-center text-white/30">No pending requests</p>}
         {requests.map((req) => (
           <GlassCard key={req.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-lg">{req.amount} DH</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-500'}`}>
-                  {req.status}
-                </span>
-              </div>
-              <p className="text-sm text-white/50">{req.agentEmail} • {req.adminMethodName}</p>
-              {req.proofUrl && (
-                <a href={req.proofUrl} target="_blank" className="text-xs text-cyan-400 flex items-center gap-1 hover:underline">
-                  <ExternalLink size={12} /> View Payment Proof
-                </a>
-              )}
-            </div>
+            <div className="space-y-2">
+  <div className="flex items-center gap-2">
+    <p className="font-bold text-lg">{req.amount} DH</p>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-500'}`}>
+      {req.status}
+    </span>
+  </div>
+  <p className="text-sm text-white/50">{req.agentEmail} • {req.adminMethodName}</p>
+  {req.proofUrl ? (
+    <div className="mt-2 space-y-2">
+      <p className="text-[10px] text-white/30 uppercase tracking-wider">Proof of Payment:</p>
+      <div className="relative w-40 h-40 rounded-xl overflow-hidden border border-white/10 group">
+        <img 
+          src={req.proofUrl} 
+          alt="Payment Proof" 
+          className="w-full h-full object-cover transition-transform group-hover:scale-110"
+        />
+        <a 
+          href={req.proofUrl} 
+          target="_blank" 
+          className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <ExternalLink size={20} className="text-white" />
+        </a>
+      </div>
+    </div>
+  ) : (
+    <p className="text-xs text-rose-400 italic">No proof uploaded</p>
+  )}
+</div>
 
             {req.status === 'pending' && (
               <div className="flex gap-2">

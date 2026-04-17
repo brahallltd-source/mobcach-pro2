@@ -8,18 +8,25 @@ export async function POST(req: Request) {
     if (!prisma) return NextResponse.json({ success: false }, { status: 500 });
 
     const body = await req.json();
-    const { agentId, agentEmail, amount, adminMethodId, adminMethodName, proofUrl, note, gosport365_username } = body;
-
+    const { 
+      agentId, 
+      agentEmail, 
+      amount, 
+      adminMethodId, 
+      adminMethodName, 
+      proofUrl, // يجب أن يتطابق مع المرسل من الصفحة
+      note 
+    } = body;
+    
     const request = await prisma.rechargeRequest.create({
       data: {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         agentId: String(agentId),
         agentEmail: String(agentEmail),
         amount: parseFloat(amount),
         adminMethodId: String(adminMethodId),
         adminMethodName: String(adminMethodName),
-        proofUrl: proofUrl || "",
-        note: note || gosport365_username || "",
+        proofUrl: proofUrl || "", // سيُحفظ الرابط هنا الآن
         status: "pending",
         updatedAt: new Date()
       }
