@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// 🟢 المسمار: استيراد useTranslation من المسار الصحيح
+// 🟢 المسمار 1: استيراد المحرك الجديد
 import { useTranslation } from "@/lib/i18n";
 import { SidebarShell, PageHeader, GlassCard, LoadingCard, TextField } from "@/components/ui";
-import { Key, ShieldAlert, Wallet, Save, X, Edit2 } from "lucide-react";
+import { Key, ShieldAlert, Edit2, Save, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { clsx } from "clsx";
+
 type Agent = {
   id: string;
   fullName: string;
   username: string;
   email: string;
   status: string;
-  availableBalance: number; // أو wallet حسب السكيما ديالك
+  availableBalance: number;
   country: string;
 };
 
@@ -32,7 +33,7 @@ export default function AgentListPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch("/api/admin/agents"); 
+      const res = await fetch("/api/admin/agents", { cache: "no-store" }); 
       const data = await res.json();
       setAgents(data.agents || []);
     } catch (error) {
@@ -42,28 +43,35 @@ export default function AgentListPage() {
     }
   };
 
-  // --- دالة تعديل الرصيد يدوياً ---
+  // --- 🟢 المسمار 2: إصلاح دالة الحفظ (الرصيد) ---
   const handleUpdateWallet = async (agentId: string) => {
     try {
-      const res = await fetch(`/api/admin/agents/${agentId}`, {
+      // عيطنا للمسار الجديد اللي صاوبنا فيه الـ PATCH
+      const res = await fetch("/api/admin/agents/wallet", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update_wallet", balance: newBalance }),
+        body: JSON.stringify({ 
+          agentId: agentId, 
+          balance: newBalance 
+        }),
       });
+
       if (res.ok) {
-        toast.success("تم تحديث الرصيد بنجاح! ✅");
+        toast.success(t("confirm") || "تم التحديث بنجاح! ✅");
         setEditingWalletId(null);
         fetchAgents();
       } else {
-        toast.error("فشل في تحديث الرصيد.");
+        const errorData = await res.json();
+        toast.error(errorData.message || "Error updating wallet");
       }
     } catch (e) {
-      toast.error("خطأ في الاتصال.");
+      toast.error("Network Error");
     }
   };
 
+  // --- دالة تغيير المودباس ---
   const handleResetPassword = async (agentId: string) => {
-    const newPass = prompt("أدخل كلمة المرور الجديدة (6 رموز على الأقل):");
+    const newPass = prompt(t("newOrder") === "طلب جديد" ? "أدخل كلمة المرور الجديدة (6 رموز على الأقل):" : "Enter new password (min 6 chars):");
     if (newPass && newPass.length >= 6) {
       try {
         const res = await fetch(`/api/admin/agents/${agentId}`, {
@@ -71,17 +79,18 @@ export default function AgentListPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "reset_password", newPassword: newPass }),
         });
-        if (res.ok) toast.success("تم تغيير كلمة المرور! ✅");
-        else toast.error("فشل العملية.");
+        if (res.ok) toast.success(t("confirm") || "Success");
+        else toast.error("Failed");
       } catch (e) {
-        toast.error("خطأ في الاتصال.");
+        toast.error("Error");
       }
     }
   };
 
+  // --- دالة تغيير الحالة ---
   const toggleStatus = async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    if (confirm(`تحويل حالة الوكيل إلى ${newStatus}؟`)) {
+    if (confirm(t("newOrder") === "طلب جديد" ? `هل تريد تغيير حالة الوكيل إلى ${newStatus}؟` : `Change status to ${newStatus}?`)) {
       await fetch(`/api/admin/agents/${agentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -99,7 +108,7 @@ export default function AgentListPage() {
     <SidebarShell role="admin">
       <PageHeader
         title={t("agents")}
-        subtitle="إدارة الحسابات، الأرصدة، والصلاحيات."
+        subtitle={t("newOrder") === "طلب جديد" ? "إدارة الحسابات، الأرصدة، والصلاحيات." : "Manage agent accounts, balances, and permissions."}
       />
 
       <div className="grid gap-4 mt-6">
@@ -113,7 +122,10 @@ export default function AgentListPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h3 className="text-xl font-semibold">{agent.fullName || agent.username}</h3>
-                  <span className={`px-3 py-0.5 text-[10px] font-bold rounded-full border ${agent.status === "ACTIVE" ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-red-500/20 text-red-400 bg-red-500/5"}`}>
+                  <span className={clsx(
+                    "px-3 py-0.5 text-[10px] font-bold rounded-full border",
+                    agent.status === "ACTIVE" ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-red-500/20 text-red-400 bg-red-500/5"
+                  )}>
                     {agent.status}
                   </span>
                 </div>
@@ -163,7 +175,7 @@ export default function AgentListPage() {
                     agent.status === "ACTIVE" ? "text-red-400 hover:bg-red-400/5" : "text-emerald-400 hover:bg-emerald-400/5"
                   )}
                 >
-                  <ShieldAlert size={14} /> {agent.status === "ACTIVE" ? "إيقاف" : "تفعيل"}
+                  <ShieldAlert size={14} /> {agent.status === "ACTIVE" ? t("suspended") || "Suspend" : t("active") || "Activate"}
                 </button>
               </div>
             </GlassCard>

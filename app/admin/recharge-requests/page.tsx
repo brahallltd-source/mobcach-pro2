@@ -1,52 +1,69 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Copy, Edit2, Trash2, Plus, CheckCircle2, XCircle } from "lucide-react";
+// 🟢 المسمار: استيراد المحرك الجديد
+import { useTranslation } from "@/lib/i18n";
 import { 
   GlassCard, 
   LoadingCard, 
   PageHeader, 
   PrimaryButton, 
+  SelectField, 
   SidebarShell, 
-  StatCard, 
   TextArea, 
   TextField 
 } from "@/components/ui";
+import { toast } from "react-hot-toast";
 
-type RechargeRequest = {
+type Method = {
   id: string;
-  agentId: string;
-  agentEmail: string;
-  agentUsername?: string;
-  amount: number;
-  adminMethodName: string; 
-  txHash?: string;
-  proofUrl?: string; 
-  note?: string;
-  status: string;
-  createdAt: string; 
-  transferReference?: string;
-  adminNote?: string;
-  bonusAmount?: number;
-  pendingBonusApplied?: number;
+  type: "bank" | "crypto" | "cash";
+  method_name: string;
+  currency: string;
+  bank_name?: string;
+  account_name?: string;
+  rib?: string;
+  wallet_address?: string;
+  network?: string;
+  provider?: string;
+  phone?: string;
+  city?: string;
+  instructions?: string;
+  active?: boolean;
 };
 
-export default function AdminRechargeRequestsPage() {
-  const [items, setItems] = useState<RechargeRequest[]>([]);
+const EMPTY_FORM: Method = {
+  id: "",
+  type: "bank",
+  method_name: "",
+  currency: "MAD",
+  bank_name: "",
+  account_name: "",
+  rib: "",
+  wallet_address: "",
+  network: "",
+  provider: "",
+  phone: "",
+  city: "",
+  instructions: "",
+  active: true,
+};
+
+export default function AdminPaymentMethodsPage() {
+  const { t } = useTranslation();
+  const [items, setItems] = useState<Method[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState("admin@mobcash.com");
-  const [refs, setRefs] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<Method>({ ...EMPTY_FORM });
 
   const load = async () => {
     try {
-      const res = await fetch("/api/admin/topup-requests", { cache: "no-store", credentials: "include" });
+      const res = await fetch("/api/admin/payment-methods", { cache: "no-store" });
       const data = await res.json();
-      setItems((data.requests || []).sort((a: RechargeRequest, b: RechargeRequest) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ));
+      setItems(data.methods || []);
     } catch (error) {
-      console.error("Failed to load requests", error);
+      console.error(error);
     }
   };
 
@@ -54,178 +71,128 @@ export default function AdminRechargeRequestsPage() {
     load().finally(() => setLoading(false));
   }, []);
 
-  const stats = useMemo(() => ({
-    pending: items.filter(i => i.status === "pending").length,
-    approved: items.filter(i => i.status === "approved").length,
-    rejected: items.filter(i => i.status === "rejected").length,
-  }), [items]);
-
-  const act = async (requestId: string, action: "approve" | "reject") => {
-    setBusyId(requestId);
+  const submit = async () => {
+    if (!form.method_name) return toast.error("Method name is required");
+    setSaving(true);
+    const method = form.id ? "PUT" : "POST";
     try {
-      const res = await fetch("/api/admin/topup-requests", {
-        method: "POST",
-        credentials: "include",
+      const res = await fetch("/api/admin/payment-methods", {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId,
-          action,
-          adminEmail,
-          transfer_reference: refs[requestId] || "",
-          admin_note: notes[requestId] || "",
-        }),
+        body: JSON.stringify(form),
       });
-      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Action failed");
+      if (!res.ok) throw new Error(data.message);
       
-      await load();
-      alert(`تمت العملية بنجاح: ${action}`);
-    } catch (err: any) {
-      alert(err.message);
+      toast.success(t("confirm") || "Saved successfully");
+      setForm({ ...EMPTY_FORM });
+      load();
+    } catch (error: any) {
+      toast.error(error.message || "Error saving method");
     } finally {
-      setBusyId(null);
+      setSaving(false);
     }
   };
 
-  if (loading) return <SidebarShell role="admin"><LoadingCard text="جاري تحميل طلبات الشحن..." /></SidebarShell>;
+  const deleteMethod = async (id: string) => {
+    if (!confirm("Delete this method?")) return;
+    try {
+      const res = await fetch(`/api/admin/payment-methods?methodId=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Deleted");
+        load();
+      }
+    } catch (err) { toast.error("Error"); }
+  };
+
+  const toggleActive = async (id: string, current: boolean) => {
+    await fetch("/api/admin/payment-methods", {
+      method: "PATCH",
+      body: JSON.stringify({ methodId: id, active: !current }),
+    });
+    load();
+  };
+
+  if (loading) return <SidebarShell role="admin"><LoadingCard text={t("processing")} /></SidebarShell>;
 
   return (
     <SidebarShell role="admin">
       <PageHeader
-        title="طلبات شحن رصيد الوكلاء"
-        subtitle="راجع البيانات، تحقق من الوصل، وقم بالموافقة. النظام سيضيف 10% بونص تلقائياً عند التفعيل."
+        title={t("paymentMethods")}
+        subtitle="Manage Treasury methods. Ensure active methods are visible to agents."
       />
 
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <StatCard label="في انتظار المراجعة" value={String(stats.pending)} hint="Pending" />
-        <StatCard label="تمت الموافقة" value={String(stats.approved)} hint="Approved" />
-        <StatCard label="مرفوضة" value={String(stats.rejected)} hint="Rejected" />
-        <StatCard label="إيميل المسؤول" value={adminEmail} hint="Logged in as" />
-      </div>
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr] mt-6">
+        <GlassCard className="p-6 md:p-8">
+          <h2 className="text-2xl font-semibold text-cyan-300">
+            {form.id ? t("edit") : t("createNewOrder")}
+          </h2>
+          <div className="mt-5 grid gap-4">
+            <SelectField value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as any })}>
+              <option value="bank">Bank</option>
+              <option value="crypto">Crypto</option>
+              <option value="cash">Cash</option>
+            </SelectField>
+            
+            <TextField placeholder="Method Name (e.g. CIH Bank)" value={form.method_name} onChange={(e) => setForm({ ...form, method_name: e.target.value })} />
+            <TextField placeholder="Currency (MAD/USDT)" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
 
-      <div className="space-y-6">
-        {items.map((item) => {
-          const bonus = Math.floor(item.amount * 0.1);
-          const total = item.amount + bonus;
+            {form.type === "bank" && (
+              <>
+                <TextField placeholder="Bank Name" value={form.bank_name} onChange={(e) => setForm({ ...form, bank_name: e.target.value })} />
+                <TextField placeholder="Account Name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} />
+                <TextField placeholder="RIB" value={form.rib} onChange={(e) => setForm({ ...form, rib: e.target.value })} />
+              </>
+            )}
 
-          return (
-            <GlassCard key={item.id} className="p-6">
-              <div className="grid gap-6 xl:grid-cols-[1fr_350px]">
-                
-                <div className="space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <span className="text-cyan-400">@</span>
-                        {item.agentUsername || item.agentEmail.split('@')[0]}
-                      </h3>
-                      <p className="text-sm text-white/50">{item.agentEmail}</p>
-                    </div>
-                    <div className={`rounded-full px-4 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
-                      item.status === 'pending' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 
-                      item.status === 'approved' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' : 
-                      'bg-white/10 text-white/40'
-                    }`}>
-                      {item.status}
-                    </div>
-                  </div>
+            {form.type === "crypto" && (
+              <>
+                <TextField placeholder="Wallet Address" value={form.wallet_address} onChange={(e) => setForm({ ...form, wallet_address: e.target.value })} />
+                <TextField placeholder="Network (TRC20...)" value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} />
+              </>
+            )}
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-3xl border border-white/10 bg-black/20 p-5 space-y-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">المبلغ المطلوب</p>
-                        <p className="text-2xl font-bold text-white">{item.amount} DH</p>
-                      </div>
-                      
-                      {item.status === 'pending' ? (
-                        <div className="pt-3 border-t border-white/5">
-                          <p className="text-[10px] font-bold text-emerald-400/50 uppercase tracking-widest mb-1">سيتم شحن (شامل 10% بونص)</p>
-                          <p className="text-xl font-bold text-emerald-400">{total} DH</p>
-                          <p className="text-[10px] text-white/30 italic mt-1">* بونص تلقائي: {bonus} DH</p>
-                        </div>
-                      ) : (
-                        <div className="pt-3 border-t border-white/5">
-                          <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">البونص الذي تم منحه</p>
-                          <p className="text-lg font-bold text-emerald-400">+{item.bonusAmount || bonus} DH</p>
-                        </div>
-                      )}
+            {form.type === "cash" && (
+              <>
+                <TextField placeholder="Provider" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
+                <TextField placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </>
+            )}
 
-                      <div className="pt-3 border-t border-white/5 space-y-1 text-sm text-white/70">
-                        <p>الطريقة: <span className="text-white font-medium">{item.adminMethodName}</span></p>
-                        <p className="text-xs text-white/40">{new Date(item.createdAt).toLocaleString()}</p>
-                      </div>
-                    </div>
+            <TextArea rows={3} placeholder="Instructions for agent" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} />
+            
+            <div className="flex gap-3">
+              <PrimaryButton onClick={submit} disabled={saving} className="flex-1">
+                {saving ? t("processing") : form.id ? t("update") : t("save")}
+              </PrimaryButton>
+              {form.id && <button onClick={() => setForm({ ...EMPTY_FORM })} className="px-6 py-3 bg-white/5 rounded-2xl">{t("cancel")}</button>}
+            </div>
+          </div>
+        </GlassCard>
 
-                    <div className="rounded-3xl border border-white/10 bg-black/40 p-2">
-                      {item.proofUrl ? (
-                        <div className="group relative aspect-video w-full overflow-hidden rounded-2xl">
-                          <img 
-                            src={item.proofUrl} 
-                            alt="Proof" 
-                            className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
-                          />
-                          <a href={item.proofUrl} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition group-hover:opacity-100">
-                            <span className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-black">تكبير الوصل</span>
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="flex aspect-video items-center justify-center rounded-2xl bg-white/5 text-xs text-white/20 italic">لا يوجد وصل</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {(item.note || item.txHash) && (
-                    <div className="rounded-2xl bg-white/5 p-4">
-                      {item.note && (
-                        <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3">
-                          <p className="text-sm font-bold text-cyan-300 leading-relaxed">{item.note}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+        <div className="space-y-4">
+          <h2 className="text-2xl font-semibold px-2">{t("paymentMethods")}</h2>
+          {items.map((item) => (
+            <GlassCard key={item.id} className="p-5 flex justify-between items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-lg">{item.method_name}</p>
+                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${item.active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'}`}>
+                    {item.active ? t("active") : t("suspended")}
+                  </span>
                 </div>
-
-                <div className="flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-                  <div className="space-y-4">
-                    <p className="text-xs font-bold text-white/40 uppercase tracking-widest">إجراءات الإدارة</p>
-                    <TextField
-                      value={refs[item.id] || ""}
-                      onChange={(e) => setRefs((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      placeholder="رقم المرجع / العملية"
-                    />
-                    <TextArea
-                      rows={3}
-                      value={notes[item.id] || ""}
-                      onChange={(e) => setNotes((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      placeholder="ملاحظة للوكيل..."
-                    />
-                  </div>
-
-                  <div className="mt-6 flex gap-3">
-                    <PrimaryButton 
-                      onClick={() => act(item.id, "approve")} 
-                      disabled={busyId === item.id || item.status !== "pending"}
-                      className="flex-1 py-4 bg-emerald-500 text-black hover:bg-emerald-400 font-bold"
-                    >
-                      {busyId === item.id ? "جاري المعالجة..." : "Approve + 10%"}
-                    </PrimaryButton>
-                    <button
-                      onClick={() => act(item.id, "reject")}
-                      disabled={busyId === item.id || item.status !== "pending"}
-                      className="flex-1 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-3 text-sm font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-
+                <p className="text-xs text-white/40 mt-1">{item.type} • {item.currency}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setForm(item)} className="p-2 bg-white/5 rounded-xl hover:bg-white/10"><Edit2 size={16}/></button>
+                <button onClick={() => deleteMethod(item.id)} className="p-2 bg-rose-500/10 text-rose-400 rounded-xl hover:bg-rose-500/20"><Trash2 size={16}/></button>
+                <button onClick={() => toggleActive(item.id, !!item.active)} className="p-2 bg-white/5 rounded-xl">
+                  {item.active ? <XCircle size={16}/> : <CheckCircle2 size={16}/>}
+                </button>
               </div>
             </GlassCard>
-          );
-        })}
-
-        {!items.length && <GlassCard className="p-20 text-center text-white/30 italic">لا توجد طلبات حالياً</GlassCard>}
+          ))}
+        </div>
       </div>
     </SidebarShell>
   );
