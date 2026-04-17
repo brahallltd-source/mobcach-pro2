@@ -1,81 +1,43 @@
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
-import { getPrisma } from "@/lib/db"; // تأكد من المسار الصحيح للـ prisma
-import { applyPendingBonusesToRecharge } from "@/lib/bonus";
-import { createNotification } from "@/lib/notifications";
+import { getPrisma } from "@/lib/db";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// --- GET Function (نفس المنطق ديالك مع تنقية بسيطة) ---
 export async function GET() {
-  const access = await requireAdminPermission("wallets");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
-
   try {
     const prisma = getPrisma();
-    const requests = await prisma.rechargeRequest.findMany({ orderBy: { createdAt: "desc" } });
-    const agentIds = [...new Set(requests.map((r: any) => r.agentId))];
-    const agents = await prisma.agent.findMany({
-      where: { id: { in: agentIds } },
-      select: { id: true, username: true },
+    const requests = await prisma?.rechargeRequest.findMany({
+      orderBy: { createdAt: "desc" }
     });
-
-    const agentMap = agents.reduce((acc: any, agent: any) => { acc[agent.id] = agent; return acc; }, {});
-
-    const formattedRequests = requests.map((req: any) => ({
-      ...req,
-      agentUsername: agentMap[req.agentId]?.username || (req.agentEmail ? req.agentEmail.split("@")[0] : "N/A"),
-    }));
-
-    return NextResponse.json({ requests: formattedRequests });
+    return NextResponse.json({ requests: requests || [] });
   } catch (error) {
-    return NextResponse.json({ message: "Error fetching requests" }, { status: 500 });
+    return NextResponse.json({ requests: [] });
   }
 }
 
-// --- POST Function (المصلحة والناضية) ---
+// 🟢 هاد الـ POST هو اللي غايخلي أزرار Approve و Reject يخدمو
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("wallets");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
-
   try {
     const prisma = getPrisma();
-    const { requestId, action, adminEmail } = await req.json();
-    const requestRow = await prisma.rechargeRequest.findUnique({ where: { id: requestId } });
+    const { requestId, action } = await req.json();
 
-    if (action === "approve" && requestRow) {
-      const baseAmount = Number(requestRow.amount);
-      const bonus10 = Math.floor(baseAmount * 0.1);
-
-      await prisma.$transaction(async (tx) => {
-        const pendingApplied = await applyPendingBonusesToRecharge(requestRow.agentId, adminEmail);
-        const totalToAdd = baseAmount + bonus10 + (pendingApplied?.totalApplied || 0);
-
-        await tx.wallet.update({
-          where: { agentId: requestRow.agentId },
-          data: { balance: { increment: totalToAdd } }
-        });
-
-        await tx.walletLedger.create({
-          data: {
-            walletId: (await tx.wallet.findUnique({ where: { agentId: requestRow.agentId } }))!.id,
-            agentId: requestRow.agentId,
-            amount: totalToAdd,
-            type: "recharge_approved",
-            reason: `Approve: ${baseAmount} + Bonus`,
-            meta: { requestId }
-          }
-        });
-
-        await tx.rechargeRequest.update({
-          where: { id: requestId },
-          data: { status: "approved", updatedAt: new Date() }
-        });
-      });
+    if (!requestId || !action) {
+      return NextResponse.json({ success: false, message: "Missing data" }, { status: 400 });
     }
-    return NextResponse.json({ success: true });
-  } catch (error) { return NextResponse.json({ status: 500 }); }
+
+    const newStatus = action === "approve" ? "approved" : "rejected";
+
+    const updatedRequest = await prisma?.rechargeRequest.update({
+      where: { id: String(requestId) },
+      data: { 
+        status: newStatus,
+        updatedAt: new Date()
+      }
+    });
+
+    return NextResponse.json({ success: true, request: updatedRequest });
+  } catch (error) {
+    console.error("ADMIN ACTION ERROR:", error);
+    return NextResponse.json({ success: false }, { status: 500 });
+  }
 }

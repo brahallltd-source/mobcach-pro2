@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: Request) {
   try {
@@ -8,25 +7,23 @@ export async function POST(req: Request) {
     if (!prisma) return NextResponse.json({ success: false }, { status: 500 });
 
     const body = await req.json();
-    const { 
-      agentId, 
-      agentEmail, 
-      amount, 
-      adminMethodId, 
-      adminMethodName, 
-      proofUrl, // يجب أن يتطابق مع المرسل من الصفحة
-      note 
-    } = body;
-    
+    // 🟢 كنأكدو أننا غانشدو الصورة بأي سمية جات باش ما تضيعش
+    const { agentId, agentEmail, amount, admin_method_id, adminMethodId, admin_method_name, adminMethodName, proof_url, proofUrl, note, gosport365_username } = body;
+
+    const finalProof = proofUrl || proof_url || "";
+    const finalMethodId = adminMethodId || admin_method_id || "";
+    const finalMethodName = adminMethodName || admin_method_name || "";
+
     const request = await prisma.rechargeRequest.create({
       data: {
         id: crypto.randomUUID(),
         agentId: String(agentId),
         agentEmail: String(agentEmail),
         amount: parseFloat(amount),
-        adminMethodId: String(adminMethodId),
-        adminMethodName: String(adminMethodName),
-        proofUrl: proofUrl || "", // سيُحفظ الرابط هنا الآن
+        adminMethodId: String(finalMethodId),
+        adminMethodName: String(finalMethodName),
+        proofUrl: finalProof, // 🟢 هنا غاتخزن الصورة صحيحة
+        note: note || gosport365_username || "",
         status: "pending",
         updatedAt: new Date()
       }
