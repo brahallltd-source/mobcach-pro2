@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, ListChecks, Clock, CheckCircle2, Upload, FileImage } from "lucide-react"; // زدت Upload و FileImage
+import { Wallet, ListChecks, Clock, CheckCircle2, Upload } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SelectField, SidebarShell, StatCard, TextArea, TextField } from "@/components/ui";
 import { toast } from "react-hot-toast";
 
@@ -11,14 +11,9 @@ export default function AgentRechargePage() {
   const [wallet, setWallet] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false); // حالة الرفع
-  const [form, setForm] = useState({ 
-    amount: "1000", 
-    admin_method_id: "", 
-    note: "", 
-    gosport365_username: "",
-    proof_url: "" // حقل الصورة
-  });
+  const [uploading, setUploading] = useState(false);
+  // 🟢 ضفنا proof_url لي كان ناقص
+  const [form, setForm] = useState({ amount: "1000", admin_method_id: "", note: "", gosport365_username: "", proof_url: "" });
 
   const loadData = async () => {
     const saved = localStorage.getItem("mobcash_user");
@@ -49,7 +44,7 @@ export default function AgentRechargePage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // 🟢 دالة رفع الصورة
+  // 🟢 دالة الرفع ديال الصورة
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -67,7 +62,7 @@ export default function AgentRechargePage() {
       const data = await res.json();
 
       if (res.ok) {
-        setForm(prev => ({ ...prev, proofUrl: data.proof.url })); // توحيد المسمى لـ proofUrl
+        setForm(prev => ({ ...prev, proof_url: data.proof.url }));
         toast.success("تم رفع الوصل بنجاح ✅");
       } else {
         toast.error(data.message || "فشل الرفع");
@@ -82,9 +77,7 @@ export default function AgentRechargePage() {
   const selectedMethod = methods.find(m => m.id === form.admin_method_id);
 
   const submit = async () => {
-    if (!form.proof_url) {
-      return toast.error("يرجى رفع صورة الوصل أولاً!");
-    }
+    if (!form.proof_url) return toast.error("يرجى رفع صورة الوصل أولاً!");
     setSaving(true);
     const saved = localStorage.getItem("mobcash_user");
     const { agentId, email } = JSON.parse(saved!);
@@ -93,18 +86,18 @@ export default function AgentRechargePage() {
       const res = await fetch("/api/agent/topup-requests", {
         method: "POST",
         body: JSON.stringify({
-          ...form, // سيحتوي الآن على proofUrl الصحيح
+          ...form,
           agentId,
           agentEmail: email,
-          adminMethodName: selectedMethod?.methodName || selectedMethod?.method_name
+          admin_method_name: selectedMethod?.method_name
         })
       });
       if (res.ok) {
         toast.success("Request sent!");
-        setForm(prev => ({ ...prev, proof_url: "", note: "", gosport365_username: "" })); // ريست للفورم
+        setForm({ amount: "1000", admin_method_id: methods[0]?.id || "", note: "", gosport365_username: "", proof_url: "" });
         loadData();
       }
-    } catch (e) { toast.error("Error sending request"); }
+    } catch (e) { toast.error("Error"); }
     finally { setSaving(false); }
   };
 
@@ -114,7 +107,6 @@ export default function AgentRechargePage() {
     <SidebarShell role="agent">
       <PageHeader title="Recharge Account" subtitle="Select a method and send proof." />
       
-      {/* الـ Stats */}
       <div className="grid gap-4 md:grid-cols-4 mt-6">
         <StatCard label="Balance" value={`${wallet?.balance || 0} DH`} icon={<Wallet size={18}/>} />
         <StatCard label="Methods" value={String(methods.length)} icon={<ListChecks size={18}/>} />
@@ -131,10 +123,10 @@ export default function AgentRechargePage() {
             
             <SelectField value={form.admin_method_id} onChange={e => setForm({...form, admin_method_id: e.target.value})}>
               {methods.length === 0 && <option>No methods available</option>}
-              {methods.map(m => <option key={m.id} value={m.id}>{m.methodName || m.method_name}</option>)}
+              {methods.map(m => <option key={m.id} value={m.id}>{m.method_name}</option>)}
             </SelectField>
 
-            {/* 🟢 منطقة رفع الوصل */}
+            {/* 🟢 Input ديال التصويرة */}
             <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-6 transition-all hover:bg-white/5">
               <input 
                 type="file" 
@@ -167,9 +159,9 @@ export default function AgentRechargePage() {
             {selectedMethod && (
               <div className="bg-white/5 p-4 rounded-2xl text-sm border border-white/10">
                 <p className="text-cyan-400 font-bold mb-2">Payment Details:</p>
-                {selectedMethod.accountName && <p>Name: {selectedMethod.accountName}</p>}
+                {selectedMethod.account_name && <p>Name: {selectedMethod.account_name}</p>}
                 {selectedMethod.rib && <p className="font-mono">RIB: {selectedMethod.rib}</p>}
-                {selectedMethod.walletAddress && <p className="break-all font-mono">Address: {selectedMethod.walletAddress}</p>}
+                {selectedMethod.wallet_address && <p className="break-all font-mono">Address: {selectedMethod.wallet_address}</p>}
               </div>
             )}
 
@@ -180,7 +172,6 @@ export default function AgentRechargePage() {
           </div>
         </GlassCard>
 
-        {/* الـ History */}
         <GlassCard className="p-6">
           <h2 className="text-xl font-bold mb-4">History</h2>
           <div className="space-y-3">
