@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // باش نتفاداو صداع Bcrypt فـ الـ build
+export const runtime = "nodejs";
 
 export async function GET() {
   try {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ methods: [] });
 
-    // كنجيبو كاع الطرق اللي active وتابعة للآدمين
+    // كنجيبو كاع الطرق اللي active وتابعة للآدمين (كيف شفنا ف Prisma Studio)
     const methods = await prisma.paymentMethod.findMany({
       where: {
         active: true,
@@ -17,8 +17,7 @@ export async function GET() {
       }
     });
 
-    // 🟢 الفينيسيون: كنرجعو الحقول بالسميات اللي كيتسنى الـ Frontend
-    // استعملنا (m as any) باش TypeScript ما يحبسش الـ Build
+    // 🟢 السر هنا: استعملنا (m: any) باش TypeScript يخلّينا نزيدو method_name بلا صداع
     const formatted = methods.map((m: any) => ({
       ...m,
       method_name: m.methodName, // هادي هي اللي كتقلب عليها صفحة Recharge
