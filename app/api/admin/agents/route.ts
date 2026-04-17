@@ -1,32 +1,36 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
-  const prisma = getPrisma();
   try {
-    // 🟢 استعملنا (prisma.user as any) باش نقتلوا Error ديال TypeScript ونخليو الـ Build يدوز
-    const agents = await (prisma.user as any).findMany({
-      where: { role: "AGENT" },
+    const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ agents: [] });
+
+    // 🟢 كنجيبو الداتا من جدول Agent ديريكت حيت هو اللي فيه كولشي
+    const agents = await prisma.agent.findMany({
       include: {
         wallet: true,
-        agentProfile: true
+        user: true
       },
       orderBy: { createdAt: "desc" }
     });
 
-    const formattedAgents = agents.map((u: any) => ({
-      id: u.id,
-      username: u.username || "بدون اسم",
-      email: u.email,
-      status: u.status,
-      // كنجيبو الصولد من المحفظة الجديدة
-      availableBalance: u.wallet?.balance ?? u.agentProfile?.availableBalance ?? 0,
-      country: u.agentProfile?.country || "MA"
+    const formattedAgents = agents.map((a: any) => ({
+      id: a.id,
+      fullName: a.fullName,
+      username: a.username,
+      email: a.email,
+      status: a.status, // ACTIVE أو SUSPENDED
+      // 🟢 كنجيبو الصولد من المحفظة أولا، وإلا مالقيناهش كنجيبوه من القديم
+      availableBalance: a.wallet?.balance || a.availableBalance || 0,
+      country: a.country || "MA"
     }));
 
     return NextResponse.json({ agents: formattedAgents });
   } catch (error) {
     console.error("FETCH AGENTS ERROR:", error);
-    return NextResponse.json({ agents: [] }); // نرجعو مصفوفة خاوية عوض Error
+    return NextResponse.json({ agents: [] });
   }
 }
