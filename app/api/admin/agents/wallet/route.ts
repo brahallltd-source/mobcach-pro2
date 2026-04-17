@@ -8,8 +8,13 @@ export async function PATCH(req: Request) {
 
     const updated = await prisma.wallet.upsert({
       where: { agentId: String(agentId) },
-      update: { balance: Number(balance) },
-      create: { agentId: String(agentId), balance: Number(balance) } as any,
+      update: { balance: Number(balance), updatedAt: new Date() },
+      create: { 
+        agentId: String(agentId), 
+        balance: Number(balance),
+        agent: { connect: { id: String(agentId) } },
+        user: { connect: { id: String(agentId) } }
+      } as any,
     });
 
     return NextResponse.json({ success: true, balance: updated.balance });
