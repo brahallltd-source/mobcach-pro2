@@ -8,24 +8,24 @@ export async function GET() {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ agents: [] });
 
-    // 🟢 كنجيبو الداتا من جدول Agent ديريكت حيت هو اللي فيه كولشي
-    const agents = await prisma.agent.findMany({
+    // 🟢 كنقلبو فـ جدول User باش نجبدو القدام كاملين
+    const users = await prisma.user.findMany({
+      where: { role: "AGENT" },
       include: {
         wallet: true,
-        user: true
+        agentProfile: true
       },
       orderBy: { createdAt: "desc" }
     });
 
-    const formattedAgents = agents.map((a: any) => ({
-      id: a.id,
-      fullName: a.fullName,
-      username: a.username,
-      email: a.email,
-      status: a.status, // ACTIVE أو SUSPENDED
-      // 🟢 كنجيبو الصولد من المحفظة أولا، وإلا مالقيناهش كنجيبوه من القديم
-      availableBalance: a.wallet?.balance || a.availableBalance || 0,
-      country: a.country || "MA"
+    const formattedAgents = users.map((u: any) => ({
+      id: u.id, // كنصيفطو الـ ID القديم باش يخدمو بيه الأزرار
+      fullName: u.agentProfile?.fullName || u.username,
+      username: u.username || "بدون اسم",
+      email: u.email,
+      status: u.status || "ACTIVE",
+      availableBalance: u.wallet?.balance || u.agentProfile?.availableBalance || 0,
+      country: u.agentProfile?.country || "MA"
     }));
 
     return NextResponse.json({ agents: formattedAgents });

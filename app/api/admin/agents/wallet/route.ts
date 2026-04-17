@@ -6,18 +6,17 @@ export async function PATCH(req: Request) {
     const prisma = getPrisma();
     const { agentId, balance } = await req.json();
 
-    const updated = await prisma.wallet.upsert({
-      where: { agentId: String(agentId) },
+    // 🟢 كنستعملو userId حيت هو اللي مضمون كاين عند الوكلاء القدام
+    const updated = await prisma?.wallet.upsert({
+      where: { userId: String(agentId) },
       update: { balance: Number(balance), updatedAt: new Date() },
       create: { 
-        agentId: String(agentId), 
-        balance: Number(balance),
-        agent: { connect: { id: String(agentId) } },
-        user: { connect: { id: String(agentId) } }
+        userId: String(agentId), 
+        balance: Number(balance)
       } as any,
     });
 
-    return NextResponse.json({ success: true, balance: updated.balance });
+    return NextResponse.json({ success: true, balance: updated?.balance });
   } catch (error) {
     return NextResponse.json({ success: false }, { status: 500 });
   }

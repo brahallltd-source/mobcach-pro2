@@ -2,30 +2,31 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
-export const runtime = "nodejs"; // 🟢 ضرورية باش bcrypt مايحبسش ليك الـ Build
+export const runtime = "nodejs"; // باش الـ Build ما يتبلوكاتش بـ bcrypt
 
 export async function PATCH(req: Request) {
   try {
     const prisma = getPrisma();
     const { action, agentId, status, newPassword } = await req.json();
 
-    const agent = await prisma?.agent.findUnique({ where: { id: agentId } });
-    if (!agent) return NextResponse.json({ message: "Agent not found" }, { status: 404 });
+    const user = await prisma?.user.findUnique({ where: { id: agentId } });
+    if (!user) return NextResponse.json({ message: "User not found" }, { status: 404 });
 
-    // 1. تجميد أو تفعيل الحساب
+    // 🛑 تجميد أو تفعيل
     if (action === "update_status") {
-      await prisma?.$transaction([
-        prisma.agent.update({ where: { id: agentId }, data: { status } }),
-        prisma.user.update({ where: { id: agent.userId }, data: { status } })
-      ]);
+      await prisma?.user.update({ where: { id: agentId }, data: { status } });
+      const agentProf = await prisma?.agent.findUnique({ where: { userId: agentId } });
+      if (agentProf) {
+        await prisma?.agent.update({ where: { id: agentProf.id }, data: { status } });
+      }
       return NextResponse.json({ success: true });
     }
 
-    // 2. تغيير كلمة المرور
+    // 🔑 تغيير المودباس
     if (action === "reset_password" && newPassword) {
       const hash = await bcrypt.hash(newPassword, 10);
       await prisma?.user.update({
-        where: { id: agent.userId },
+        where: { id: agentId },
         data: { passwordHash: hash }
       });
       return NextResponse.json({ success: true });
@@ -37,19 +38,16 @@ export async function PATCH(req: Request) {
   }
 }
 
-// 3. حذف الحساب نهائياً
+// 🗑️ حذف الحساب
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get("agentId");
     const prisma = getPrisma();
 
-    const agent = await prisma?.agent.findUnique({ where: { id: String(agentId) } });
-    if (agent) {
-      await prisma?.$transaction([
-        prisma.agent.delete({ where: { id: agent.id } }),
-        prisma.user.delete({ where: { id: agent.userId } })
-      ]);
+    if (agentId) {
+      // 🟢 ملي كتمسح الـ User كيتمسح معاه كولشي (cascade)
+      await prisma?.user.delete({ where: { id: String(agentId) } });
     }
     return NextResponse.json({ success: true });
   } catch (e) {
