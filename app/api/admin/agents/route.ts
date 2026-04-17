@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
-// هادو كيمنعو Next.js يخزن قائمة خاوية فـ الكاش
 export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
 
 export async function GET() {
   try {
     const prisma = getPrisma();
-    
-    // 🟢 هادا الكود ديالك اللي كان خدام 100%
+    if (!prisma) return NextResponse.json({ agents: [] });
+
     const agents = await (prisma.user as any).findMany({
       where: { role: "AGENT" },
       include: {
@@ -31,7 +29,6 @@ export async function GET() {
 
     return NextResponse.json({ agents: formattedAgents });
   } catch (error) {
-    console.error("FETCH AGENTS ERROR:", error);
     return NextResponse.json({ agents: [] });
   }
 }
