@@ -1,47 +1,49 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
-export const dynamic = "force-dynamic"; // ضرورية فـ Next.js 15 باش مايديرش Cache
-
 export async function GET() {
   const prisma = getPrisma();
+  
+  if (!prisma) {
+    return NextResponse.json({ error: "Database not initialized" }, { status: 500 });
+  }
 
   try {
-    console.log("🔍 Fetching all agents from Agent table...");
-
-    // 🟢 الطريقة الأضمن: كنجيبو من جدول Agent وديرو Include لليوزر
-    const agents = await prisma.agent.findMany({
-      include: {
-        user: {
+    const users = await prisma.user.findMany({
+      where: { role: "AGENT" },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        status: true,
+        // 🟢 المسمار: بما أن wallet ما كايناش فـ User، غادي نعتمدو على 
+        // availableBalance اللي كاينة وسط agentProfile كيفما كان عندك قبل
+        agentProfile: {
           select: {
-            email: true,
-            username: true,
-          }
-        }
+            country: true,
+            availableBalance: true,
+          },
+        },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
-    // تنسيق البيانات باش الـ Frontend يلقى كولشي واجد فـ بلاصتو
-    const formattedAgents = agents.map((agent: any) => ({
-      id: agent.id,
-      username: agent.username || agent.user?.username || "N/A",
-      email: agent.email || agent.user?.email || "N/A",
-      status: agent.status,
-      availableBalance: agent.availableBalance || 0,
-      createdAt: agent.createdAt,
+    // تنسيق الداتا
+    const formattedAgents = users.map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      status: u.status,
+      // كنجيبو الصولد من agentProfile حيت تما فين مخزون فـ السكيما ديالك
+      availableBalance: u.agentProfile?.availableBalance || 0,
+      country: u.agentProfile?.country || "MA"
     }));
 
-    // ⚠️ رد البال: الـ Frontend غالباً كيتسنى { agents: [] } ماشي المصفوفة نيشان
+    // 🟢 المسمار: صلحنا السّمية من formattedRequests لـ formattedAgents
     return NextResponse.json({ agents: formattedAgents });
-    
+
   } catch (error: any) {
-    console.error("🔥 Error fetching agents:", error.message);
-    return NextResponse.json(
-      { error: "تعذر جلب قائمة الوكلاء", details: error.message },
-      { status: 500 }
-    );
+    console.error("Fetch agents error:", error);
+    return NextResponse.json({ error: "Failed to fetch agents" }, { status: 500 });
   }
 }
