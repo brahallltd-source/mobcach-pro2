@@ -1,64 +1,136 @@
-import { dataPath, nowIso, readJsonArray, writeJsonArray, uid } from "@/lib/json";
+import { Prisma } from "@prisma/client";
+import { getPrisma } from "@/lib/db";
 
-type Wallet = { agentId: string; balance: number; updated_at: string; };
-type WalletLedgerEntry = { id: string; agentId: string; type: "credit" | "debit"; amount: number; reason: string; meta?: Record<string, unknown>; created_at: string; };
-
-const walletsPath = dataPath("agent_wallets.json");
-const ledgerPath = dataPath("wallet_ledger.json");
-
-function assertAmount(amount: number) {
-  if (Number.isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
+// دالة مساعدة للـ Meta
+function toJsonMeta(meta?: unknown): any {
+  if (meta === undefined || meta === null) return Prisma.JsonNull;
+  return meta;
 }
 
-export function getWallet(agentId: string): Wallet | null {
-  return readJsonArray<Wallet>(walletsPath).find((wallet) => wallet.agentId === String(agentId)) || null;
-}
+// 1. الحصول على المحفظة (الأساس)
+export async function dbGetWallet(agentId: string) {
+  const prisma = getPrisma();
+  if (!prisma) return null;
 
-export function createWalletIfMissing(agentId: string): Wallet {
-  const existing = getWallet(agentId);
-  if (existing) return existing;
-  const wallets = readJsonArray<Wallet>(walletsPath);
-  const wallet: Wallet = { agentId: String(agentId), balance: 0, updated_at: nowIso() };
-  wallets.push(wallet);
-  writeJsonArray(walletsPath, wallets);
+  let wallet = await prisma.wallet.findUnique({
+    where: { agentId: String(agentId) },
+  });
+
+  if (!wallet) {
+    wallet = await prisma.wallet.create({
+      data: {
+        agentId: String(agentId),
+        balance: 0,
+        agent: { connect: { id: String(agentId) } },
+        user: { connect: { id: String(agentId) } },
+      } as any,
+    });
+  }
   return wallet;
 }
 
-function appendLedgerEntry(agentId: string, type: "credit" | "debit", amount: number, reason: string, meta?: Record<string, unknown>) {
-  const ledger = readJsonArray<WalletLedgerEntry>(ledgerPath);
-  const entry: WalletLedgerEntry = { id: uid("ledger"), agentId: String(agentId), type, amount, reason, meta: meta || {}, created_at: nowIso() };
-  ledger.unshift(entry);
-  writeJsonArray(ledgerPath, ledger);
-  return entry;
+// 🟢 هادي باش تحل الموشكيل ديال 'createWalletIfMissing'
+export const createWalletIfMissing = dbGetWallet;
+
+// 2. الحصول على الرصيد
+export async function dbGetWalletBalance(agentId: string) {
+  const wallet = await dbGetWallet(agentId);
+  return Number(wallet?.balance || 0);
 }
 
-export function getWalletBalance(agentId: string) {
-  return Number(createWalletIfMissing(agentId).balance || 0);
+// 🟢 هادي باش تحل الموشكيل ديال 'getWalletBalance'
+export const getWalletBalance = dbGetWalletBalance;
+
+// 3. إضافة رصيد (Credit)
+export async function dbCreditWallet(
+  agentId: string,
+  amount: number,
+  reason: string,
+  meta?: Record<string, unknown>
+) {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database not enabled");
+  if (Number.isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
+
+  return prisma.$transaction(async (tx) => {
+    const wallet = await dbGetWallet(agentId);
+    if (!wallet) throw new Error("Wallet not found");
+
+    const previousBalance = Number(wallet.balance || 0);
+
+    const updated = await tx.wallet.update({
+      where: { agentId: String(agentId) },
+      data: { balance: previousBalance + amount },
+    });
+
+    const ledgerEntry = await tx.walletLedger.create({
+      data: {
+        agentId: String(agentId),
+        walletId: wallet.id,
+        type: "credit",
+        amount,
+        reason,
+        meta: toJsonMeta(meta),
+      },
+    });
+
+    return {
+      previousBalance,
+      newBalance: Number(updated.balance || 0),
+      wallet: updated,
+      ledgerEntry,
+    };
+  });
 }
 
-export function creditWallet(agentId: string, amount: number, reason: string, meta?: Record<string, unknown>) {
-  assertAmount(amount);
-  createWalletIfMissing(agentId);
-  const wallets = readJsonArray<Wallet>(walletsPath);
-  const walletIndex = wallets.findIndex((wallet) => wallet.agentId === String(agentId));
-  if (walletIndex === -1) throw new Error("Wallet not found");
-  const previousBalance = Number(wallets[walletIndex].balance || 0);
-  wallets[walletIndex] = { ...wallets[walletIndex], balance: previousBalance + amount, updated_at: nowIso() };
-  writeJsonArray(walletsPath, wallets);
-  const ledgerEntry = appendLedgerEntry(agentId, "credit", amount, reason, meta);
-  return { previousBalance, newBalance: wallets[walletIndex].balance, wallet: wallets[walletIndex], ledgerEntry };
+// 🟢 هادي باش تحل الموشكيل ديال 'creditWallet'
+export const creditWallet = dbCreditWallet;
+
+// 4. سحب رصيد (Debit)
+export async function dbDebitWallet(
+  agentId: string,
+  amount: number,
+  reason: string,
+  meta?: Record<string, unknown>
+) {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database not enabled");
+  if (Number.isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
+
+  return prisma.$transaction(async (tx) => {
+    const wallet = await dbGetWallet(agentId);
+    if (!wallet) throw new Error("Wallet not found");
+
+    const previousBalance = Number(wallet.balance || 0);
+
+    if (amount > previousBalance) {
+      throw new Error("Insufficient wallet balance");
+    }
+
+    const updated = await tx.wallet.update({
+      where: { agentId: String(agentId) },
+      data: { balance: previousBalance - amount },
+    });
+
+    const ledgerEntry = await tx.walletLedger.create({
+      data: {
+        agentId: String(agentId),
+        walletId: wallet.id,
+        type: "debit",
+        amount,
+        reason,
+        meta: toJsonMeta(meta),
+      },
+    });
+
+    return {
+      previousBalance,
+      newBalance: Number(updated.balance || 0),
+      wallet: updated,
+      ledgerEntry,
+    };
+  });
 }
 
-export function debitWallet(agentId: string, amount: number, reason: string, meta?: Record<string, unknown>) {
-  assertAmount(amount);
-  createWalletIfMissing(agentId);
-  const wallets = readJsonArray<Wallet>(walletsPath);
-  const walletIndex = wallets.findIndex((wallet) => wallet.agentId === String(agentId));
-  if (walletIndex === -1) throw new Error("Wallet not found");
-  const previousBalance = Number(wallets[walletIndex].balance || 0);
-  if (amount > previousBalance) throw new Error("Insufficient wallet balance");
-  wallets[walletIndex] = { ...wallets[walletIndex], balance: previousBalance - amount, updated_at: nowIso() };
-  writeJsonArray(walletsPath, wallets);
-  const ledgerEntry = appendLedgerEntry(agentId, "debit", amount, reason, meta);
-  return { previousBalance, newBalance: wallets[walletIndex].balance, wallet: wallets[walletIndex], ledgerEntry };
-}
+// 🟢 هادي باش تحل الموشكيل ديال 'debitWallet'
+export const debitWallet = dbDebitWallet;

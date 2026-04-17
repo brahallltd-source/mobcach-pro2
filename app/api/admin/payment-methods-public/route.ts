@@ -7,37 +7,39 @@ import { getPrisma } from "@/lib/db";
 export async function GET() {
   try {
     const prisma = getPrisma();
+    if (!prisma) return NextResponse.json({ methods: [] }, { status: 500 });
 
-    // 🟢 المسمار 1: تعريف المتغير 'methods' (باش ما يبقاش يعطيك Cannot find name)
+    // 🟢 المسمار: كنجيبو كاع طرق الدفع اللي "Active" بلا أي تعقيد
     const dbMethods = await prisma.paymentMethod.findMany({
       where: {
-        active: true, // كنجيبو غير اللي خدامين
+        active: true,
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    // تنسيق البيانات لتتوافق مع الواجهة
-    // ... داخل الـ map
-const methods = dbMethods.map((item: any) => ({ // 🟢 زدنا 'any' هنا باش TypeScript يغمض عينيه
-  id: item.id,
-  type: item.type,
-  method_name: item.methodName,
-  currency: item.currency,
-  account_name: item.accountName || "",
-  rib: item.rib || "",
-  wallet_address: item.walletAddress || "",
-  network: item.network || "",
-  phone: item.phone || "",
-}));
+    // تنسيق البيانات لتتوافق 100% مع واجهة الـ Recharge عند الوكيل
+    const methods = dbMethods.map((item: any) => ({
+      id: item.id,
+      type: item.type,
+      method_name: item.methodName,
+      // 🟢 الحقول الضرورية اللي كانت ناقصة وبسبابها مابغاو يبانو للوكيل:
+      provider: item.provider || item.methodName, // اسم البنك (CIH, USDT...)
+      instructions: item.instructions || "",       // طريقة الدفع
+      currency: item.currency || "MAD",
+      account_name: item.accountName || "",
+      account_number: item.accountNumber || "",
+      rib: item.rib || "",
+      wallet_address: item.walletAddress || "",
+      network: item.network || "",
+      phone: item.phone || "",
+    }));
 
-    // 🟢 المسمار 2: الـ return خاصو يكون هنا (باش ما يوقعش Unreachable code)
     return NextResponse.json({ methods });
 
   } catch (error) {
     console.error("PUBLIC METHODS ERROR:", error);
-    // هاد السطر غايخدم غير إلا وقع Error حقيقي
     return NextResponse.json({ methods: [] }, { status: 500 });
   }
 }

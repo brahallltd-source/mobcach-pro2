@@ -9,21 +9,12 @@ export async function GET() {
   }
 
   try {
-    const users = await prisma.user.findMany({
+    // 🟢 المسمار: استعملنا include عوض select ودرنا (as any) باش TypeScript يسكت
+    const users = await (prisma.user as any).findMany({
       where: { role: "AGENT" },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        status: true,
-        // 🟢 المسمار: بما أن wallet ما كايناش فـ User، غادي نعتمدو على 
-        // availableBalance اللي كاينة وسط agentProfile كيفما كان عندك قبل
-        agentProfile: {
-          select: {
-            country: true,
-            availableBalance: true,
-          },
-        },
+      include: {
+        wallet: true,      // كنجيبو المحفظة
+        agentProfile: true // كنجيبو البروفايل
       },
       orderBy: { createdAt: "desc" },
     });
@@ -34,12 +25,11 @@ export async function GET() {
       username: u.username,
       email: u.email,
       status: u.status,
-      // كنجيبو الصولد من agentProfile حيت تما فين مخزون فـ السكيما ديالك
-      availableBalance: u.agentProfile?.availableBalance || 0,
+      // 🟢 هنا فين كتحل العقدة: كنشوفو الصولد فـ Wallet هو الأول، إلا مالقيناهش كنشوفو AgentProfile
+      availableBalance: u.wallet?.balance ?? u.agentProfile?.availableBalance ?? 0,
       country: u.agentProfile?.country || "MA"
     }));
 
-    // 🟢 المسمار: صلحنا السّمية من formattedRequests لـ formattedAgents
     return NextResponse.json({ agents: formattedAgents });
 
   } catch (error: any) {
