@@ -12,11 +12,12 @@ export async function GET() {
       where: { active: true, ownerRole: "ADMIN" }
     });
 
-    // 🟢 تحويل البيانات للـ UI بلا ما يحبس لينا TypeScript الـ Build
+    // 🟢 هنا فين زدنا المسمار باش يبان الاسم وعنوان الكريبتو
     const formatted = methods.map((m: any) => ({
       ...m,
-      method_name: m.methodName, // تحويل methodName لـ method_name
-      id: m.id
+      method_name: m.methodName,
+      account_name: m.accountName,       // 🟢 باش يبان السمية ديال صاحب الـ RIB
+      wallet_address: m.walletAddress,   // 🟢 باش يبان عنوان الكريبتو
     }));
 
     return NextResponse.json({ methods: formatted });
