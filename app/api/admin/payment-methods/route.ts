@@ -9,7 +9,6 @@ export async function GET() {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ methods: [] });
 
-    // كنجيبو كاع الطرق اللي active وتابعة للآدمين (كيف شفنا ف Prisma Studio)
     const methods = await prisma.paymentMethod.findMany({
       where: {
         active: true,
@@ -17,16 +16,15 @@ export async function GET() {
       }
     });
 
-    // 🟢 السر هنا: استعملنا (m: any) باش TypeScript يخلّينا نزيدو method_name بلا صداع
+    // 🟢 استعملنا (m: any) باش TypeScript ما يحبسش الـ Build نهائياً
     const formatted = methods.map((m: any) => ({
       ...m,
-      method_name: m.methodName, // هادي هي اللي كتقلب عليها صفحة Recharge
+      method_name: m.methodName, 
       id: m.id
     }));
 
     return NextResponse.json({ methods: formatted });
   } catch (error) {
-    console.error("PAYMENT METHODS GET ERROR:", error);
     return NextResponse.json({ methods: [] });
   }
 }
