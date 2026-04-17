@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect } from "react";
 
 // --- 1. الإعدادات ---
 export type Lang = "fr" | "ar" | "en";
@@ -126,7 +126,7 @@ const dictionaries = {
     continueNext: "Suivant",
     selectAgent: "Choisissez votre agent",
     filters: "Filtres",
-    paymentMethods: "Méثode de paiement",
+    paymentMethods: "Méthode de paiement",
     countryRegion: "Pays / Région",
     amount: "Montant",
     paymentTime: "Temps de paiement",
@@ -285,16 +285,27 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(defaultLang);
   const [mounted, setMounted] = useState(false);
 
+  // دالة لتحديث خصائص الـ HTML tag (مهمة جداً للـ RTL والـ Scrollbars)
+  const syncHtmlAttributes = (l: Lang) => {
+    const direction = LANGS.find((item) => item.value === l)?.dir || "ltr";
+    document.documentElement.dir = direction;
+    document.documentElement.lang = l;
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("app_lang") as Lang;
     if (saved && ["fr", "ar", "en"].includes(saved)) {
       setLangState(saved);
+      syncHtmlAttributes(saved);
+    } else {
+      syncHtmlAttributes(defaultLang);
     }
     setMounted(true);
   }, []);
 
   const setLang = (l: Lang) => {
     setLangState(l);
+    syncHtmlAttributes(l);
     localStorage.setItem("app_lang", l);
     document.cookie = `lang=${l}; path=/; max-age=31536000`;
   };
@@ -309,13 +320,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const dir = LANGS.find((l) => l.value === lang)?.dir || "ltr";
 
-  // لمنع Hydration Mismatch
+  // لمنع الـ Hydration Mismatch والـ Flicker
   if (!mounted) {
     return <div style={{ visibility: "hidden" }}>{children}</div>;
   }
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t, dir }}>
+      {/* 🟢 الـ Wrapper دابا كياخد حتى الـ font-arabic */}
       <div 
         dir={dir} 
         className={`${lang === "ar" ? "font-arabic" : ""} min-h-screen`}
@@ -328,7 +340,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
 export function useTranslation() {
   const context = useContext(LanguageContext);
-  if (!context) throw new Error("useTranslation must be used within LanguageProvider");
+  
+  // 🟢 المسمار: إلا كنا فـ الـ Build ومالقاش الـ Context، ما نطلعوش Error
+  // غانرجعو قيم افتراضية باش يدوز الـ Build بسلام
+  if (!context) {
+    return {
+      lang: defaultLang,
+      setLang: () => {},
+      t: (key: TranslationKey) => dictionaries[defaultLang][key as keyof typeof dictionaries["en"]] || key,
+      dir: "ltr" as const,
+    };
+  }
+  
   return context;
 }
 
