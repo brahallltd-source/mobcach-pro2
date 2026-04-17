@@ -43,77 +43,39 @@ export async function POST(req: Request) {
 
   try {
     const prisma = getPrisma();
-    const body = await req.json();
-    const { requestId, action, adminEmail } = body;
-
-    if (!requestId || !action) return NextResponse.json({ message: "Missing data" }, { status: 400 });
-
+    const { requestId, action, adminEmail } = await req.json();
     const requestRow = await prisma.rechargeRequest.findUnique({ where: { id: requestId } });
-    if (!requestRow || requestRow.status !== "pending") {
-      return NextResponse.json({ message: "الطلب غير موجود أو تمت معالجته" }, { status: 404 });
-    }
 
-    let updatedRequest;
-
-    if (action === "approve") {
+    if (action === "approve" && requestRow) {
       const baseAmount = Number(requestRow.amount);
-      const bonus10Percent = Math.floor(baseAmount * 0.1);
+      const bonus10 = Math.floor(baseAmount * 0.1);
 
-      updatedRequest = await prisma.$transaction(async (tx) => {
-        // 1. تطبيق البونص المعلق من المهام/Levels (إلا كان كاين)
+      await prisma.$transaction(async (tx) => {
         const pendingApplied = await applyPendingBonusesToRecharge(requestRow.agentId, adminEmail);
-        const extraBonus = pendingApplied?.totalApplied || 0;
+        const totalToAdd = baseAmount + bonus10 + (pendingApplied?.totalApplied || 0);
 
-        const finalTotal = baseAmount + bonus10Percent + extraBonus;
-
-        // 2. تحديث المحفظة (Wallet)
-        const wallet = await tx.wallet.update({
+        await tx.wallet.update({
           where: { agentId: requestRow.agentId },
-          data: { balance: { increment: finalTotal } },
+          data: { balance: { increment: totalToAdd } }
         });
 
-        // 3. 🟢 تسجيل العملية في السجل (WalletLedger) - هادي هي اللي كانت ناقصاك!
         await tx.walletLedger.create({
           data: {
-            walletId: wallet.id,
+            walletId: (await tx.wallet.findUnique({ where: { agentId: requestRow.agentId } }))!.id,
             agentId: requestRow.agentId,
-            amount: finalTotal,
+            amount: totalToAdd,
             type: "recharge_approved",
-            reason: `شحن (Original: ${baseAmount} + 10% Bonus: ${bonus10Percent} + Extra: ${extraBonus})`,
-            meta: { requestId, adminEmail }
+            reason: `Approve: ${baseAmount} + Bonus`,
+            meta: { requestId }
           }
         });
 
-        // 4. تحديث حالة الطلب
-        return tx.rechargeRequest.update({
+        await tx.rechargeRequest.update({
           where: { id: requestId },
-          data: {
-            status: "approved",
-            bonusAmount: bonus10Percent,
-            pendingBonusApplied: extraBonus,
-            updatedAt: new Date(),
-          },
+          data: { status: "approved", updatedAt: new Date() }
         });
       });
-
-      await createNotification({
-        targetRole: "agent",
-        targetId: requestRow.agentId,
-        title: "تم شحن رصيدك بنجاح",
-        message: `تمت إضافة ${baseAmount + bonus10Percent} DH إلى رصيدك. مبروك!`,
-      });
-
-    } else if (action === "reject") {
-      updatedRequest = await prisma.rechargeRequest.update({
-        where: { id: requestId },
-        data: { status: "rejected", updatedAt: new Date() },
-      });
-      // إشعار بالرفض...
     }
-
-    return NextResponse.json({ success: true, request: updatedRequest });
-  } catch (error: any) {
-    console.error("PROCESS ERROR:", error);
-    return NextResponse.json({ message: error.message }, { status: 500 });
-  }
+    return NextResponse.json({ success: true });
+  } catch (error) { return NextResponse.json({ status: 500 }); }
 }
