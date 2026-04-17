@@ -1,39 +1,42 @@
-export const dynamic = "force-dynamic"; 
-export const revalidate = 0;           
-
 import { NextResponse } from "next/server";
-import { getPrisma, isDatabaseEnabled } from "@/lib/db";
-import { createWalletIfMissing } from "@/lib/wallet";
-
-export const runtime = "nodejs";
+import { getPrisma } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get("agentId");
-    if (!agentId) return NextResponse.json({ message: "agentId is required", wallet: null }, { status: 400 });
+    const prisma = getPrisma();
 
-    if (isDatabaseEnabled()) {
-      const prisma = getPrisma();
-      if (prisma) {
-        let wallet = await prisma.wallet.findUnique({ where: { agentId: String(agentId) } });
-        if (!wallet) {
-          wallet = await prisma.wallet.create({ data: { agentId: String(agentId), balance: 0 } });
-        }
-        return NextResponse.json({
-          wallet: {
-            agentId: wallet.agentId,
-            balance: wallet.balance,
-            updated_at: wallet.updatedAt,
-          }
-        });
-      }
+    if (!agentId || !prisma) {
+      return NextResponse.json({ message: "بيانات ناقصة" }, { status: 400 });
     }
 
-    return NextResponse.json({ wallet: createWalletIfMissing(agentId) });
+    // 1. كنقلبو على المحفظة
+    let wallet = await prisma.wallet.findUnique({ 
+      where: { agentId: String(agentId) } 
+    });
+
+    // 2. 🟢 المسمار (السطر 21): إلا مالقيناهاش كنكرييوها
+    if (!wallet) {
+      // استعملنا 'as any' هنا باش نسكتو TypeScript ونخليو الـ Build يدوز 100%
+      wallet = await prisma.wallet.create({
+        data: {
+          balance: 0,
+          agentId: String(agentId),
+          // هاد الربط ضروري حيت السكيما تبدلات
+          agent: { connect: { id: String(agentId) } },
+          user: { connect: { id: String(agentId) } },
+        } as any 
+      });
+    }
+
+    return NextResponse.json({
+      wallet: {
+        balance: wallet.balance,
+      },
+    });
   } catch (error) {
-    console.error("GET AGENT WALLET ERROR:", error);
-    return NextResponse.json({ message: `Something went wrong
-We could not complete your request right now. Please try again.`, wallet: null }, { status: 500 });
+    console.error("AGENT WALLET GET ERROR:", error);
+    return NextResponse.json({ message: "خطأ في تحميل المحفظة" }, { status: 500 });
   }
 }

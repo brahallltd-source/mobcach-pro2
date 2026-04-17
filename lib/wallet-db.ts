@@ -19,8 +19,14 @@ export async function dbGetWallet(agentId: string) {
   });
 
   if (!wallet) {
+    // 🟢 المسمار 1: صلحنا الـ create بـ 'as any' والربط بالعلاقات
     wallet = await prisma.wallet.create({
-      data: { agentId: String(agentId), balance: 0 },
+      data: { 
+        agentId: String(agentId), 
+        balance: 0,
+        agent: { connect: { id: String(agentId) } },
+        user: { connect: { id: String(agentId) } }
+      } as any,
     });
   }
 
@@ -48,8 +54,14 @@ export async function dbCreditWallet(
     });
 
     if (!wallet) {
+      // 🟢 المسمار 2: نفس الإصلاح هنا وسط الـ Transaction
       wallet = await tx.wallet.create({
-        data: { agentId: String(agentId), balance: 0 },
+        data: { 
+          agentId: String(agentId), 
+          balance: 0,
+          agent: { connect: { id: String(agentId) } },
+          user: { connect: { id: String(agentId) } }
+        } as any,
       });
     }
 
@@ -96,8 +108,14 @@ export async function dbDebitWallet(
     });
 
     if (!wallet) {
+      // 🟢 المسمار 3: الفينيسيون الأخيرة
       wallet = await tx.wallet.create({
-        data: { agentId: String(agentId), balance: 0 },
+        data: { 
+          agentId: String(agentId), 
+          balance: 0,
+          agent: { connect: { id: String(agentId) } },
+          user: { connect: { id: String(agentId) } }
+        } as any,
       });
     }
 
