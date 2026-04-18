@@ -1,26 +1,30 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ methods: [] });
 
+    // 🟢 جلب طرق الدفع الخاصة بالآدمن (SYSTEM) لتظهر للوكلاء
     const methods = await prisma.paymentMethod.findMany({
-      where: { active: true, ownerRole: "ADMIN" }
+      where: {
+        active: true,
+        ownerRole: "ADMIN"
+      },
+      orderBy: { createdAt: "desc" }
     });
 
-    // 🟢 هنا فين زدنا المسمار باش يبان الاسم وعنوان الكريبتو
-    const formatted = methods.map((m: any) => ({
-      ...m,
-      method_name: m.methodName,
-      account_name: m.accountName,       // 🟢 باش يبان السمية ديال صاحب الـ RIB
-      wallet_address: m.walletAddress,   // 🟢 باش يبان عنوان الكريبتو
-    }));
-
-    return NextResponse.json({ methods: formatted });
+    return NextResponse.json({ 
+      methods: methods.map(m => ({
+        id: m.id,
+        method_name: m.methodName,
+        account_name: m.accountName,
+        rib: m.rib,
+        wallet_address: m.walletAddress,
+        type: m.type
+      }))
+    });
   } catch (error) {
     return NextResponse.json({ methods: [] });
   }
