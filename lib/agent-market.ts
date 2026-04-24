@@ -11,13 +11,15 @@ export type DiscoveryFilters = {
 export function getDiscoverableAgents(filters: DiscoveryFilters = {}) {
   const agents = readJsonArray<any>(dataPath("agents.json"));
   const profiles = readJsonArray<any>(dataPath("agent_profiles.json"));
-  const methods = readJsonArray<any>(dataPath("agent_payment_methods.json"));
+  const methods: { agentId?: string; enabled?: boolean; method_name?: string }[] = [];
 
   const rows = agents
     .filter((agent) => agent.status === "account_created")
     .map((agent) => {
       const profile = profiles.find((item) => String(item.agentId) === String(agent.id)) || {};
-      const availableMethods = methods.filter((item) => String(item.agentId) === String(agent.id) && item.enabled);
+      const availableMethods = methods.filter(
+        (item) => String(item.agentId) === String(agent.id) && Boolean(item.enabled)
+      );
       return {
         agentId: String(agent.id),
         display_name: profile.display_name || agent.full_name || `${agent.first_name || ""} ${agent.last_name || ""}`.trim(),

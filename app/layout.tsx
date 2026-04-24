@@ -1,30 +1,50 @@
 import "./globals.css";
+import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
-// 🟢 بدلنا الـ Import باش يقرأ من الملف المصلح
-import { LanguageProvider } from "@/lib/i18n"; 
+import { LanguageProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/toast";
+import { Toaster } from "sonner";
+import { BrandingStyleVars } from "@/components/BrandingStyleVars";
+import { getRootBranding } from "@/lib/root-branding";
 
-export const metadata: Metadata = {
-  title: "GS365Cash",
-  description: "Modern recharge workflow for players, agents and admins",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const b = await getRootBranding();
+  return {
+    title: b.platformName,
+    description: "Modern recharge workflow for players, agents and admins",
+    ...(b.faviconUrl
+      ? {
+          icons: {
+            icon: [{ url: b.faviconUrl }],
+          },
+        }
+      : {}),
+  };
+}
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const b = await getRootBranding();
+  const htmlStyle = {
+    ["--primary"]: b.primaryColor,
+  } as CSSProperties;
+
   return (
-    // 💡 ملاحظة: الـ html lang هنا كيبقى static للـ Server
-    // ولكن الـ LanguageProvider غايتكلف بالـ dir والترجمة لداخل
-    <html lang="fr" suppressHydrationWarning>
-      <body>
-        <LanguageProvider>
-          <ToastProvider>
-            {/* 💡 الـ LanguageProvider اللي صاوبنا فيه ديجا <div dir={dir}> */}
-            {children}
-          </ToastProvider>
-        </LanguageProvider>
+    <html lang="fr" suppressHydrationWarning className="min-h-screen bg-[#0B0F19]" style={htmlStyle}>
+      <body className="relative min-h-screen overflow-x-hidden bg-[#0B0F19] text-white">
+        <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
+          <div className="absolute -left-[20%] top-[-15%] h-[min(70vh,640px)] w-[min(95vw,920px)] rounded-full bg-primary/10 blur-[120px]" />
+          <div className="absolute -right-[15%] bottom-[-20%] h-[min(65vh,560px)] w-[min(90vw,800px)] rounded-full bg-primary/10 blur-[120px]" />
+          <div className="absolute left-1/2 top-[35%] h-[45vh] w-[min(85vw,720px)] max-w-4xl -translate-x-1/2 rounded-full bg-primary/5 blur-[120px]" />
+        </div>
+        <BrandingStyleVars primaryColor={b.primaryColor} />
+        <div className="relative z-0">
+          <LanguageProvider>
+            <ToastProvider>
+              <Toaster richColors position="top-center" closeButton />
+              {children}
+            </ToastProvider>
+          </LanguageProvider>
+        </div>
       </body>
     </html>
   );

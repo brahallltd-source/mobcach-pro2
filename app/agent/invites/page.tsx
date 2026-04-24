@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { GlassCard, PageHeader, PrimaryButton, SidebarShell, StatCard } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 type Invite = { id: string; agentId: string; playerEmail: string; total_recharge_amount: number; bonus_awarded: boolean; created_at: string };
 
@@ -10,7 +11,7 @@ export default function AgentInvitesPage() {
   const [items, setItems] = useState<Invite[]>([]);
   const [saving, setSaving] = useState(false);
   const load = async (id: string) => { const res = await fetch(`/api/agent/invites?agentId=${encodeURIComponent(id)}`, { cache: "no-store" }); const data = await res.json(); setItems(data.invites || []); };
-  useEffect(() => { const saved = localStorage.getItem("mobcash_user"); if (!saved) return void (window.location.href = "/login"); const user = JSON.parse(saved); setAgentId(user.agentId || ""); if (user.agentId) load(user.agentId); }, []);
+  useEffect(() => { void (async () => { const u = await requireMobcashUserOnClient("agent"); if (!u) return void redirectToLogin(); const aid = String((u as { agentId?: string }).agentId || u.id || ""); setAgentId(aid); if (aid) load(aid); })(); }, []);
   const total = items.reduce((sum, item) => sum + Number(item.total_recharge_amount || 0), 0);
   const eligible = total >= 3000 && !items.some((item) => item.bonus_awarded);
   const claim = async () => { setSaving(true); const res = await fetch("/api/agent/award-invite-bonus", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId }) }); const data = await res.json(); if (!res.ok) { alert(data.message || "Could not claim bonus"); setSaving(false); return; } alert(data.message || "Bonus awarded"); await load(agentId); setSaving(false); };

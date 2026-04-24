@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { requirePermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,11 @@ export const dynamic = "force-dynamic";
 // 🟢 جلب كاع النزاعات
 export async function GET() {
   try {
+    const access = await requirePermission("VIEW_FINANCIALS");
+    if (!access.ok) {
+      return respondIfAdminAccessDenied(access, { disputes: [] });
+    }
+
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ disputes: [] }, { status: 500 });
 
@@ -28,6 +34,11 @@ export async function GET() {
 // 🔵 معالجة النزاع (حل أو رفض)
 export async function POST(req: Request) {
   try {
+    const access = await requirePermission("VIEW_FINANCIALS");
+    if (!access.ok) {
+    return respondIfAdminAccessDenied(access);
+  }
+
     const prisma = getPrisma();
     const { disputeId, status, admin_note } = await req.json();
 

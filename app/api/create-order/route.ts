@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import {
+  parseAgentPaymentMethodsJson,
+  toPublicPaymentMethodPayload,
+} from "@/lib/agent-payment-settings";
 import crypto from "node:crypto";
 
 export const runtime = "nodejs";
@@ -33,7 +37,7 @@ export async function POST(req: Request) {
 
     const amount = Number(body.amount || 0);
 
-    const gosportUsername = String(
+    let gosportUsername = String(
       body.gosportUsername ||
         body.gosport365Username ||
         body.gosport365_username ||
@@ -67,9 +71,9 @@ export async function POST(req: Request) {
       ? body.suspicious_flags.map((x: unknown) => String(x))
       : [];
 
-    if (!playerEmail || !agentId || !amount || amount <= 0 || !gosportUsername) {
+    if (!playerEmail || !agentId || !amount || amount <= 0) {
       return NextResponse.json(
-        { message: "playerEmail, agentId, amount and gosportUsername are required" },
+        { message: "playerEmail, agentId and a positive amount are required" },
         { status: 400 }
       );
     }
@@ -101,10 +105,28 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!gosportUsername) {
+      gosportUsername = String(player.gosportUsername ?? "").trim();
+    }
+
+    if (!gosportUsername) {
+      return NextResponse.json(
+        {
+          message:
+            "لم يُسجّل اسم مستخدم GoSport365 على حسابك بعد. يُفعّله الوكيل بعد التفعيل، أو تواصل معه.",
+        },
+        { status: 400 }
+      );
+    }
+
     const agent = await prisma.agent.findFirst({
       where: {
         id: agentId,
-        status: "account_created",
+        status: { in: ["ACTIVE", "active", "account_created", "pending"] },
+      },
+      include: {
+        wallet: true,
+        user: { select: { paymentMethods: true } },
       },
     });
 
@@ -113,6 +135,40 @@ export async function POST(req: Request) {
         { message: "Agent not found" },
         { status: 404 }
       );
+    }
+
+    const agentSpendable =
+      agent.wallet != null
+        ? Number(agent.wallet.balance)
+        : Number(agent.availableBalance ?? 0);
+
+    if (!Number.isFinite(amount) || amount > agentSpendable) {
+      return NextResponse.json(
+        {
+          error: "Agent has insufficient balance to process this request.",
+          message:
+            "عذراً، رصيد الوكيل الحالي لا يغطي هذا المبلغ. اختر مبلغاً أقل أو تواصل مع الوكيل.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (paymentMethodName) {
+      const rows = parseAgentPaymentMethodsJson(agent.user?.paymentMethods);
+      const hit = rows
+        .filter((r) => r.isActive)
+        .find((r) => toPublicPaymentMethodPayload(r).methodTitle === paymentMethodName);
+      if (hit) {
+        const pub = toPublicPaymentMethodPayload(hit);
+        if (amount < pub.minAmount || amount > pub.maxAmount) {
+          return NextResponse.json(
+            {
+              message: `المبلغ خارج حدود وسيلة الدفع (${pub.minAmount}–${pub.maxAmount} DH).`,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     const proofHash = proofUrl ? sha256(proofUrl) : null;

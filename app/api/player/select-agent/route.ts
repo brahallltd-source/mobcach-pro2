@@ -59,7 +59,9 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: {
           assignedAgentId: cleanAgentId,
-          playerStatus: "active", 
+          playerStatus: "active",
+          status: "ACTIVE",
+          rejectionReason: null,
         },
       });
 
@@ -72,6 +74,21 @@ export async function POST(req: Request) {
           referredBy: player.referredBy || cleanAgentId,
         },
       });
+
+      const existingLink = await tx.agentCustomer.findUnique({
+        where: {
+          agentId_playerId: { agentId: cleanAgentId, playerId: player.id },
+        },
+      });
+      if (!existingLink) {
+        await tx.agentCustomer.create({
+          data: {
+            agentId: cleanAgentId,
+            playerId: player.id,
+            status: "CONNECTED",
+          },
+        });
+      }
 
       // 🟢 حل مشكلة الـ upsert: البحث أولاً ثم التحديث أو الإنشاء
       const existingActivation = await tx.activation.findFirst({
@@ -141,7 +158,8 @@ export async function POST(req: Request) {
         email: result.updatedUser.email,
         username: result.updatedUser.username,
         role: "player",
-        player_status: "active", 
+        status: result.updatedUser.status,
+        player_status: "active",
         assigned_agent_id: cleanAgentId,
         created_at: result.updatedUser.createdAt,
       },

@@ -6,24 +6,28 @@ export async function GET() {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ methods: [] });
 
-    // 🟢 جلب طرق الدفع الخاصة بالآدمن (SYSTEM) لتظهر للوكلاء
+    // Global treasury for agent recharge: active ADMIN-owned methods (case-insensitive `ownerRole`), not filtered by `agentId`.
     const methods = await prisma.paymentMethod.findMany({
       where: {
         active: true,
-        ownerRole: "ADMIN"
+        ownerRole: { equals: "ADMIN", mode: "insensitive" },
       },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ 
-      methods: methods.map(m => ({
+    return NextResponse.json({
+      methods: methods.map((m) => ({
         id: m.id,
         method_name: m.methodName,
         account_name: m.accountName,
         rib: m.rib,
         wallet_address: m.walletAddress,
-        type: m.type
-      }))
+        type: m.type,
+        currency: m.currency,
+        network: m.network,
+        phone: m.phone,
+        instructions: m.instructions,
+      })),
     });
   } catch (error) {
     return NextResponse.json({ methods: [] });

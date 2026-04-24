@@ -13,10 +13,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ players: [] }, { status: 400 });
     }
 
-    // جلب اللاعبين المربوطين بهذا الوكيل من الداتابيز (Prisma)
+    /** Same filter as dashboard `totalPlayers`: linked to this agent and active only. */
     const players = await prisma.player.findMany({
       where: {
-        assignedAgentId: agentId
+        assignedAgentId: agentId,
+        status: { in: ["active", "ACTIVE"] },
       },
       include: {
         user: {
@@ -36,17 +37,24 @@ export async function GET(req: Request) {
     });
 
     // تنسيق الداتا باش الـ Frontend يقرأها بسهولة
-    const formattedPlayers = players.map(p => ({
-      id: p.id,
-      userId: p.userId,
-      email: p.user.email,
-      username: p.username || p.user.username,
-      phone: p.phone,
-      status: p.status,
-      joinedAt: p.createdAt,
-      lastOrderAmount: p.orders[0]?.amount || 0,
-      totalOrders: p.orders.length
-    }));
+    const formattedPlayers = players.map((p) => {
+      const displayName =
+        [p.firstName, p.lastName].filter(Boolean).join(" ").trim() ||
+        p.username ||
+        p.user.username;
+      return {
+        id: p.id,
+        userId: p.userId,
+        email: p.user.email,
+        username: p.username || p.user.username,
+        displayName,
+        phone: p.phone,
+        status: p.status,
+        joinedAt: p.createdAt,
+        lastOrderAmount: p.orders[0]?.amount || 0,
+        totalOrders: p.orders.length,
+      };
+    });
 
     return NextResponse.json({ players: formattedPlayers });
   } catch (error) {

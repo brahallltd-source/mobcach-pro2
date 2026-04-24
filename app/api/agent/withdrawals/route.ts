@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     // أ. البحث عن الطلب والتأكد أنه مازال قيد الانتظار (pending)
     const withdrawal = await prisma.withdrawal.findUnique({
       where: { id: withdrawalId },
-      include: { player: { include: { user: true } } }
+      include: { player: { include: { user: { select: USER_SELECT_SAFE_RELATION } } } },
     });
 
     if (!withdrawal) {

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatApiError } from "@/lib/format-api-error";
 import { CASH_NETWORKS, CRYPTO_NETWORKS, MOROCCAN_BANKS } from "@/lib/payment-options";
 import { DangerButton, GlassCard, PageHeader, PrimaryButton, SelectField, SidebarShell, StatCard, TextField } from "@/components/ui";
 
@@ -22,7 +23,7 @@ export default function AdminBalancePage() {
 
   const load = async () => {
     const [methodsRes, requestsRes] = await Promise.all([
-      fetch("/api/admin/payment-methods", { cache: "no-store" }).then((res) => res.json()),
+      fetch("/api/admin/payment-methods", { cache: "no-store", credentials: "include" }).then((res) => res.json()),
       fetch("/api/admin/topup-requests", { cache: "no-store" }).then((res) => res.json())
     ]);
     setMethods(methodsRes.methods || []);
@@ -35,7 +36,7 @@ export default function AdminBalancePage() {
     bank: methods.filter((m) => m.type === "bank").length,
     cash: methods.filter((m) => m.type === "cash").length,
     crypto: methods.filter((m) => m.type === "crypto").length,
-    pending: requests.filter((r) => r.status === "pending").length,
+    pending: requests.filter((r) => String(r.status).toUpperCase() === "PENDING").length,
   }), [methods, requests]);
 
   const handleTopup = async () => {
@@ -47,9 +48,9 @@ export default function AdminBalancePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentId, amount: Number(amount), adminEmail: "admin@mobcash.com" })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.message || "Error");
+      alert(formatApiError(data));
       setLoading(false);
       return;
     }
@@ -60,19 +61,33 @@ export default function AdminBalancePage() {
 
   const addOrSaveMethod = async () => {
     setLoading(true);
+    const accountNumber =
+      methodForm.type === "crypto"
+        ? methodForm.wallet_address.trim()
+        : methodForm.type === "bank"
+          ? methodForm.rib.trim()
+          : methodForm.phone.trim();
+    const payload: Record<string, unknown> = {
+      name: methodForm.method_name.trim(),
+      type: methodForm.type,
+      accountName: methodForm.account_name.trim(),
+      accountNumber,
+      currency: methodForm.type === "crypto" ? methodForm.currency : "MAD",
+      network: methodForm.network.trim(),
+      phone: methodForm.phone.trim(),
+      fee_percent: Number(methodForm.fee_percent || 0),
+    };
+    if (!editingMethodId) payload.isActive = true;
+    if (editingMethodId) payload.id = editingMethodId;
     const res = await fetch("/api/admin/payment-methods", {
       method: editingMethodId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...methodForm,
-        methodId: editingMethodId,
-        currency: methodForm.type === "crypto" ? methodForm.currency : "MAD",
-        fee_percent: Number(methodForm.fee_percent || 0)
-      })
+      credentials: "include",
+      body: JSON.stringify(payload),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.message || "Error");
+      alert(formatApiError(data));
       setLoading(false);
       return;
     }
@@ -100,10 +115,13 @@ export default function AdminBalancePage() {
   const deleteMethod = async (methodId: string) => {
     if (!confirm("Delete this admin method?")) return;
     setLoading(true);
-    const res = await fetch(`/api/admin/payment-methods?methodId=${encodeURIComponent(methodId)}`, { method: "DELETE" });
-    const data = await res.json();
+    const res = await fetch(`/api/admin/payment-methods?methodId=${encodeURIComponent(methodId)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.message || "Delete failed");
+      alert(formatApiError(data));
       setLoading(false);
       return;
     }
@@ -118,9 +136,9 @@ export default function AdminBalancePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId, action, adminEmail: "admin@mobcash.com" })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.message || "Request update failed");
+      alert(formatApiError(data));
       setLoading(false);
       return;
     }
@@ -218,7 +236,7 @@ export default function AdminBalancePage() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/75">{request.status}</div>
-                    {request.status === "pending" ? (
+                    {String(request.status).toUpperCase() === "PENDING" ? (
                       <>
                         <PrimaryButton onClick={() => reviewRequest(request.id, "approve")} disabled={loading}>Approve</PrimaryButton>
                         <DangerButton onClick={() => reviewRequest(request.id, "reject")} disabled={loading}>Reject</DangerButton>

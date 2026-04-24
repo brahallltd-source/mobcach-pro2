@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DangerButton, GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatCard } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 type Withdrawal = { id: string; playerEmail: string; amount: number; method: string; status: string; created_at: string; cashProvider?: string; city?: string; fullName?: string; rib?: string; swift?: string };
 
@@ -18,12 +19,14 @@ export default function AgentWithdrawalsPage() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    if (user.role !== "agent") return void (window.location.href = "/login");
-    setAgentId(user.agentId || "");
-    if (user.agentId) load(user.agentId).finally(() => setLoading(false)); else setLoading(false);
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) return void redirectToLogin();
+      const aid = String((u as { agentId?: string }).agentId || "");
+      setAgentId(aid);
+      if (aid) await load(aid);
+      setLoading(false);
+    })();
   }, []);
 
   const review = async (withdrawalId: string, action: "approve" | "reject") => {

@@ -1,6 +1,9 @@
 "use client";
 
+import { clsx } from "clsx";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { RevenueAreaChart } from "@/components/charts";
 import {
   GlassCard,
@@ -8,26 +11,28 @@ import {
   PageHeader,
   PrimaryButton,
   SidebarShell,
-  StatCard,
 } from "@/components/ui";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/components/language";
-import { MousePointer2, UserCheck } from "lucide-react";
+import type { MobcashUser } from "@/lib/mobcash-user-types";
+import { fetchSessionUser, redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
+import { AlertTriangle, MousePointer2, UserCheck } from "lucide-react";
+import { AgentProfileCard, type AgentProfileCardAgent } from "@/components/AgentProfileCard";
 
 type CurrentUser = {
   id: string;
   email: string;
   role: string;
   username?: string;
+  /** `User.status` — PENDING_APPROVAL waits on agent; PENDING_AGENT completes linking on `/player/choose-agent`. */
+  status?: string;
   player_status?: "inactive" | "active";
   assigned_agent_id?: string;
-};
-
-type Notification = {
-  id: string;
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
+  /** `User.playerStatus` — e.g. `rejected` after agent declines link request. */
+  playerLinkStatus?: string | null;
+  rejectionReason?: string | null;
 };
 
 type AgentSummary = {
@@ -40,6 +45,7 @@ type AgentSummary = {
   response_minutes: number;
   updated_at?: string;
   country?: string;
+  paymentMethods?: AgentProfileCardAgent["paymentMethods"];
 };
 
 type Order = {
@@ -48,24 +54,38 @@ type Order = {
   status: string;
 };
 
-function formatAwayTime(value?: string) {
-  if (!value) return "—";
-  const ms = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return "—";
-  const mins = Math.max(1, Math.floor(ms / 60000));
-  if (mins < 60) return `${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} h`;
-  return `${Math.floor(hours / 24)} d`;
-}
+type MyAgentApiAgent = {
+  id: string;
+  name: string;
+  username: string;
+  email?: string;
+  isOnline: boolean;
+};
+
+type MyAgentApiPaymentMethod = {
+  id: string;
+  methodName: string;
+  methodTitle?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  type?: string;
+  currency?: string;
+};
+
+type MyAgentBundle = {
+  agent: MyAgentApiAgent | null;
+  paymentMethods: MyAgentApiPaymentMethod[];
+  chatHref: string;
+};
 
 export default function PlayerDashboardPage() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [assignedAgent, setAssignedAgent] = useState<AgentSummary | null>(null);
   const [availableAgents, setAvailableAgents] = useState<AgentSummary[]>([]);
   const [latestOrder, setLatestOrder] = useState<Order | null>(null);
+  const [myAgentBundle, setMyAgentBundle] = useState<MyAgentBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectingId, setSelectingId] = useState<string | null>(null);
 
@@ -81,27 +101,84 @@ export default function PlayerDashboardPage() {
   ], []);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("mobcash_user");
-    if (!savedUser) return void (window.location.href = "/login");
-    const parsedUser: CurrentUser = JSON.parse(savedUser);
-    if (parsedUser.role !== "player") return void (window.location.href = "/login");
-    setUser(parsedUser);
+    void (async () => {
+      const parsed = await requireMobcashUserOnClient("player");
+      if (!parsed) {
+        redirectToLogin();
+        return;
+      }
+      const fromServer = (await fetchSessionUser()) as MobcashUser | null;
+      const mu = (fromServer ?? parsed) as MobcashUser;
+      if (fromServer) {
+        localStorage.setItem("mobcash_user", JSON.stringify(fromServer));
+      }
+      const assignedId = mu.player?.assignedAgentId ?? undefined;
+      const parsedUser: CurrentUser = {
+        id: mu.id,
+        email: mu.email,
+        role: mu.role,
+        username: mu.player?.username ?? "",
+        status: mu.status,
+        player_status: mu.player?.status === "active" ? "active" : "inactive",
+        assigned_agent_id: assignedId,
+      };
+      setUser(parsedUser);
 
-    Promise.all([
-      fetch(`/api/notifications?targetRole=player&targetId=${encodeURIComponent(parsedUser.id)}`, { cache: "no-store" }).then((res) => res.json()),
-      fetch(`/api/agents/discovery`, { cache: "no-store" }).then((res) => res.json()),
-      fetch(`/api/player/orders?email=${encodeURIComponent(parsedUser.email)}`, { cache: "no-store" }).then((res) => res.json()),
-    ]).then(([notificationsData, agentsData, ordersData]) => {
-      const allAgents: AgentSummary[] = agentsData.agents || [];
-      setNotifications(notificationsData.notifications || []);
-      setAvailableAgents(allAgents);
-      const nextAgent = allAgents.find((item: AgentSummary) => item.agentId === (parsedUser.assigned_agent_id)) || null;
-      setAssignedAgent(nextAgent);
-      const playerOrders = ordersData.orders || [];
-      setLatestOrder(playerOrders.length > 0 ? playerOrders[0] : null);
-    }).catch(err => console.error("Error loading dashboard:", err))
-      .finally(() => setLoading(false));
-  }, []);
+      const acct = String(parsedUser.status ?? "").trim().toUpperCase();
+      if (acct === "PENDING_AGENT") {
+        router.replace("/player/choose-agent");
+        return;
+      }
+
+      if (acct === "PENDING_APPROVAL") {
+        try {
+          const agentsData = await (
+            await fetch("/api/agents/discovery", { cache: "no-store" })
+          ).json();
+          const allAgents: AgentSummary[] = agentsData.agents || [];
+          setAssignedAgent(
+            allAgents.find((item: AgentSummary) => item.agentId === assignedId) || null
+          );
+        } catch (e) {
+          console.error("Error loading agent for pending approval:", e);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      Promise.all([
+        fetch("/api/agents/discovery", { cache: "no-store" }).then((res) => res.json()),
+        fetch("/api/player/orders", {
+          cache: "no-store",
+          credentials: "include",
+        }).then((res) => res.json()),
+        fetch("/api/player/my-agent", { cache: "no-store", credentials: "include" }).then((res) => res.json()),
+      ])
+        .then(([agentsData, ordersData, myAgentJson]) => {
+          const allAgents: AgentSummary[] = agentsData.agents || [];
+          setAvailableAgents(allAgents);
+          const nextAgent =
+            allAgents.find((item: AgentSummary) => item.agentId === assignedId) || null;
+          setAssignedAgent(nextAgent);
+          const playerOrders = ordersData.orders || [];
+          setLatestOrder(playerOrders.length > 0 ? playerOrders[0] : null);
+          const raw = myAgentJson as Record<string, unknown>;
+          setMyAgentBundle({
+            agent: (raw.agent as MyAgentApiAgent | null | undefined) ?? null,
+            paymentMethods: Array.isArray(raw.paymentMethods)
+              ? (raw.paymentMethods as MyAgentApiPaymentMethod[])
+              : [],
+            chatHref: typeof raw.chatHref === "string" && raw.chatHref ? raw.chatHref : "/player/chat",
+          });
+        })
+        .catch((err) => {
+          console.error("Error loading dashboard:", err);
+          setMyAgentBundle({ agent: null, paymentMethods: [], chatHref: "/player/chat" });
+        })
+        .finally(() => setLoading(false));
+    })();
+  }, [router]);
 
   const handleDirectSelectAgent = async (agent: AgentSummary) => {
     if (!user?.email) return;
@@ -115,12 +192,17 @@ export default function PlayerDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed");
 
-      const updatedUser: CurrentUser = { ...user, assigned_agent_id: agent.agentId, player_status: "active" };
+      const updatedUser: CurrentUser = {
+        ...user,
+        assigned_agent_id: agent.agentId,
+        player_status: "active",
+        status: (data.user as { status?: string })?.status ?? "ACTIVE",
+      };
       localStorage.setItem("mobcash_user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       setAssignedAgent(agent);
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "تعذّر اختيار الوكيل");
     } finally {
       setSelectingId(null);
     }
@@ -140,80 +222,197 @@ export default function PlayerDashboardPage() {
     }
   };
 
+  const agentProfileData: AgentProfileCardAgent | null = useMemo(() => {
+    if (myAgentBundle?.agent) {
+      return {
+        id: myAgentBundle.agent.id,
+        name: myAgentBundle.agent.name,
+        username: myAgentBundle.agent.username,
+        isOnline: myAgentBundle.agent.isOnline,
+        paymentMethods: myAgentBundle.paymentMethods,
+        chatHref: myAgentBundle.chatHref,
+        rating: assignedAgent?.rating,
+      };
+    }
+    if (assignedAgent) {
+      const fromDiscovery = availableAgents.find((a) => a.agentId === assignedAgent.agentId);
+      return {
+        id: assignedAgent.agentId,
+        name: assignedAgent.display_name,
+        username: assignedAgent.username,
+        isOnline: assignedAgent.online,
+        paymentMethods: fromDiscovery?.paymentMethods ?? [],
+        chatHref: `/player/chat?agentId=${encodeURIComponent(assignedAgent.agentId)}`,
+        rating: assignedAgent.rating,
+      };
+    }
+    return null;
+  }, [myAgentBundle, assignedAgent, availableAgents]);
+
   if (loading || !user) return <SidebarShell role="player"><LoadingCard text="جاري تحميل بياناتك..." /></SidebarShell>;
 
+  const acctUpper = String(user.status ?? "").trim().toUpperCase();
+  const psLower = String(user.playerLinkStatus ?? "").trim().toLowerCase();
+  const rej = String(user.rejectionReason ?? "").trim();
+  const showAgentRejectionCard =
+    psLower === "rejected" || (acctUpper === "PENDING_AGENT" && Boolean(rej) && !user.assigned_agent_id);
+
+  if (showAgentRejectionCard) {
+    return (
+      <SidebarShell role="player">
+        <GlassCard className="mx-auto mt-10 max-w-xl border-amber-500/35 bg-amber-500/10 p-8 shadow-xl backdrop-blur-md md:p-10">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 ring-2 ring-amber-400/40">
+              <AlertTriangle className="h-9 w-9 text-amber-300" aria-hidden />
+            </div>
+            <h1 className="mt-6 text-2xl font-bold text-white md:text-3xl">تم رفض طلب ارتباطك</h1>
+            <p className="mt-4 text-base leading-relaxed text-white/80">
+              عذراً، لقد قام الوكيل برفض طلبك للسبب التالي:{" "}
+              <span className="font-semibold text-amber-100">{rej || "—"}</span>
+            </p>
+            <PrimaryButton
+              type="button"
+              className="mt-8 w-full max-w-sm"
+              onClick={() => router.push("/player/select-agent")}
+            >
+              اختيار وكيل جديد
+            </PrimaryButton>
+          </div>
+        </GlassCard>
+      </SidebarShell>
+    );
+  }
+
+  if (acctUpper === "PENDING_APPROVAL") {
+    const agentLabel = assignedAgent?.display_name || "الوكيل";
+    return (
+      <SidebarShell role="player">
+        <PageHeader title="حسابك قيد التفعيل" subtitle="بانتظار إعداد الوكيل لحسابك على GoSport365." />
+        <GlassCard className="mx-auto mt-8 max-w-xl border-primary/25 p-8 text-center md:p-10">
+          <p className="text-lg leading-relaxed text-white/85">
+            طلبك قيد المعالجة. الوكيل <span className="font-semibold text-cyan-200">{agentLabel}</span> يقوم حالياً
+            بإعداد حسابك على gosport365.
+          </p>
+          <p className="mt-4 text-sm text-white/50">ستصلك إشعاراً عند اكتمال التفعيل — يمكنك تحديث الصفحة لاحقاً.</p>
+        </GlassCard>
+      </SidebarShell>
+    );
+  }
+
   const isInactive = user.player_status !== "active";
+  const accountActive = String(user.status ?? "").trim().toUpperCase() === "ACTIVE";
 
   return (
     <SidebarShell role="player">
       <PageHeader
-        title={`مرحباً بك، ${user.username || "أيها اللاعب"} 👋`}
+        compact
+        hideBranding
+        title={
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <h1 className="text-2xl font-bold tracking-tight text-white md:text-4xl">
+              مرحباً بك، {user.username || "لاعب"} 👋
+            </h1>
+            {accountActive ? (
+              <Badge
+                variant="outline"
+                className="inline-flex items-center gap-1.5 border-emerald-400/35 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200"
+              >
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden />
+                نشط
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium">
+                <span className="h-2 w-2 rounded-full bg-white/35" aria-hidden />
+                حساب غير مفعل
+              </Badge>
+            )}
+          </div>
+        }
         subtitle="إليك ملخص نشاطك الأسبوعي وحالة حسابك مع الوكيل."
         action={<PrimaryButton onClick={changeAgent}>{t("changeAgent")}</PrimaryButton>}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="حالة الحساب" value={isInactive ? "غير نشط" : "نشط"} hint={isInactive ? "يرجى اختيار وكيل للتفعيل." : "جاهز لإرسال الطلبات."} />
-        <StatCard label="الوكيل الحالي" value={assignedAgent?.display_name || "لم يتم التحديد"} hint={assignedAgent ? `${assignedAgent.rating}% تقييم إيجابي` : "اربط حسابك بوكيل الآن"} />
-        <StatCard label="حالة الوكيل" value={assignedAgent?.online ? "متصل الآن" : "غير متصل"} hint={assignedAgent?.online ? "استجابة فورية" : "قد يتأخر الرد قليلاً"} />
-        <StatCard label="آخر شحنة" value={latestOrder ? `${latestOrder.amount} DH` : "0 DH"} hint={latestOrder ? `الحالة: ${latestOrder.status}` : "لم تقم بأي طلب بعد"} />
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-8 xl:col-span-9">
+          <AgentProfileCard
+            agent={agentProfileData}
+            actionType="deposit"
+            onAction={() => router.push("/player/achat")}
+          />
+        </div>
+        <div className="lg:col-span-4 xl:col-span-3">
+          <Card className="h-full">
+            <CardContent className="flex flex-col justify-center gap-4 py-8">
+              <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">آخر شحنة</p>
+              <p className="text-center text-4xl font-black tabular-nums tracking-tight text-white">
+                {latestOrder ? latestOrder.amount : 0}
+                <span className="ms-2 text-xl font-semibold text-white/50">DH</span>
+              </p>
+              <p className="text-center text-xs text-white/45">
+                {latestOrder ? `الحالة: ${latestOrder.status}` : "لم تقم بأي طلب بعد"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {isInactive && (
-        <GlassCard className="p-6 md:p-8 mt-6 border-cyan-500/20 shadow-xl shadow-cyan-500/5">
-          <div className="flex items-center gap-3">
-             <UserCheck className="text-cyan-400" size={28} />
-             <h2 className="text-2xl font-semibold">اختر وكيلك المفضل</h2>
+        <GlassCard className="mt-8 border-primary/25 p-6 md:p-8">
+          <div className="flex items-center gap-4">
+            <UserCheck className="text-cyan-400" size={28} />
+            <h2 className="text-2xl font-semibold text-white">اختر وكيلك المفضل</h2>
           </div>
           <p className="mt-2 text-sm text-white/60">اضغط مباشرة على بطاقة الوكيل لربط حسابك به والبدء في الشحن فوراً.</p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-8 grid gap-6 md:grid-cols-2 md:gap-8 xl:grid-cols-3">
             {availableAgents.map((agent) => (
-              <div
+              <Card
                 key={agent.agentId}
-                onClick={() => !selectingId && handleDirectSelectAgent(agent)}
-                className={`relative group cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-5 transition-all duration-300 hover:border-cyan-500/50 hover:bg-white/5 active:scale-[0.98] ${selectingId === agent.agentId ? "opacity-50" : ""}`}
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-semibold group-hover:text-cyan-400">{agent.display_name}</p>
-                  <MousePointer2 size={16} className="text-white/20 opacity-0 group-hover:opacity-100 transition-all" />
-                </div>
-                <div className="mt-4 flex items-center justify-between text-xs">
-                  <span className="text-white/40">{agent.rating}% تقييم</span>
-                  <span className={agent.online ? "text-emerald-400" : "text-white/20"}>{agent.online ? "● متصل" : "○ غير متصل"}</span>
-                </div>
-                {selectingId === agent.agentId && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent"></div>
-                  </div>
+                className={clsx(
+                  "group relative overflow-hidden border-primary/25 bg-white/[0.03] shadow-lg backdrop-blur-md transition hover:border-cyan-400/35",
+                  selectingId === agent.agentId && "pointer-events-none opacity-50"
                 )}
-              </div>
+              >
+                <CardContent className="p-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={!!selectingId}
+                    onClick={() => !selectingId && void handleDirectSelectAgent(agent)}
+                    className="h-auto min-h-[120px] w-full flex-col items-stretch justify-between gap-4 rounded-2xl p-5 text-start hover:bg-white/[0.06]"
+                  >
+                    <div className="flex w-full items-center justify-between gap-4">
+                      <p className="text-lg font-semibold text-white group-hover:text-cyan-300">{agent.display_name}</p>
+                      <MousePointer2 size={16} className="shrink-0 text-white/25 opacity-0 transition group-hover:opacity-100" />
+                    </div>
+                    <div className="flex w-full items-center justify-between text-xs">
+                      <span className="text-white/45">{agent.rating}% تقييم</span>
+                      <span className="flex items-center gap-1.5 font-medium text-white/70">
+                        <span
+                          className={clsx(
+                            "h-2 w-2 shrink-0 rounded-full",
+                            agent.online ? "animate-pulse bg-emerald-400" : "bg-white/25"
+                          )}
+                        />
+                        {agent.online ? "متصل" : "غير متصل"}
+                      </span>
+                    </div>
+                  </Button>
+                  {selectingId === agent.agentId ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 backdrop-blur-sm">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
             ))}
           </div>
         </GlassCard>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] mt-6">
-        <GlassCard className="p-6 md:p-8">
-          {/* 🟢 دابا chartData معرفة وموجودة الفوق */}
-          <RevenueAreaChart title="إحصائيات الشحن الأسبوعية" data={chartData} />
-        </GlassCard>
-
-        <GlassCard className="p-6 md:p-8">
-          <h2 className="text-2xl font-semibold">التنبيهات الأخيرة</h2>
-          <div className="mt-5 space-y-3">
-            {notifications.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="font-semibold text-sm text-cyan-200">{item.title}</p>
-                <p className="mt-1 text-xs text-white/60">{item.message}</p>
-              </div>
-            ))}
-            {!notifications.length && (
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-6 text-center text-white/55">لا توجد تنبيهات حالياً.</div>
-            )}
-          </div>
-        </GlassCard>
-      </div>
+      <GlassCard className="mt-8 p-6 md:p-8">
+        <RevenueAreaChart title="إحصائيات الشحن الأسبوعية" data={chartData} />
+      </GlassCard>
     </SidebarShell>
   );
 }

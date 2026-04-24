@@ -12,6 +12,7 @@ import {
   TextField,
 } from "@/components/ui";
 import { COUNTRY_OPTIONS, getDialCode } from "@/lib/countries";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 const initialForm = {
   first_name: "",
@@ -38,10 +39,8 @@ export default function AgentAddPlayerPage() {
   };
 
   const submit = async () => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-
-    const user = JSON.parse(saved);
+    const user = await requireMobcashUserOnClient("agent");
+    if (!user) return void redirectToLogin();
     setSaving(true);
 
     const res = await fetch("/api/agent/add-player", {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
         // تقدري تزيد هنا شرط status: "inactive" إلا بغيتي تبين غير لي مازال ما تفعلوا
       },
       include: {
-        user: true // باش نجيبو الإيميل واليوزر نيم من جدول User
+        user: { select: USER_SELECT_SAFE_RELATION },
       }
     });
 

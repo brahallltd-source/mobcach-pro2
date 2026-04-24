@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,13 +39,32 @@ export async function GET(req: Request) {
 // 🔵 إرسال شكاية جديدة من طرف اللاعب
 export async function POST(req: Request) {
   try {
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized", message: "Unauthorized" }, { status: 401 });
+    }
+    if (String(session.role ?? "").trim().toUpperCase() !== "PLAYER") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ message: "Database Error" }, { status: 500 });
 
-    const { playerEmail, subject, message } = await req.json();
+    const body = (await req.json().catch(() => ({}))) as {
+      playerEmail?: string;
+      subject?: string;
+      message?: string;
+    };
+    const playerEmail = String(session.email || "").trim().toLowerCase();
+    const subject = String(body.subject ?? "").trim();
+    const message = String(body.message ?? "").trim();
 
     if (!playerEmail || !subject || !message) {
       return NextResponse.json({ message: "المرجو ملء جميع الحقول المطلوبة" }, { status: 400 });
+    }
+
+    if (body.playerEmail != null && String(body.playerEmail).trim().toLowerCase() !== playerEmail) {
+      return NextResponse.json({ message: "لا يتطابق البريد مع الجلسة" }, { status: 400 });
     }
 
     // 1. إنشاء الشكاية فـ الداتابيز

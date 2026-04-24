@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -12,14 +13,18 @@ export async function GET() {
     // 1️⃣ بحث كلاسيكي آمن فـ جدول User
     const users = await prisma.user.findMany({
       where: { role: "AGENT" },
-      include: { agentProfile: true, wallet: true },
-      orderBy: { createdAt: "desc" }
+      select: {
+        ...USER_SELECT_SAFE_RELATION,
+        agentProfile: true,
+        wallet: true,
+      },
+      orderBy: { createdAt: "desc" },
     });
 
     // 2️⃣ بحث كلاسيكي آمن فـ جدول Agent (احتياطي)
     const agentsTable = await prisma.agent.findMany({
-      include: { user: true, wallet: true },
-      orderBy: { createdAt: "desc" }
+      include: { user: { select: USER_SELECT_SAFE_RELATION }, wallet: true },
+      orderBy: { createdAt: "desc" },
     });
 
     const allAgentsMap = new Map();

@@ -1,35 +1,47 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { hashPassword } from "@/lib/security";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // 🟢 جلب البيانات (GET)
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   try {
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Unauthorized", profile: null },
+        { status: 401 }
+      );
+    }
+    if (String(session.role ?? "").trim().toUpperCase() !== "PLAYER") {
+      return NextResponse.json({ success: false, message: "Forbidden", profile: null }, { status: 403 });
+    }
+
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ message: "Database error", profile: null }, { status: 500 });
 
-    const { searchParams } = new URL(req.url);
-    const email = String(searchParams.get("email") || "").trim().toLowerCase();
-
-    if (!email) return NextResponse.json({ message: "Email is required", profile: null }, { status: 400 });
+    const email = String(session.email || "").trim().toLowerCase();
+    if (!email) {
+      return NextResponse.json({ message: "Email is required", profile: null }, { status: 400 });
+    }
 
     const user = await prisma.user.findFirst({
       where: { email, role: "PLAYER" },
-      include: { player: true } 
+      include: { player: true },
     });
 
     if (!user || !user.player) {
       return NextResponse.json({ message: "Player profile not found", profile: null }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      profile: { 
-        user_id: user.id, 
-        email: user.email, 
-        phone: user.player.phone || "—",
+    return NextResponse.json({
+      profile: {
+        user_id: user.id,
+        email: user.email,
+        phone: user.player.phone || user.phone || "—",
         firstName: user.player.firstName || "—",
         first_name: user.player.firstName || "—",
         lastName: user.player.lastName || "—",
@@ -37,9 +49,11 @@ export async function GET(req: Request) {
         username: user.player.username || user.username || "—",
         city: user.player.city || "—",
         country: user.player.country || "—",
+        date_of_birth: user.player.dateOfBirth || "—",
         status: user.player.status || user.playerStatus || "inactive",
-        assigned_agent_id: user.player.assignedAgentId || "—"
-      } 
+        assigned_agent_id: user.player.assignedAgentId || "—",
+        pendingAgentRequest: user.pendingAgentRequest,
+      },
     });
 
   } catch (error) {
@@ -51,21 +65,44 @@ export async function GET(req: Request) {
 // 🔵 تحديث البيانات (POST) - كيشمل الإيميل، الهاتف، والباشورد
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
-    const body = await req.json();
-    const { currentEmail, newEmail, newPhone, newPassword, firstName, lastName } = body;
-
-    if (!currentEmail || !newEmail) {
-      return NextResponse.json({ message: "البريد الإلكتروني الحالي والجديد مطلوبان" }, { status: 400 });
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    if (String(session.role ?? "").trim().toUpperCase() !== "PLAYER") {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
     }
 
-    const currEmailClean = String(currentEmail).trim().toLowerCase();
-    const newEmailClean = String(newEmail).trim().toLowerCase();
+    const prisma = getPrisma();
+    if (!prisma) {
+      return NextResponse.json({ message: "Database error" }, { status: 500 });
+    }
+
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const { newEmail, newPhone, newPassword, firstName, lastName, currentEmail } = body;
+
+    const currEmailClean = String(session.email || "").trim().toLowerCase();
+    if (!currEmailClean) {
+      return NextResponse.json({ message: "البريد الإلكتروني غير متوفر في الجلسة" }, { status: 400 });
+    }
+
+    const newEmailRaw = newEmail != null ? String(newEmail) : "";
+    const newEmailClean = newEmailRaw.trim().toLowerCase();
+    if (!newEmailClean) {
+      return NextResponse.json({ message: "البريد الإلكتروني مطلوب" }, { status: 400 });
+    }
+
+    if (currentEmail != null && String(currentEmail).trim().toLowerCase() !== currEmailClean) {
+      return NextResponse.json({ message: "لا يتطابق البريد الحالي مع الجلسة" }, { status: 400 });
+    }
 
     // 1. جلب المستخدم الحالي
     const user = await prisma.user.findFirst({
       where: { email: currEmailClean, role: "PLAYER" },
-      include: { player: true }
+      include: { player: true },
     });
 
     if (!user || !user.player) {
@@ -79,13 +116,19 @@ export async function POST(req: Request) {
     }
 
     // 3. تجهيز بيانات التحديث
-    const userUpdateData: any = { email: newEmailClean };
-    if (newPassword && newPassword.length >= 6) {
-      userUpdateData.passwordHash = await hashPassword(newPassword);
+    const userUpdateData: Record<string, unknown> = { email: newEmailClean };
+    const pwdStr =
+      typeof newPassword === "string" ? newPassword : newPassword != null ? String(newPassword) : "";
+    if (pwdStr.length >= 6) {
+      userUpdateData.passwordHash = await hashPassword(pwdStr);
     }
 
-    const playerUpdateData: any = {};
-    if (newPhone) playerUpdateData.phone = String(newPhone).trim();
+    const playerUpdateData: Record<string, unknown> = {};
+    const phoneStr = newPhone != null ? String(newPhone).trim() : "";
+    if (phoneStr) {
+      playerUpdateData.phone = phoneStr;
+      userUpdateData.phone = phoneStr;
+    }
     if (firstName) playerUpdateData.firstName = String(firstName).trim();
     if (lastName) playerUpdateData.lastName = String(lastName).trim();
 
@@ -93,13 +136,16 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const updatedUser = await tx.user.update({
         where: { id: user.id },
-        data: userUpdateData
+        data: userUpdateData as object,
       });
 
-      const updatedPlayer = await tx.player.update({
-        where: { userId: user.id },
-        data: playerUpdateData
-      });
+      const updatedPlayer =
+        Object.keys(playerUpdateData).length > 0
+          ? await tx.player.update({
+              where: { userId: user.id },
+              data: playerUpdateData as object,
+            })
+          : await tx.player.findUniqueOrThrow({ where: { userId: user.id } });
 
       return { updatedUser, updatedPlayer };
     });

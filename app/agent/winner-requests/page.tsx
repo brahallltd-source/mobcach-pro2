@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { GlassCard, LoadingCard, PageHeader, SidebarShell, StatusBadge } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 export default function AgentWinnerRequestsPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -15,11 +16,12 @@ export default function AgentWinnerRequestsPage() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    if (user.role !== "agent") return void (window.location.href = "/login");
-    load(user.agentId).finally(() => setLoading(false));
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) return void redirectToLogin();
+      const agentId = String((u as { agentId?: string }).agentId || u.id);
+      load(agentId).finally(() => setLoading(false));
+    })();
   }, []);
 
   if (loading) return <SidebarShell role="agent"><LoadingCard text="Loading winner requests..." /></SidebarShell>;

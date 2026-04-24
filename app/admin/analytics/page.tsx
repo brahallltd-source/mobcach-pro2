@@ -10,6 +10,13 @@ type Analytics = {
   finance: { orders: number; orderVolume: number; completedOrderVolume: number; withdrawalsPending: number; topupsPending: number };
   trust: { complaints: number; duplicateProofs: number; flaggedOrders: number; completedOrders: number };
   orderStatusChart: { name: string; value: number }[];
+  bonusTracking?: {
+    approvedRechargeRequests: number;
+    totalRealDepositsDh: number;
+    totalBonusGiftedDh: number;
+    activeAgents: number;
+    totalAgentWalletBalancesDh: number;
+  };
 };
 
 export default function AdminAnalyticsPage() {

@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getPrisma } from "@/lib/db";
+import { getOrCreateSystemSettings } from "@/lib/system-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -10,29 +11,45 @@ export const size = {
 
 export const contentType = "image/png";
 
+function parseMarketingMeta(meta: unknown): Record<string, unknown> | null {
+  if (meta == null) return null;
+  if (typeof meta === "string") {
+    try {
+      return JSON.parse(meta) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof meta === "object" && !Array.isArray(meta)) {
+    return meta as Record<string, unknown>;
+  }
+  return null;
+}
+
 export default async function Icon() {
   const prisma = getPrisma();
-
   let logoUrl = "";
 
   if (prisma) {
     try {
-      const latest = await prisma.auditLog.findFirst({
-        where: {
-          action: "branding_updated",
-          entityType: "branding",
-          entityId: "global",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      const meta = (latest?.meta || {}) as Record<string, any>;
-      logoUrl = String(meta.logoUrl || "").trim();
+      const settings = await getOrCreateSystemSettings(prisma);
+      const fromSettings = String(settings.logoUrl || "").trim();
+      if (fromSettings) {
+        logoUrl = fromSettings;
+      } else {
+        const latest = await prisma.auditLog.findFirst({
+          where: {
+            action: "branding_updated",
+            entityType: "branding",
+            entityId: "global",
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        const parsed = parseMarketingMeta(latest?.meta);
+        logoUrl = String(parsed?.logoUrl || "").trim();
+      }
     } catch (error) {
       console.error("Icon DB Error:", error);
-      // في حالة فشل الاتصال بقاعدة البيانات، يكمل بلا ما يحبس السيرفر
     }
   }
 

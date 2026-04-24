@@ -2,17 +2,45 @@
 
 import { useEffect } from "react";
 import { GlassCard, LoadingCard, SidebarShell } from "@/components/ui";
+import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 
-type CurrentUser = { id: string; email: string; role: string; player_status?: "inactive" | "active"; assigned_agent_id?: string };
+type SessionRecord = Record<string, unknown> & {
+  role?: string;
+  player?: { assignedAgentId?: string | null } | null;
+  assigned_agent_id?: string;
+};
 
 export default function AchatPage() {
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const current: CurrentUser = JSON.parse(saved);
-    if (current.role !== "player") return void (window.location.href = "/login");
-    if (!current.assigned_agent_id) return void (window.location.href = "/player/select-agent");
-    window.location.href = `/player/achat/${current.assigned_agent_id}`;
+    void (async () => {
+      let u = (await fetchSessionUser()) as SessionRecord | null;
+      if (!u) {
+        await new Promise((r) => setTimeout(r, 200));
+        u = (await fetchSessionUser()) as SessionRecord | null;
+      }
+      if (!u) {
+        redirectToLogin();
+        return;
+      }
+      try {
+        localStorage.setItem("mobcash_user", JSON.stringify(u));
+      } catch {
+        /* ignore */
+      }
+      if (String(u.role ?? "").toLowerCase() !== "player") {
+        window.location.href = "/login";
+        return;
+      }
+      const legacy = typeof u.assigned_agent_id === "string" ? u.assigned_agent_id.trim() : "";
+      const fromPlayer =
+        u.player && typeof u.player.assignedAgentId === "string" ? u.player.assignedAgentId.trim() : "";
+      const agentId = legacy || fromPlayer;
+      if (!agentId) {
+        window.location.href = "/player/select-agent";
+        return;
+      }
+      window.location.href = `/player/achat/${encodeURIComponent(agentId)}`;
+    })();
   }, []);
 
   return (

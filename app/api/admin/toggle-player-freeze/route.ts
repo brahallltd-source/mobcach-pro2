@@ -1,5 +1,7 @@
+import { UserAccountStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 
 export const runtime = "nodejs";
 
@@ -16,7 +18,7 @@ export async function POST(req: Request) {
     // 1. جلب اللاعب مع معلومات اليوزر المرتبط به
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      include: { user: true }
+      include: { user: { select: USER_SELECT_SAFE_RELATION } },
     });
 
     if (!player || !player.user) {
@@ -31,10 +33,11 @@ export async function POST(req: Request) {
       // تحديث حالة التجميد فـ جدول اليوزر (المسؤول عن Login)
       const user = await tx.user.update({
         where: { id: player.userId },
-        data: { 
+        data: {
           frozen: nextFrozenStatus,
-          updatedAt: new Date()
-        }
+          accountStatus: nextFrozenStatus ? UserAccountStatus.SUSPENDED : UserAccountStatus.ACTIVE,
+          updatedAt: new Date(),
+        },
       });
 
       // ملاحظة: إذا كان عندك حقل status فـ Player بغيتي تبدلو مع التجميد، زيدو هنا

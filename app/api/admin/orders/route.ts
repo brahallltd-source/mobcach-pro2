@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { requirePermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 
 // 🟢 ضرورية فـ Next.js 15 باش الداتا ديما تكون جديدة
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const access = await requirePermission("VIEW_FINANCIALS");
+    if (!access.ok) {
+      return respondIfAdminAccessDenied(access, { orders: [] });
+    }
+
     const prisma = getPrisma();
-    
+
     if (!prisma) {
       return NextResponse.json({ orders: [], message: "Database not available" }, { status: 500 });
     }

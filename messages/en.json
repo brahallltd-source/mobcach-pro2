@@ -1,0 +1,39 @@
+{
+  "dashboard": {
+    "monitoringTitle": "Admin monitoring center",
+    "monitoringSubtitle": "Live financial KPIs, pending recharge queue, wallet ledger tail, and operational counts — refreshed every 60 seconds.",
+    "refreshMetrics": "Refresh metrics",
+    "metricsUtcHint": "'Today' aggregation is in UTC: {{date}}",
+    "metricsUtcHintFallback": "Approved recharges whose updatedAt falls on the current UTC calendar day.",
+    "loadingAdminDashboard": "Loading admin dashboard…",
+    "totalSalesToday": "Today's sales",
+    "bonusDistributed": "Bonus distributed",
+    "bonusDistributedHint": "Sum of bonusAmount for approved recharge requests today (UTC).",
+    "agentLiquidity": "Agent liquidity (in market)",
+    "agentLiquidityHint": "Sum of wallet balances for users with AGENT role.",
+    "pendingRechargeReviews": "Pending recharge reviews",
+    "pendingRechargeHint": "Recharge requests in PENDING state need immediate review.",
+    "noFinancialPermission": "You do not have the VIEW_FINANCIALS permission. Financial KPIs, ledger, and exports are hidden.",
+    "approvedDepositsLifetime": "Approved recharge deposits (lifetime)",
+    "approvedRechargeCountLabel": "Approved recharge requests:",
+    "bonusGiftedLifetime": "Bonus gifted (lifetime)",
+    "bonusGiftedLifetimeSub": "From approved recharge requests (bonusAmount) — wider scope than “today’s bonus”.",
+    "activeAgents": "Active agents",
+    "activeAgentsSub": "AGENT accounts in ACTIVE status on the platform.",
+    "liveLedgerTitle": "Live activity feed",
+    "liveLedgerSub": "Last 10 movements from WalletLedger — refreshes with metrics every 60 seconds or when you click refresh.",
+    "exportLedgerTitle": "Ledger export",
+    "exportLedgerSub": "Choose the date range for export",
+    "dateRangeInvalid": "Start date must be on or before end date.",
+    "exporting": "Exporting…",
+    "exportButton": "Export account statement (Excel)",
+    "exportFooterHint": "Without dates in the URL, the server exports the last 30 days by default. CSV opens well in Excel."
+  },
+  "sidebar": {
+    "systemSettings": "System settings",
+    "applications": "Applications",
+    "users": "Users",
+    "supportInbox": "Support inbox",
+    "historyArchive": "History / Archive"
+  }
+}

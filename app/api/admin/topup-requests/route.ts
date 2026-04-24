@@ -2,13 +2,15 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { getPrisma } from "@/lib/db";
-import { applyPendingBonusesToRecharge } from "@/lib/bonus";
+import { processRechargeRequestDecision } from "@/lib/admin-process-recharge-request";
 
 export async function GET() {
-  const access = await requireAdminPermission("wallets");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
+  const access = await requireAdminPermission("APPROVE_RECHARGES");
+  if (!access.ok) {
+      return respondIfAdminAccessDenied(access, { requests: [] });
+    }
 
   try {
     const prisma = getPrisma();
@@ -39,97 +41,36 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("wallets");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
+  const access = await requireAdminPermission("APPROVE_RECHARGES");
+  if (!access.ok) {
+    return respondIfAdminAccessDenied(access);
+  }
 
   try {
     const prisma = getPrisma();
+    if (!prisma) {
+      return NextResponse.json(
+        { success: false, message: "Database unavailable" },
+        { status: 500 }
+      );
+    }
     const { requestId, action, adminEmail } = await req.json();
-    
-    // 1. نجلب الطلب أولاً
-    const requestRow = await prisma.rechargeRequest.findUnique({ where: { id: requestId } });
+    const result = await processRechargeRequestDecision(prisma, {
+      requestId,
+      action,
+      adminEmail,
+    });
 
-    if (!requestRow) {
-      return NextResponse.json({ success: false, message: "Request not found" });
+    if (!result.ok) {
+      return NextResponse.json(
+        { success: false, message: result.message },
+        { status: result.status ?? 400 }
+      );
     }
-
-    if (requestRow.status !== "pending") {
-      return NextResponse.json({ success: false, message: "هذا الطلب تمت معالجته مسبقاً" });
-    }
-
-    if (action === "approve") {
-      const baseAmount = Number(requestRow.amount) || 0;
-      const bonus10 = Math.floor(baseAmount * 0.1);
-
-      await prisma.$transaction(async (tx) => {
-        let pendingApplied = null;
-        try {
-          // جلب أي بونيس معلق
-          pendingApplied = await applyPendingBonusesToRecharge(requestRow.agentId, adminEmail);
-        } catch (e) {
-          console.error("Bonus error", e);
-        }
-        
-        const totalToAdd = baseAmount + bonus10 + (pendingApplied?.totalApplied || 0);
-
-        // 🟢 الحل الجذري: نقلبو على المحفظة بـ agentId أو userId باش ما نزگلوهاش
-        let wallet = await tx.wallet.findFirst({
-          where: {
-            OR: [
-              { agentId: requestRow.agentId },
-              { userId: requestRow.agentId }
-            ]
-          }
-        });
-
-        if (wallet) {
-          // إذا كانت موجودة، نحدث الرصيد بناءً على id المحفظة المضمون
-          wallet = await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { increment: totalToAdd }, updatedAt: new Date() }
-          });
-        } else {
-          // إذا لم تكن موجودة نهائياً، نقوم بإنشائها
-          wallet = await tx.wallet.create({
-            data: {
-              userId: requestRow.agentId, 
-              balance: totalToAdd
-            }
-          });
-        }
-
-        // تسجيل العملية في الـ Ledger
-        await tx.walletLedger.create({
-          data: {
-            walletId: wallet.id,
-            agentId: requestRow.agentId,
-            amount: totalToAdd,
-            type: "recharge_approved",
-            reason: `Approve: ${baseAmount} + Bonus`,
-            meta: { requestId }
-          }
-        });
-
-        // تحديث حالة الطلب لـ approved
-        await tx.rechargeRequest.update({
-          where: { id: requestId },
-          data: { status: "approved", updatedAt: new Date() }
-        });
-      });
-
-      return NextResponse.json({ success: true });
-      
-    } else if (action === "reject") {
-      await prisma.rechargeRequest.update({
-        where: { id: requestId },
-        data: { status: "rejected", updatedAt: new Date() }
-      });
-      return NextResponse.json({ success: true });
-    }
-
-    return NextResponse.json({ success: false, message: "Invalid action" });
-  } catch (error: any) {
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("TOPUP ADMIN ERROR:", error);
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 }

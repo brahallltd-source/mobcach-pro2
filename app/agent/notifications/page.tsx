@@ -3,22 +3,31 @@
 import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, SidebarShell } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
-type Notification = { id: string; title: string; message: string; read: boolean; created_at: string };
+type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  read?: boolean;
+  createdAt?: string;
+  created_at?: string;
+};
 
 export default function AgentNotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    const target = user.role === "agent" ? (user.agentId || "") : user.id;
-    fetch(`/api/notifications?targetRole=${encodeURIComponent(user.role)}&targetId=${encodeURIComponent(target)}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => setItems(data.notifications || []))
-      .finally(() => setLoading(false));
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) return void redirectToLogin();
+      const target = String((u as { agentId?: string }).agentId || u.id);
+      fetch(`/api/notifications?targetRole=agent&targetId=${encodeURIComponent(target)}`, { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) => setItems(data.notifications || []))
+        .finally(() => setLoading(false));
+    })();
   }, []);
 
   if (loading) return <SidebarShell role="agent"><LoadingCard text="Loading notifications..." /></SidebarShell>;
@@ -34,7 +43,9 @@ export default function AgentNotificationsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">{item.title}</h3>
-                  <span className="text-xs uppercase tracking-[0.2em] text-white/35">{new Date(item.created_at).toLocaleString()}</span>
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/35">
+                    {new Date(item.createdAt ?? item.created_at ?? Date.now()).toLocaleString()}
+                  </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/60">{item.message}</p>
               </div>

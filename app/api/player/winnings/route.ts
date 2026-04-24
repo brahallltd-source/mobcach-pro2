@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,22 +22,30 @@ function mapWithdrawal(item: any) {
   };
 }
 
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   try {
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized", message: "Unauthorized" }, { status: 401 });
+    }
+    if (String(session.role ?? "").trim().toUpperCase() !== "PLAYER") {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
+
     const prisma = getPrisma();
-    if (!prisma) return NextResponse.json({ history: [] }, { status: 500 });
+    if (!prisma) {
+      return NextResponse.json({ winning: null, history: [] }, { status: 500 });
+    }
 
-    const { searchParams } = new URL(req.url);
-    const playerEmail = String(searchParams.get("playerEmail") || "").trim().toLowerCase();
-
+    const playerEmail = String(session.email || "").trim().toLowerCase();
     if (!playerEmail) {
-      return NextResponse.json({ message: "الإيميل مطلوب", history: [] }, { status: 400 });
+      return NextResponse.json({ winning: null, history: [], message: "الإيميل غير متوفر" }, { status: 400 });
     }
 
     // 1. جلب بيانات اللاعب والوكيل المربوط به
     const player = await prisma.player.findFirst({
       where: { user: { email: playerEmail } },
-      include: { user: true }
+      include: { user: { select: { email: true } } },
     });
 
     if (!player) {
@@ -81,32 +90,49 @@ export async function GET(req: Request) {
     };
 
     return NextResponse.json({
+      winning: null,
       playerInfo: {
         username: player.username,
         email: player.user.email,
-        agentId: player.assignedAgentId
+        agentId: player.assignedAgentId,
       },
       history: history.map(mapWithdrawal),
-      info
+      info,
     });
   } catch (error) {
     console.error("WINNINGS GET ERROR:", error);
-    return NextResponse.json({ history: [] }, { status: 500 });
+    return NextResponse.json({ winning: null, history: [] }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized", message: "Unauthorized" }, { status: 401 });
+    }
+    if (String(session.role ?? "").trim().toUpperCase() !== "PLAYER") {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
+
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ message: "Database error" }, { status: 500 });
 
     const body = await req.json();
-    const { 
-      playerEmail, amount, method, 
-      gosportUsername, gosportPassword,
-      rib, swift, cashProvider, fullName, phone, city 
+    const {
+      amount,
+      method,
+      gosportUsername,
+      gosportPassword,
+      rib,
+      swift,
+      cashProvider,
+      fullName,
+      phone,
+      city,
     } = body;
 
+    const playerEmail = String(session.email || "").trim().toLowerCase();
     if (!playerEmail || !amount || !gosportUsername || !gosportPassword) {
       return NextResponse.json({ message: "جميع معلومات الحساب والمبلغ مطلوبة" }, { status: 400 });
     }
@@ -114,7 +140,7 @@ export async function POST(req: Request) {
     // 1. جلب اللاعب والوكيل المسؤول عنه
     const player = await prisma.player.findFirst({
       where: { user: { email: playerEmail } },
-      include: { user: true }
+      include: { user: { select: { email: true } } },
     });
 
     if (!player) return NextResponse.json({ message: "اللاعب غير موجود" }, { status: 404 });

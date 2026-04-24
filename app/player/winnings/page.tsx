@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useEffect, useMemo, useState } from "react";
 // 🟢 المسمار: استعملنا المحرك الجديد والترجمة
 import { useTranslation } from "@/lib/i18n";
@@ -9,10 +10,14 @@ import {
   PageHeader,
   PrimaryButton,
   SidebarShell,
-  StatCard,
+  SelectField,
   TextField,
 } from "@/components/ui";
-import { toast } from "react-hot-toast";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
+import type { MobcashUser } from "@/lib/mobcash-user-types";
 
 type User = { id: string; email: string; role: string };
 type WinningOrder = { id: string; amount: number; gosport365_username?: string; status: string; created_at?: string };
@@ -43,27 +48,62 @@ export default function PlayerWinningsPage() {
     gosportPasswordConfirm: "",
   });
 
-  const load = async (email: string) => {
+  const load = async () => {
     try {
-      const res = await fetch(`/api/player/winnings?playerEmail=${encodeURIComponent(email)}`, { cache: "no-store" });
-      const data = await res.json();
+      const res = await fetch("/api/player/winnings", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        winning?: WinningOrder | null;
+        history?: WithdrawalItem[];
+      };
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          toast.error("تعذّر التحقق من الجلسة. حدّث الصفحة.");
+        }
+        setWinning(null);
+        setHistory([]);
+        return;
+      }
       setWinning(data.winning || null);
-      setHistory(data.history || []);
+      setHistory(Array.isArray(data.history) ? data.history : []);
       if (data.winning?.gosport365_username) {
-        setForm((prev) => ({ ...prev, gosportUsername: data.winning.gosport365_username }));
+        setForm((prev) => ({ ...prev, gosportUsername: data.winning!.gosport365_username! }));
       }
     } catch (err) {
       console.error("Load winnings error", err);
+      setWinning(null);
+      setHistory([]);
     }
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const current: User = JSON.parse(saved);
-    if (current.role !== "player") return void (window.location.href = "/login");
-    setUser(current);
-    load(current.email).finally(() => setLoading(false));
+    void (async () => {
+      let u = await fetchSessionUser();
+      if (!u) {
+        await new Promise((r) => setTimeout(r, 200));
+        u = await fetchSessionUser();
+      }
+      const mu = u as MobcashUser | null;
+      if (!mu || String(mu.role ?? "").toLowerCase() !== "player") {
+        redirectToLogin();
+        return;
+      }
+      try {
+        localStorage.setItem("mobcash_user", JSON.stringify(mu));
+      } catch {
+        /* ignore */
+      }
+      const current: User = {
+        id: mu.id,
+        email: mu.email,
+        role: mu.role,
+      };
+      setUser(current);
+      await load();
+      setLoading(false);
+    })();
   }, []);
 
   const pendingRequest = useMemo(() => history.find((item) => ["pending", "sent"].includes(item.status)), [history]);
@@ -87,9 +127,9 @@ export default function PlayerWinningsPage() {
       setSaving(true);
       const res = await fetch("/api/player/winnings", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          playerEmail: user.email,
           amount,
           method,
           gosportUsername: form.gosportUsername,
@@ -107,7 +147,7 @@ export default function PlayerWinningsPage() {
       if (!res.ok) throw new Error(data.message);
 
       toast.success(t("orderSend"));
-      load(user.email);
+      await load();
       setForm(prev => ({ ...prev, amount: "", gosportPassword: "", gosportPasswordConfirm: "" }));
     } catch (err: any) {
       toast.error(err.message || "Failed to submit");
@@ -125,26 +165,39 @@ export default function PlayerWinningsPage() {
         subtitle="صرّح بأرباحك في GoSport365 وأدخل معلومات السحب ليتوصل بها الآدمين مباشرة."
       />
 
-      <div className="grid gap-4 md:grid-cols-3 mt-6">
-        <StatCard
-          label="الرصيد المتاح"
-          value={`${winning?.amount || 0} DH`}
-          hint="رصيد الأرباح المسجل"
-        />
-        <StatCard
-          label="حالة الطلب"
-          value={pendingRequest ? t("processing") : "جاهز للإرسال"}
-          hint={pendingRequest ? "طلبك قيد المراجعة لدى الإدارة" : "يمكنك تقديم طلب جديد"}
-        />
-        <StatCard
-          label="تاريخ العمليات"
-          value={String(history.length)}
-          hint="عدد طلبات السحب السابقة"
-        />
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <Card className="border-primary/25 bg-white/[0.04] shadow-xl backdrop-blur-md">
+          <CardContent className="space-y-2 py-6">
+            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">الرصيد المتاح</p>
+            <p className="text-center text-4xl font-black tabular-nums text-white">
+              {winning?.amount || 0}
+              <span className="ms-2 text-xl font-semibold text-white/50">DH</span>
+            </p>
+            <p className="text-center text-xs text-white/40">رصيد الأرباح المسجل</p>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/25 bg-white/[0.04] shadow-xl backdrop-blur-md">
+          <CardContent className="flex flex-col justify-center gap-2 py-6">
+            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">حالة الطلب</p>
+            <p className="text-center text-2xl font-bold text-white">
+              {pendingRequest ? t("processing") : "جاهز للإرسال"}
+            </p>
+            <p className="text-center text-xs text-white/40">
+              {pendingRequest ? "طلبك قيد المراجعة لدى الإدارة" : "يمكنك تقديم طلب جديد"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/25 bg-white/[0.04] shadow-xl backdrop-blur-md">
+          <CardContent className="flex flex-col justify-center gap-2 py-6">
+            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">تاريخ العمليات</p>
+            <p className="text-center text-3xl font-black tabular-nums text-white">{String(history.length)}</p>
+            <p className="text-center text-xs text-white/40">عدد طلبات السحب السابقة</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] mt-8">
-        <GlassCard className="p-6 md:p-8">
+        <GlassCard className="border-primary/25 bg-white/[0.04] p-6 shadow-xl backdrop-blur-md md:p-8">
           <h2 className="text-2xl font-semibold text-white">التصريح بربح جديد / طلب سحب</h2>
 
           <div className="mt-6 space-y-4">
@@ -187,24 +240,30 @@ export default function PlayerWinningsPage() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <button
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setMethod("bank")}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  method === "bank" ? "border-cyan-400/50 bg-cyan-400/10" : "border-white/10 bg-black/20"
-                }`}
+                className={clsx(
+                  "h-auto min-h-[88px] w-full flex-col items-stretch gap-1 rounded-2xl border-primary/30 p-4 text-start hover:bg-white/[0.06]",
+                  method === "bank" && "border-cyan-400/55 bg-cyan-500/15 shadow-lg ring-2 ring-cyan-400/35"
+                )}
               >
-                <div className="font-bold">تحويل بنكي</div>
-                <p className="text-xs text-white/50 mt-1">RIB / SWIFT</p>
-              </button>
-              <button
+                <span className="text-base font-bold text-white">تحويل بنكي</span>
+                <span className="text-xs font-normal text-white/50">RIB / SWIFT</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setMethod("cash")}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  method === "cash" ? "border-cyan-400/50 bg-cyan-400/10" : "border-white/10 bg-black/20"
-                }`}
+                className={clsx(
+                  "h-auto min-h-[88px] w-full flex-col items-stretch gap-1 rounded-2xl border-primary/30 p-4 text-start hover:bg-white/[0.06]",
+                  method === "cash" && "border-cyan-400/55 bg-cyan-500/15 shadow-lg ring-2 ring-cyan-400/35"
+                )}
               >
-                <div className="font-bold">سحب نقدي (Cash)</div>
-                <p className="text-xs text-white/50 mt-1">وكالات تحويل الأموال</p>
-              </button>
+                <span className="text-base font-bold text-white">سحب نقدي (Cash)</span>
+                <span className="text-xs font-normal text-white/50">وكالات تحويل الأموال</span>
+              </Button>
             </div>
 
             {method === "bank" ? (
@@ -214,15 +273,11 @@ export default function PlayerWinningsPage() {
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                <select 
-                  value={form.cashProvider} 
-                  onChange={(e) => setForm({ ...form, cashProvider: e.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
-                >
+                <SelectField value={form.cashProvider} onChange={(e) => setForm({ ...form, cashProvider: e.target.value })}>
                   <option>Cash Express</option>
                   <option>Cash Plus</option>
                   <option>Wafacash</option>
-                </select>
+                </SelectField>
                 <TextField value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Full Name" />
                 <TextField value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" />
                 <TextField value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" />
@@ -235,21 +290,34 @@ export default function PlayerWinningsPage() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6 md:p-8">
+        <GlassCard className="border-primary/25 bg-white/[0.04] p-6 shadow-xl backdrop-blur-md md:p-8">
           <h2 className="text-2xl font-semibold text-white">{t("myOrders")}</h2>
           <div className="mt-6 space-y-4">
             {history.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-4 flex justify-between items-center">
-                <div>
-                  <p className="font-bold">{item.amount} DH</p>
-                  <p className="text-xs text-white/40">{item.method} • {item.status}</p>
-                </div>
-                <div className="text-[10px] uppercase font-bold px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                  {item.status}
-                </div>
-              </div>
+              <Card
+                key={item.id}
+                className="border-primary/20 bg-white/[0.03] shadow-md backdrop-blur-sm"
+              >
+                <CardContent className="flex flex-row items-center justify-between gap-4 py-4">
+                  <div className="min-w-0">
+                    <p className="text-xl font-black tabular-nums text-white">
+                      {item.amount} <span className="text-sm font-semibold text-white/50">DH</span>
+                    </p>
+                    <p className="mt-1 text-xs text-white/45">
+                      {item.method} • {item.status}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">
+                    {item.status}
+                  </span>
+                </CardContent>
+              </Card>
             ))}
-            {!history.length && <div className="text-center text-white/20 italic p-10">{t("noOffers")}</div>}
+            {!history.length ? (
+              <div className="rounded-2xl border border-dashed border-white/15 bg-muted/10 p-10 text-center text-sm text-white/40">
+                {t("noOffers")}
+              </div>
+            ) : null}
           </div>
         </GlassCard>
       </div>

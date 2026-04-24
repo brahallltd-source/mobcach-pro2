@@ -1,6 +1,15 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useLayoutEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useLayoutEffect,
+} from "react";
+import adminAr from "@/messages/ar.json";
+import adminEn from "@/messages/en.json";
+import adminFr from "@/messages/fr.json";
+import { BRANDING } from "@/lib/branding";
 
 // --- 1. الإعدادات ---
 export type Lang = "fr" | "ar" | "en";
@@ -16,13 +25,13 @@ export const defaultLang: Lang = "fr";
 // --- 2. القاموس (Dictionaries) ---
 const dictionaries = {
   en: {
-    brand: "GS365Cash",
+    brand: BRANDING.name,
     overview: "Overview",
     newOrder: "New Order",
     orders: "Orders",
     chat: "Chat",
     winnings: "Winnings",
-    addPlayer: "Add Player",
+    addPlayer: "Invite player / Rewards",
     recharge: "Recharge",
     settings: "Settings",
     agents: "Agents",
@@ -74,6 +83,15 @@ const dictionaries = {
     agentCodeLinked: "Agent code applied successfully.",
     chooseYourMethod: "Choose a payment method",
     back: "Back",
+    pendingApprovalTitle: "Pending approval",
+    pendingApprovalSubtitle:
+      "We are reviewing your details. You should receive a response within 48 hours at most.",
+    pendingWindowHint:
+      "Timer shows the remaining time in your current 48-hour review window (saved for this account on this device).",
+    pendingHours: "Hours",
+    pendingMinutes: "Minutes",
+    pendingSeconds: "Seconds",
+    pendingBackHome: "Back to home",
     availableMethods: "Available methods",
     transferInstructions: "Transfer instructions",
     accountName: "Account name",
@@ -110,8 +128,24 @@ const dictionaries = {
 recharge_subtitle: "Add balance to your wallet",
 recharge_amount_label: "Amount (DH)",
 recharge_method_label: "Payment Method",
+recharge_method_placeholder: "— Select a method —",
+recharge_amount_hint:
+      "Minimum 1,000 DH. Upload proof only after you have transferred to the selected account.",
+recharge_bonus_10_label: "Extra balance (10%):",
+recharge_amount_total_label: "Total:",
+recharge_submit_disabled_hint:
+      "Enter at least 1,000 DH, choose a method, enter matching GoSport365 usernames, and upload an https proof link to submit.",
+recharge_gosport365_username_label: "GoSport365 username",
+recharge_confirm_gosport365_username_label: "Confirm GoSport365 username",
+recharge_gosport365_username_hint: "Must match your GoSport365 account exactly (case-sensitive).",
+recharge_validation_gosport365_username: "Enter your GoSport365 username.",
+recharge_validation_gosport365_mismatch: "The two GoSport365 usernames must match exactly.",
 recharge_proof_label: "Payment Proof",
 recharge_upload_success: "Uploaded successfully",
+recharge_select_receipt_image: "Select Receipt Image",
+rechargeHistory: "Recharge history",
+recharge_history_title: "Recharge history",
+recharge_history_subtitle: "Your wallet top-up requests and their status.",
 recharge_upload_hint: "Click to upload proof",
 recharge_note_label: "Note (Optional)",
 recharge_submit_btn: "Confirm Recharge",
@@ -122,6 +156,10 @@ recharge_wallet_addr: "Wallet Address:",
 recharge_select_method_hint: "Please select a payment method to view details",
 recharge_fill_all_fields: "Please fill all fields and upload proof",
 recharge_request_sent: "Request sent successfully",
+recharge_validation_amount: "Enter a valid positive amount.",
+recharge_validation_amount_minimum: "The minimum recharge amount is 1,000 DH.",
+recharge_validation_method: "Select a payment method.",
+recharge_validation_proof: "Upload proof — the link must start with http:// or https://.",
 error_loading_failed: "Failed to load data",
 error_failed_to_send: "Failed to send request",
 error_network_error: "Network error occurred",
@@ -132,13 +170,13 @@ sending: "Sending...",
     recharge_wallet_addr_label: "Wallet Address",
   },
   fr: {
-    brand: "GS365Cash",
+    brand: BRANDING.name,
     overview: "Tableau de bord",
     newOrder: "Nouvelle commande",
     orders: "Commandes",
     chat: "Chat",
     winnings: "Gains",
-    addPlayer: "Ajouter joueur",
+    addPlayer: "Inviter un joueur / Récompenses",
     recharge: "Recharge",
     settings: "Paramètres",
     agents: "Agents",
@@ -190,6 +228,15 @@ sending: "Sending...",
     agentCodeLinked: "Code agent appliqué avec succès.",
     chooseYourMethod: "Choisissez une méthode de paiement",
     back: "Retour",
+    pendingApprovalTitle: "Approbation en attente",
+    pendingApprovalSubtitle:
+      "Nous examinons vos informations. Vous devriez recevoir une réponse dans un délai maximum de 48 heures.",
+    pendingWindowHint:
+      "Le compte à rebours indique le temps restant dans la fenêtre d'examen de 48 h (enregistré pour ce compte sur cet appareil).",
+    pendingHours: "Heures",
+    pendingMinutes: "Minutes",
+    pendingSeconds: "Secondes",
+    pendingBackHome: "Retour à l'accueil",
     availableMethods: "Méthodes disponibles",
     transferInstructions: "Instructions de transfert",
     accountName: "Nom du compte",
@@ -226,8 +273,26 @@ sending: "Sending...",
 recharge_subtitle: "Ajoutez du solde à votre portefeuille",
 recharge_amount_label: "Montant (DH)",
 recharge_method_label: "Méثode de paiement",
+recharge_method_placeholder: "— Choisir une méthode —",
+recharge_amount_hint:
+      "Minimum 1 000 DH. Téléversez la preuve après le virement vers le compte indiqué.",
+recharge_bonus_10_label: "Solde supplémentaire (10 %) :",
+recharge_amount_total_label: "Total :",
+recharge_submit_disabled_hint:
+      "Saisissez au moins 1 000 DH, choisissez une méthode, deux noms GoSport365 identiques et une preuve https pour envoyer.",
+recharge_gosport365_username_label: "Nom d'utilisateur GoSport365",
+recharge_confirm_gosport365_username_label: "Confirmer le nom d'utilisateur GoSport365",
+recharge_gosport365_username_hint:
+      "Doit correspondre exactement à votre compte GoSport365 (sensible à la casse).",
+recharge_validation_gosport365_username: "Saisissez votre nom d'utilisateur GoSport365.",
+recharge_validation_gosport365_mismatch:
+      "Les deux noms d'utilisateur GoSport365 doivent correspondre exactement.",
 recharge_proof_label: "Preuve de paiement",
 recharge_upload_success: "Téléchargé avec succès",
+recharge_select_receipt_image: "Choisir l'image du reçu",
+rechargeHistory: "Historique des recharges",
+recharge_history_title: "Historique des recharges",
+recharge_history_subtitle: "Vos demandes de recharge et leur statut.",
 recharge_upload_hint: "Cliquez pour télécharger la preuve",
 recharge_note_label: "Note (Optionnel)",
 recharge_submit_btn: "Confirmer la recharge",
@@ -238,6 +303,10 @@ recharge_wallet_addr: "Adresse Wallet:",
 recharge_select_method_hint: "Veuillez sélectionner une méthode pour voir les détails",
 recharge_fill_all_fields: "Veuillez remplir tous les champs et télécharger la preuve",
 recharge_request_sent: "Demande envoyée avec succès",
+recharge_validation_amount: "Saisissez un montant positif valide.",
+recharge_validation_amount_minimum: "Le montant minimum de recharge est de 1 000 DH.",
+recharge_validation_method: "Sélectionnez une méthode de paiement.",
+recharge_validation_proof: "Téléversez une preuve — le lien doit commencer par http:// ou https://.",
 error_loading_failed: "Échec du chargement des données",
 error_failed_to_send: "Échec de l'envoi de la demande",
 error_network_error: "Une erreur réseau est survenue",
@@ -248,13 +317,13 @@ sending: "Envoi en cours...",
     recharge_wallet_addr_label: "Adresse Wallet",
   },
   ar: {
-    brand: "موب كاش برو",
+    brand: BRANDING.name,
     overview: "نظرة عامة",
     newOrder: "طلب جديد",
     orders: "الطلبات",
     chat: "الدردشة",
     winnings: "الأرباح",
-    addPlayer: "إضافة لاعب",
+    addPlayer: "دعوة لاعب / المكافآت",
     recharge: "شحن الرصيد",
     settings: "الإعدادات",
     agents: "الوكلاء",
@@ -306,6 +375,15 @@ sending: "Envoi en cours...",
     agentCodeLinked: "تم ربط رمز الوكيل بنجاح.",
     chooseYourMethod: "اختر طريقة الدفع",
     back: "رجوع",
+    pendingApprovalTitle: "طلبك قيد المراجعة",
+    pendingApprovalSubtitle:
+      "نعمل على مراجعة بياناتك والتأكد من مطابقتها. سيتم الرد عليك في غضون 48 ساعة كحد أقصى.",
+    pendingWindowHint:
+      "يعرض المؤقت الوقت المتبقي في نافذة المراجعة (48 ساعة) المحفوظة لهذا الحساب على هذا الجهاز.",
+    pendingHours: "ساعات",
+    pendingMinutes: "دقائق",
+    pendingSeconds: "ثوانٍ",
+    pendingBackHome: "العودة للرئيسية",
     availableMethods: "الطرق المتاحة",
     transferInstructions: "تعليمات التحويل",
     accountName: "اسم الحساب",
@@ -360,8 +438,23 @@ sending: "Envoi en cours...",
 recharge_subtitle: "قم بإضافة رصيد إلى محفظتك الإلكترونية",
 recharge_amount_label: "المبلغ المراد شحنه (درهم)",
 recharge_method_label: "اختر طريقة الدفع",
+recharge_method_placeholder: "— اختر طريقة الدفع —",
+recharge_amount_hint: "الحد الأدنى 1000 درهم. ارفع الوصل بعد إتمام التحويل إلى الحساب المعروض.",
+recharge_bonus_10_label: "الرصيد الإضافي (10%):",
+recharge_amount_total_label: "الإجمالي:",
+recharge_submit_disabled_hint:
+      "أدخل 1000 درهم على الأقل، اختر طريقة الدفع، أدخل اسمي GoSport365 المتطابقين، وارفع رابط وصل https لإرسال الطلب.",
+recharge_gosport365_username_label: "اسم مستخدم GoSport365",
+recharge_confirm_gosport365_username_label: "تأكيد اسم مستخدم GoSport365",
+recharge_gosport365_username_hint: "يجب أن يطابق حسابك في GoSport365 حرفياً (حساس لحالة الأحرف).",
+recharge_validation_gosport365_username: "أدخل اسم مستخدم GoSport365.",
+recharge_validation_gosport365_mismatch: "يجب أن يتطابق حقلا اسم مستخدم GoSport365 حرفياً.",
 recharge_proof_label: "رفع وصل التحويل (صورة)",
 recharge_upload_success: "تم رفع الوصل بنجاح",
+recharge_select_receipt_image: "اختر صورة الوصل",
+rechargeHistory: "سجل الشحن",
+recharge_history_title: "سجل شحن المحفظة",
+recharge_history_subtitle: "جميع طلبات الشحن وحالات الموافقة.",
 recharge_upload_hint: "اضغط هنا لرفع صورة الوصل",
 recharge_note_label: "ملاحظات إضافية",
 recharge_submit_btn: "تأكيد طلب الشحن",
@@ -372,6 +465,10 @@ recharge_wallet_addr: "عنوان المحفظة:",
 recharge_select_method_hint: "يرجى اختيار طريقة دفع لعرض البيانات البنكية",
 recharge_fill_all_fields: "يرجى ملء جميع الحقول ورفع وصل الدفع",
 recharge_request_sent: "تم إرسال طلبك بنجاح",
+recharge_validation_amount: "أدخل مبلغاً صالحاً موجباً.",
+recharge_validation_amount_minimum: "أقل مبلغ للشحن هو 1000 درهم",
+recharge_validation_method: "اختر طريقة الدفع.",
+recharge_validation_proof: "ارفع وصل الدفع — الرابط يجب أن يبدأ بـ http:// أو https://.",
 error_loading_failed: "فشل تحميل البيانات",
 error_failed_to_send: "فشل إرسال الطلب",
 error_network_error: "خطأ في الاتصال بالخادم",
@@ -383,11 +480,31 @@ error_network_error: "خطأ في الاتصال بالخادم",
 
 export type TranslationKey = keyof typeof dictionaries["en"];
 
+const adminMessages: Record<Lang, unknown> = {
+  en: adminEn,
+  fr: adminFr,
+  ar: adminAr,
+};
+
+function resolveAdminPath(bundle: unknown, path: string): string | undefined {
+  const parts = path.split(".").filter(Boolean);
+  let cur: unknown = bundle;
+  for (const p of parts) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    const rec = cur as Record<string, unknown>;
+    if (!(p in rec)) return undefined;
+    cur = rec[p];
+  }
+  return typeof cur === "string" ? cur : undefined;
+}
+
 // --- 3. المحرك المصلح (Context API) ---
 interface LanguageContextType {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: TranslationKey) => string;
+  /** Dot-path messages from `/messages/{lang}.json` (e.g. `dashboard.totalSales`). */
+  tx: (path: string, vars?: Record<string, string>) => string;
   dir: "ltr" | "rtl";
 }
 
@@ -404,14 +521,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = l;
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("app_lang") as Lang;
-    if (saved && ["fr", "ar", "en"].includes(saved)) {
-      setLangState(saved);
-      syncHtmlAttributes(saved);
-    } else {
-      syncHtmlAttributes(defaultLang);
-    }
+  useLayoutEffect(() => {
+    const saved = localStorage.getItem("app_lang") as Lang | null;
+    const initial: Lang =
+      saved && ["fr", "ar", "en"].includes(saved) ? (saved as Lang) : defaultLang;
+    setLangState(initial);
+    syncHtmlAttributes(initial);
     setMounted(true);
   }, []);
 
@@ -430,6 +545,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const tx = (path: string, vars?: Record<string, string>) => {
+    let raw =
+      resolveAdminPath(adminMessages[lang], path) ??
+      resolveAdminPath(adminMessages.en, path) ??
+      path;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        raw = raw.split(`{{${k}}}`).join(v);
+      }
+    }
+    return raw;
+  };
+
   const dir = LANGS.find((l) => l.value === lang)?.dir || "ltr";
 
   // لمنع الـ Hydration Mismatch والـ Flicker
@@ -438,7 +566,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, dir }}>
+    <LanguageContext.Provider value={{ lang, setLang, t, tx, dir }}>
       {/* 🟢 الـ Wrapper دابا كياخد حتى الـ font-arabic */}
       <div 
         dir={dir} 
@@ -460,6 +588,15 @@ export function useTranslation() {
       lang: defaultLang,
       setLang: () => {},
       t: (key: TranslationKey) => dictionaries[defaultLang][key as keyof typeof dictionaries["en"]] || key,
+      tx: (path: string, vars?: Record<string, string>) => {
+        let raw = resolveAdminPath(adminMessages[defaultLang], path) ?? resolveAdminPath(adminMessages.en, path) ?? path;
+        if (vars) {
+          for (const [k, v] of Object.entries(vars)) {
+            raw = raw.split(`{{${k}}}`).join(v);
+          }
+        }
+        return raw;
+      },
       dir: "ltr" as const,
     };
   }

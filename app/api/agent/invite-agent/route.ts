@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { creditWallet } from "@/lib/wallet";
 import { createNotification } from "@/lib/notifications";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 
 export const runtime = "nodejs";
 
+function parseDetails(log: { details?: string | null }) {
+  if (!log.details) return {} as Record<string, any>;
+  try {
+    return JSON.parse(log.details) as Record<string, any>;
+  } catch {
+    return {} as Record<string, any>;
+  }
+}
+
 function mapInvite(log: any) {
-  const meta = (log.meta || {}) as Record<string, any>;
+  const meta = parseDetails(log);
   return {
     id: log.id,
     referrer_agent_id: meta.referrer_agent_id || log.entityId || "",
@@ -76,7 +86,7 @@ export async function POST(req: Request) {
           { userId: agentId }
         ]
       },
-      include: { user: true }
+      include: { user: { select: USER_SELECT_SAFE_RELATION } },
     });
 
     if (!referrerAgent) {
@@ -85,14 +95,14 @@ export async function POST(req: Request) {
 
     if (type === "generate") {
       const code = `AG-${String(referrerAgent.id).slice(-6)}-${Date.now().toString().slice(-4)}`;
-      const inviteLink = `/apply/agent?ref=${encodeURIComponent(code)}`;
+      const inviteLink = `/register/agent?ref=${encodeURIComponent(code)}`;
 
       const log = await prisma.auditLog.create({
         data: {
           action: "agent_invite_generated",
           entityType: "agent_invite",
           entityId: referrerAgent.id,
-          meta: {
+          details: JSON.stringify({
             referrer_agent_id: referrerAgent.id,
             invited_agent_email: invitedAgentEmail,
             invite_code: code,
@@ -100,7 +110,7 @@ export async function POST(req: Request) {
             total_recharge_amount: 0,
             bonus_awarded: false,
             updated_at: new Date().toISOString(),
-          },
+          }),
         },
       });
 
@@ -137,10 +147,11 @@ export async function POST(req: Request) {
     });
 
     for (const log of logs) {
-      const meta = (log.meta || {}) as Record<string, any>;
+      const meta = parseDetails(log);
+      const next = { ...meta, bonus_awarded: true, updated_at: new Date().toISOString() };
       await prisma.auditLog.update({
         where: { id: log.id },
-        data: { meta: { ...meta, bonus_awarded: true, updated_at: new Date().toISOString() } },
+        data: { details: JSON.stringify(next) },
       });
     }
 

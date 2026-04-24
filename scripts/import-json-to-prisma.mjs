@@ -121,7 +121,7 @@ async function main() {
     await prisma.paymentMethod.upsert({
       where: { id: String(method.id) },
       update: {
-        ownerRole: "admin",
+        ownerRole: "ADMIN",
         ownerId: "admin-1",
         type: method.type,
         methodName: method.method_name,
@@ -135,7 +135,7 @@ async function main() {
       },
       create: {
         id: String(method.id),
-        ownerRole: "admin",
+        ownerRole: "ADMIN",
         ownerId: "admin-1",
         type: method.type,
         methodName: method.method_name,

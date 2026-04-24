@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { getPrisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -7,14 +7,18 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   // 1. التأكد من صلاحيات الإدارة
-  const access = await requireAdminPermission("overview");
+  const access = await requireAdminPermission("VIEW_FINANCIALS");
   if (!access.ok) {
-    return NextResponse.json({ message: access.message }, { status: access.status });
+    return respondIfAdminAccessDenied(access);
   }
 
   try {
     const prisma = getPrisma();
     if (!prisma) return NextResponse.json({ message: "Database not available" }, { status: 500 });
+
+    const approvedRechargeWhere = {
+      status: { in: ["approved", "APPROVED"] },
+    };
 
     // 2. جلب جميع البيانات في وقت واحد (Parallel Execution)
     const [
@@ -27,18 +31,40 @@ export async function GET() {
       completedVolume,
       pendingWithdrawals,
       pendingTopups,
-      fraudFlagsCount
+      fraudFlagsCount,
+      rechargeApprovedAggregate,
+      activeAgentsCount,
+      agentWalletsBalanceAggregate,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.player.count(),
       prisma.agent.findMany({ select: { status: true } }),
       prisma.referral.count(),
-      prisma.order.groupBy({ by: ['status'], _count: true }),
+      prisma.order.groupBy({ by: ["status"], _count: true }),
       prisma.order.aggregate({ _sum: { amount: true } }),
       prisma.order.aggregate({ where: { status: "completed" }, _sum: { amount: true } }),
       prisma.withdrawal.count({ where: { status: "pending" } }),
-      prisma.rechargeRequest.count({ where: { status: "pending" } }),
-      prisma.fraudFlag.count({ where: { resolved: false } })
+      prisma.rechargeRequest.count({
+        where: { status: { in: ["pending", "PENDING"] } },
+      }),
+      prisma.fraudFlag.count({ where: { resolved: false } }),
+      prisma.rechargeRequest.aggregate({
+        where: approvedRechargeWhere,
+        _sum: { amount: true, bonusAmount: true },
+        _count: { _all: true },
+      }),
+      prisma.user.count({
+        where: {
+          role: { equals: "AGENT", mode: "insensitive" },
+          status: { equals: "ACTIVE", mode: "insensitive" },
+        },
+      }),
+      prisma.wallet.aggregate({
+        where: {
+          user: { role: { equals: "AGENT", mode: "insensitive" } },
+        },
+        _sum: { balance: true },
+      }),
     ]);
 
     // 3. معالجة بيانات النمو (Growth)
@@ -80,7 +106,16 @@ export async function GET() {
       { name: "Completed", value: statusMap["completed"] || 0 },
     ];
 
-    return NextResponse.json({ growth, finance, trust, orderStatusChart });
+    /** Approved wallet recharges: deposited principal, gifted 10% bonus, counts, agents, wallet TVL. */
+    const bonusTracking = {
+      approvedRechargeRequests: rechargeApprovedAggregate._count._all,
+      totalRealDepositsDh: Number(rechargeApprovedAggregate._sum.amount ?? 0),
+      totalBonusGiftedDh: Number(rechargeApprovedAggregate._sum.bonusAmount ?? 0),
+      activeAgents: activeAgentsCount,
+      totalAgentWalletBalancesDh: Number(agentWalletsBalanceAggregate._sum.balance ?? 0),
+    };
+
+    return NextResponse.json({ growth, finance, trust, orderStatusChart, bonusTracking });
   } catch (error) {
     console.error("ADMIN ANALYTICS ERROR:", error);
     return NextResponse.json(

@@ -1,0 +1,168 @@
+import { UserAccountStatus } from "@prisma/client";
+import { getPrisma } from "@/lib/db";
+import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/constants/i18n";
+
+type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
+
+/** One in-app row per admin user (recipient `userId`) for recharge review. */
+export async function notifyAllAdminsOfNewRechargeRequest(opts: {
+  title: string;
+  message: string;
+  link?: string | null;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  const admins = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      accountStatus: UserAccountStatus.ACTIVE,
+      frozen: false,
+      OR: [
+        { role: { equals: "ADMIN", mode: "insensitive" } },
+        { role: { equals: "SUPER_ADMIN", mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  for (const a of admins) {
+    await prisma.notification.create({
+      data: {
+        userId: a.id,
+        targetRole: "ADMIN",
+        targetId: a.id,
+        title: localizeNotificationTitle(opts.title),
+        message: localizeNotificationMessage(opts.message),
+        type: "RECHARGE_REQUEST",
+        link: opts.link ?? null,
+        read: false,
+      },
+    });
+  }
+}
+
+/** One row per admin when someone applies to become an agent (pending activation). */
+export async function notifyAllAdminsNewAgentApplication(opts: {
+  applicantUsername: string;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  const admins = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      accountStatus: UserAccountStatus.ACTIVE,
+      frozen: false,
+      OR: [
+        { role: { equals: "ADMIN", mode: "insensitive" } },
+        { role: { equals: "SUPER_ADMIN", mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  const username = opts.applicantUsername.trim() || "—";
+  for (const a of admins) {
+    await prisma.notification.create({
+      data: {
+        userId: a.id,
+        targetRole: "ADMIN",
+        targetId: a.id,
+        title: "طلب وكيل جديد",
+        message: `قام ${username} بالتسجيل كوكيل جديد وينتظر التفعيل.`,
+        type: "INFO",
+        link: "/admin/users",
+        read: false,
+      },
+    });
+  }
+}
+
+/** Notify the submitting agent (`User.id` === `RechargeRequest.agentId`) after admin decision. */
+export async function notifyAgentRechargeDecision(opts: {
+  agentUserId: string;
+  title: string;
+  message: string;
+  type: AppNotificationType;
+  link?: string | null;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  await prisma.notification.create({
+    data: {
+      userId: opts.agentUserId,
+      targetRole: "AGENT",
+      targetId: opts.agentUserId,
+      title: localizeNotificationTitle(opts.title),
+      message: localizeNotificationMessage(opts.message),
+      type: opts.type,
+      link: opts.link ?? null,
+      read: false,
+    },
+  });
+}
+
+/** One row per admin when an agent opens a support ticket. */
+export async function notifyAllAdminsNewSupportTicket(opts: {
+  agentUsername: string;
+  subject: string;
+  ticketId: string;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  const admins = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      accountStatus: UserAccountStatus.ACTIVE,
+      frozen: false,
+      OR: [
+        { role: { equals: "ADMIN", mode: "insensitive" } },
+        { role: { equals: "SUPER_ADMIN", mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  const who = opts.agentUsername.trim() || "وكيل";
+  const subj = opts.subject.trim() || "—";
+  for (const a of admins) {
+    await prisma.notification.create({
+      data: {
+        userId: a.id,
+        targetRole: "ADMIN",
+        targetId: a.id,
+        title: "تذكرة دعم جديدة",
+        message: `${who}: ${subj}`,
+        type: "ALERT",
+        link: `/admin/support?ticket=${encodeURIComponent(opts.ticketId)}`,
+        read: false,
+      },
+    });
+  }
+}
+
+/** Notify the agent after admin replies and closes the ticket. */
+export async function notifyAgentSupportTicketReplied(opts: {
+  agentUserId: string;
+  subject: string;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  const subj = opts.subject.trim() || "تذكرتك";
+  await prisma.notification.create({
+    data: {
+      userId: opts.agentUserId,
+      targetRole: "AGENT",
+      targetId: opts.agentUserId,
+      title: "رد الإدارة على تذكرة الدعم",
+      message: `تم الرد على: ${subj}. افتح صفحة الدعم لقراءة الرد الكامل.`,
+      type: "INFO",
+      link: "/agent/support",
+      read: false,
+    },
+  });
+}

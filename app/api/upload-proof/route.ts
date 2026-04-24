@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { v2 as cloudinary } from "cloudinary";
 import { getPrisma } from "@/lib/db"; // تأكد من مسار جلب prisma
+import { ensureCloudinaryConfigured } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
-
-// إعدادات Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 export async function POST(req: Request) {
   try {
@@ -32,6 +25,7 @@ export async function POST(req: Request) {
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
 
     // 3. الرفع إلى Cloudinary
+    const cloudinary = ensureCloudinaryConfigured();
     const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
     const uploadResult = await cloudinary.uploader.upload(base64, {
       folder: "gosport/proofs",

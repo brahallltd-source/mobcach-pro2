@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { createNotification } from "@/lib/notifications";
 import { createWalletIfMissing } from "@/lib/wallet";
 import { getPrisma } from "@/lib/db";
@@ -25,10 +25,10 @@ function buildAgentApprovalMessage(payload: {
 
 // جلب جميع الطلبات
 export async function GET() {
-  const access = await requireAdminPermission("agents");
+  const access = await requireAdminPermission("MANAGE_USERS");
   if (!access.ok) {
-    return NextResponse.json({ success: false, message: access.message }, { status: access.status });
-  }
+      return respondIfAdminAccessDenied(access, { success: false, data: [] });
+    }
 
   try {
     const prisma = getPrisma();
@@ -43,10 +43,10 @@ export async function GET() {
 
 // معالجة القبول أو الرفض
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("agents");
+  const access = await requireAdminPermission("MANAGE_USERS");
   if (!access.ok) {
-    return NextResponse.json({ success: false, message: access.message }, { status: access.status });
-  }
+      return respondIfAdminAccessDenied(access, { success: false });
+    }
 
   try {
     const prisma = getPrisma();
@@ -75,6 +75,10 @@ export async function POST(req: Request) {
         const rejected = await tx.agentApplication.update({
           where: { id: String(agentId) },
           data: { status: "rejected", updatedAt: new Date() },
+        });
+        await tx.user.update({
+          where: { id: application.userId },
+          data: { applicationStatus: "REJECTED" },
         });
         return { mode: "rejected" as const, application: rejected };
       }
@@ -115,7 +119,8 @@ export async function POST(req: Request) {
             email: application.email,
             username: application.username,
             passwordHash: finalPasswordHash,
-            role: "PLAYER",
+            role: "AGENT",
+            applicationStatus: "APPROVED",
             status: "ACTIVE",
             frozen: false,
           },
@@ -144,13 +149,11 @@ export async function POST(req: Request) {
         });
       }
 
-      // 3. تحديث دور المستخدم ليصبح وكيل
+      // 3. فتح الحساب بعد الموافقة: الطلب كان كوكيل (AGENT) + PENDING؛ نحدّث حالة الطلب فقط هنا
       const updatedUser = await tx.user.update({
         where: { id: user.id },
         data: {
-          role: "AGENT",
-          status: "ACTIVE",
-          frozen: false,
+          applicationStatus: "APPROVED",
         },
       });
 

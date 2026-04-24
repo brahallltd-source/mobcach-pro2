@@ -12,21 +12,125 @@ model User {
   email             String             @unique
   username          String             @unique
   passwordHash      String
-  role              String             @default("PLAYER") // ADMIN, AGENT, PLAYER
+  /// Optional profile phone (mirrors `Player.phone` when set from profile flows).
+  phone             String?
+  /// KYC / profile (player self-serve registration & agent application flows).
+  country           String?
+  city              String?
+  dateOfBirth       DateTime?
+  /// Player tapped "Become an agent" — admin review queue signal.
+  pendingAgentRequest Boolean          @default(false)
+  role              String             @default("PLAYER") // PLAYER, AGENT, ADMIN, SUPER_ADMIN
   playerStatus      String?
   assignedAgentId   String?
   agentId           String?
   frozen            Boolean            @default(false)
-  permissions       Json?
+  /// Suspension (freeze): API returns 403 for agents when `SUSPENDED`. Kept in sync with `frozen` for legacy filters.
+  accountStatus     UserAccountStatus  @default(ACTIVE)
+  /// Fine-grained admin RBAC (see `lib/permissions.ts`). Empty = no admin capabilities (except SUPER_ADMIN).
+  permissions       String[]           @default([])
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   agentApplications AgentApplication[]
   auditLogs         AuditLog[]
   notifications     Notification[]
   player            Player?
+  /// Account lifecycle for login/admin (ACTIVE / INACTIVE / BANNED / PENDING_APPROVAL / PENDING_AGENT) — distinct from `accountStatus` suspension.
   status            String             @default("ACTIVE")
   agentProfile      Agent?
   wallet            Wallet?
+  /// Wallet recharge requests where this user is the submitting agent (`RechargeRequest.agentId` = `User.id`).
+  agentRechargeRequests RechargeRequest[] @relation("RechargeRequestAgentUser")
+  balanceLogsAsAdmin    BalanceLog[]        @relation("BalanceLogAdmin")
+  balanceLogsAsAgent    BalanceLog[]        @relation("BalanceLogAgent")
+  /// Monitoring / manual tags (e.g. HIGH_VALUE). `NEW_AGENT` is also derived at read-time from `createdAt`.
+  flags                 String[]            @default([])
+  supportTickets        SupportTicket[]     @relation("SupportTicketAgent")
+  /// Player → platform support tickets (distinct from agent `SupportTicket`).
+  playerSupportTickets  PlayerSupportTicket[]
+  /// Soft-removed admin users (cannot sign in; hidden from admin lists).
+  deletedAt             DateTime?
+  /// Agent onboarding / compliance gate (distinct from `Agent.status` profile row).
+  applicationStatus ApplicationStatus @default(NONE)
+  hasUsdtAccess       Boolean           @default(false)
+  rejectionReason     String?
+  transactions        AgentTransaction[]
+  /// Player-submitted bank/cash/telecom payment receipts awaiting agent review.
+  paymentProofsAsAgent   PaymentProofTransaction[] @relation("PaymentProofAgentUser")
+  paymentProofsAsPlayer  PaymentProofTransaction[] @relation("PaymentProofPlayerUser")
+  /// Agent-only (role `AGENT`): JSON toggles + detail strings for inbound player payments (CIH, Orange, etc.).
+  agentInboundPaymentsJson Json?
+  /// Agent-only: human-readable execution window for player-facing UI (e.g. `"15 min"`, `"30 min"`).
+  executionTime   String?
+  /// Agent-only: enabled payment rails + details for player checkout (`{ id, name, details, isActive }[]`).
+  paymentMethods  Json?
+  /// Agent marketplace: cumulative thumbs-up from players (`User.role === "AGENT"` rows).
+  likes             Int      @default(0)
+  /// Agent marketplace: cumulative thumbs-down from players.
+  dislikes          Int      @default(0)
+  /// Agent-only: unique invite code for `/register?ref=` (e.g. `AGENT-XYZ`).
+  inviteCode        String?  @unique
+  /// Agent-only: how many milestone bonus blocks (10 players @ 5000 DH each) have been auto-credited to wallet.
+  bonusesClaimed    Int      @default(0)
+  /// Agent invited by another agent (`User.id` of referrer).
+  referredById      String?
+  referredBy        User?    @relation("AgentReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  subAgents         User[]   @relation("AgentReferrals")
+  /// Bonuses already auto-credited for the sub-agent referral program (blocks of 10 qualified subs @ 10k DH sales).
+  agentBonusesPaid  Int      @default(0)
+  /// Lifetime sales volume (DH) for this agent user — incremented when they approve player recharge proofs.
+  totalSales        Float    @default(0)
+  /// Agent (or future roles) presence — updated on login, heartbeat, logout.
+  isOnline          Boolean  @default(false)
+  lastSeen          DateTime @default(now())
+
+  @@index([deletedAt])
+  @@index([referredById])
+}
+
+/// Singleton row `id = "default"` — global platform knobs (admin-editable).
+model SystemSettings {
+  id              String   @id @default("default")
+  bonusPercentage Float    @default(10)
+  isMaintenance   Boolean  @default(false)
+  announcement    String?
+  platformName    String   @default("GS365Cash")
+  primaryColor    String   @default("#0f172a")
+  logoUrl         String?
+  faviconUrl      String?
+  updatedAt       DateTime @updatedAt
+}
+
+/// Singleton row `id = 1` — public contact / social branding (super-admin editable).
+model BrandingSettings {
+  id         Int      @id @default(1)
+  facebook   String?
+  instagram  String?
+  telegram   String?
+  gmail      String?
+  websiteUrl String   @default("https://gosport365.com")
+  showFb     Boolean  @default(true)
+  showInsta  Boolean  @default(true)
+  showTele   Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+/// Admin manual wallet adjustments (audit trail).
+model BalanceLog {
+  id               String   @id @default(uuid())
+  adminId          String
+  agentId          String
+  type             String   @default("MANUAL_ADJUST")
+  amount           Float
+  operation        String
+  bonusApplied     Boolean  @default(false)
+  previousBalance  Float
+  newBalance       Float
+  createdAt        DateTime @default(now())
+  admin            User     @relation("BalanceLogAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  agent            User     @relation("BalanceLogAgent", fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt])
 }
 
 model AgentApplication {
@@ -37,6 +141,8 @@ model AgentApplication {
   email     String
   phone     String
   country   String?
+  city      String?
+  birthDate DateTime?
   note      String?
   status    String   @default("pending")
   createdAt DateTime @default(now())
@@ -59,6 +165,9 @@ model Player {
   country         String?
   dateOfBirth     String?
   status          String
+  /// GoSport365 login set by the agent after manual approval (plain username; password stored bcrypt).
+  gosportUsername String?      @map("gosport_username")
+  gosportPassword String?      @map("gosport_password")
   assignedAgentId String?
   referredBy      String?
   createdAt       DateTime     @default(now())
@@ -66,6 +175,34 @@ model Player {
   orders          Order[]
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   withdrawals     Withdrawal[]
+  agentCustomers  AgentCustomer[]
+}
+
+/// Players saved on an agent’s personal list (distinct from `Player.assignedAgentId` alone).
+model AgentCustomer {
+  id         String   @id @default(uuid())
+  agentId    String
+  playerId   String
+  isFlagged  Boolean  @default(false)
+  /// GoSport365 / GS365Cash login after approval (`gs365Username` plain; `gs365Password` stores bcrypt hash only).
+  gs365Username String?
+  /// Bcrypt hash of the player’s GS365 password (column name legacy in DB).
+  gs365Password String? @map("gs365PasswordHash")
+  /// Minutes promised for execution (e.g. 15, 30, 60); overrides agent default when set.
+  executionTimeMinutes Int?
+  /// Link lifecycle: REQUESTED (invite, awaiting agent) | PENDING (legacy) | CONNECTED | APPROVED (legacy).
+  status     String   @default("REQUESTED") @map("approvalStatus")
+  /// Lifetime amount recharged by this player through this agent (approved proof flows).
+  totalRecharged Float @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, playerId])
+  @@index([agentId])
+  @@index([playerId])
+  @@index([status])
 }
 
 model Agent {
@@ -80,6 +217,8 @@ model Agent {
   online           Boolean            @default(false)
   note             String?
   responseMinutes  Int                @default(30)
+  /// Default order execution window (minutes) for new player links; shown in agent payment settings.
+  defaultExecutionTimeMinutes Int       @default(30)
   rating           Float              @default(0)
   successRate      Float              @default(0)
   tradesCount      Int                @default(0)
@@ -94,6 +233,7 @@ model Agent {
   wallet           Wallet?
   userId           String             @unique
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentCustomers   AgentCustomer[]
 }
 
 model WinnerRequest {
@@ -166,8 +306,10 @@ model WalletLedger {
   wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 }
 
+/// Platform payment details: either global admin treasury (`ownerRole: "ADMIN"`, `agentId` null — not an Agent profile)
+/// or an agent’s own methods (`ownerRole: "agent"`, `agentId` set).
 model PaymentMethod {
-  id            String            @id @default(uuid())
+  id            String              @id @default(uuid())
   ownerRole     String
   ownerId       String
   type          PaymentMethodType
@@ -182,10 +324,12 @@ model PaymentMethod {
   active        Boolean           @default(true)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
-  agentId       String
-  agent         Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  /// Null for global admin treasury; set only for methods owned by an `Agent` profile.
+  agentId       String?
+  agent         Agent?            @relation(fields: [agentId], references: [id], onDelete: Cascade)
   provider      String? // 🟢 زدنا المزود (خاص بـ Cash)
   instructions  String?           @db.Text // 🟢 زدنا التعليمات (مساحة كبيرة للكتابة)
+  rechargeRequests RechargeRequest[]
 }
 
 model Activation {
@@ -242,16 +386,24 @@ model Referral {
   updatedAt         DateTime @updatedAt
 }
 
+/// In-app row: recipient `userId`, optional legacy `targetRole`/`targetId` for chat-style polling.
+/// Boolean `read` is returned as `isRead` from `GET /api/notifications?for=me`.
 model Notification {
-  id         String   @id @default(uuid())
+  id         String           @id @default(uuid())
   userId     String?
   targetRole String
   targetId   String
   title      String
   message    String
-  read       Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  user       User?    @relation(fields: [userId], references: [id])
+  type       NotificationType @default(INFO)
+  link       String?
+  /// Unread until marked read; exposed as `isRead` on `GET /api/notifications?for=me`.
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  user       User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 model Withdrawal {
@@ -309,21 +461,82 @@ model EscrowStub {
   createdAt DateTime @default(now())
 }
 
+/// Agent-submitted treasury top-up (bank / wallet / crypto proof) — distinct from wallet `RechargeRequest`.
+model AgentTransaction {
+  id          String            @id @default(cuid())
+  agentId     String
+  agent       User              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      String // e.g. "CIH", "ORANGE_MONEY", "SKRILL"
+  status      TransactionStatus @default(PENDING)
+  details     Json // { rib: "..." } or { phone: "..." }
+  receiptUrl  String
+  motif       String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([agentId, createdAt])
+}
+
 model RechargeRequest {
-  id                  String   @id
+  id                  String          @id
   agentId             String
   agentEmail          String
+  /// Submitting user (`User.id` === `agentId`); nested `agentProfile` is the public `Agent` row when present.
+  agent                 User            @relation("RechargeRequestAgentUser", fields: [agentId], references: [id], onDelete: Cascade)
   amount              Float
   adminMethodId       String
   adminMethodName     String
+  paymentMethodId     String?
+  paymentMethod       PaymentMethod?  @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   txHash              String?
   proofUrl            String?
   note                String?
   status              String
-  bonusAmount         Float    @default(0)
-  pendingBonusApplied Float    @default(0)
-  createdAt           DateTime @default(now())
+  bonusAmount         Float           @default(0)
+  pendingBonusApplied Float           @default(0)
+  gosport365Username  String?
+  /// Monitoring flags, e.g. HIGH_VALUE, NEW_AGENT (computed on create / merged in admin APIs).
+  flags               String[]        @default([])
+  createdAt           DateTime        @default(now())
   updatedAt           DateTime
+
+  @@index([paymentMethodId])
+  @@index([agentId])
+}
+
+model SupportTicket {
+  id              String              @id @default(uuid())
+  agentId         String
+  subject         String
+  message         String              @db.Text
+  status          SupportTicketStatus @default(OPEN)
+  adminReply      String?             @db.Text
+  isReadByAdmin   Boolean             @default(false)
+  isReadByAgent   Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  agent           User                @relation("SupportTicketAgent", fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Player inquiries to the platform team (separate from agent `SupportTicket` inbox).
+model PlayerSupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String   @db.Text
+  /// OPEN | IN_PROGRESS | RESOLVED
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("player_support_tickets")
 }
 
 model Complaint {
@@ -355,6 +568,84 @@ enum UserRole {
   PLAYER
 }
 
+enum UserAccountStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ApplicationStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+/// Player → agent payment proof lifecycle (distinct from `AgentTransaction` treasury proofs).
+/// `status` values are defined in `lib/recharge-proof-lifecycle.ts` (stored as plain string for DB portability).
+
+model PaymentProofTransaction {
+  id                 String    @id @default(uuid())
+  amount             Float
+  senderName         String
+  senderPhone        String?
+  receiptUrl         String
+  /// PENDING_PROOF | PROCESSING | AGENT_APPROVED | AGENT_REJECTED | PLAYER_CONFIRMED | DISPUTED
+  status             String    @default("PROCESSING")
+  paymentMethodId    String?
+  paymentMethodTitle String?
+  /// Human-readable method snapshot for admin / history.
+  paymentMethod      String?
+  /// Agent rejection note (required when status = AGENT_REJECTED).
+  agentRejectReason  String?   @map("rejectReason")
+  playerComment      String?   @db.Text
+  /// True = like, false = dislike (after PLAYER_CONFIRMED feedback).
+  playerRating       Boolean?
+  /// Player text when opening a dispute (status DISPUTED).
+  disputeMessage     String?   @db.Text
+  timerStartedAt     DateTime?
+  isLatePenaltyApplied Boolean @default(false)
+
+  agentUserId   String
+  playerUserId  String
+  agentUser     User @relation("PaymentProofAgentUser", fields: [agentUserId], references: [id], onDelete: Cascade)
+  playerUser    User @relation("PaymentProofPlayerUser", fields: [playerUserId], references: [id], onDelete: Cascade)
+
+  /// Resolution chat (`transactionId` on `Message` = this row’s `id`).
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentUserId, status, createdAt])
+  @@index([playerUserId, createdAt])
+  @@map("payment_proof_transactions")
+}
+
+/// Chat messages for a payment-proof transaction (`PaymentProofTransaction.id` = `transactionId`).
+model Message {
+  id              String                  @id @default(cuid())
+  transactionId   String
+  transaction     PaymentProofTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  senderId        String
+  senderRole      String
+  content         String                  @db.Text
+  isRead          Boolean                 @default(false)
+  createdAt       DateTime                @default(now())
+
+  @@index([transactionId, createdAt])
+}
+
+enum SupportTicketStatus {
+  OPEN
+  CLOSED
+}
+
 enum OrderStatus {
   pending_payment
   proof_uploaded
@@ -384,6 +675,13 @@ enum PaymentMethodType {
   bank
   cash
   crypto
+}
+
+enum NotificationType {
+  INFO
+  RECHARGE_REQUEST
+  SUCCESS
+  ALERT
 }
 
 enum Status {

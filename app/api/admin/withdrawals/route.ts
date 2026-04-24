@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { requireAdminPermission } from "@/lib/server-auth";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -30,14 +30,10 @@ function mapWithdrawal(item: any) {
 }
 
 export async function GET() {
-  const access = await requireAdminPermission("withdrawals");
-
+  const access = await requireAdminPermission("VIEW_FINANCIALS");
   if (!access.ok) {
-    return NextResponse.json(
-      { message: access.message, withdrawals: [] },
-      { status: access.status }
-    );
-  }
+      return respondIfAdminAccessDenied(access, { withdrawals: [] });
+    }
 
   try {
     const prisma = getPrisma();
@@ -66,13 +62,10 @@ We could not complete your request right now. Please try again.`, withdrawals: [
 }
 
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("withdrawals");
+  const access = await requireAdminPermission("VIEW_FINANCIALS");
 
   if (!access.ok) {
-    return NextResponse.json(
-      { message: access.message },
-      { status: access.status }
-    );
+    return respondIfAdminAccessDenied(access);
   }
 
   try {

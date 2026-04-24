@@ -35,18 +35,47 @@ export default function AdminFraudPage() {
   const [actionNote, setActionNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const emptySummary = (): Summary => ({ suspiciousOrders: 0, pendingFlags: 0, highRisk: 0 });
+
   const load = async () => {
     try {
-      const res = await fetch("/api/admin/fraud", { cache: "no-store" });
-      const data = await res.json();
-      setItems(data.items || []);
-      setSummary(data.summary || null);
+      const res = await fetch("/api/admin/fraud", { cache: "no-store", credentials: "include" });
+      if (!res.ok) {
+        console.error("API Error:", res.status, res.statusText);
+        setItems([]);
+        setSummary(emptySummary());
+        setSelected(null);
+        return;
+      }
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        console.error("Non-JSON fraud response:", ct);
+        setItems([]);
+        setSummary(emptySummary());
+        setSelected(null);
+        return;
+      }
+      let data: { items?: FraudFlag[]; summary?: Summary | null };
+      try {
+        data = (await res.json()) as typeof data;
+      } catch (e) {
+        console.error("JSON parse error (fraud)", e);
+        setItems([]);
+        setSummary(emptySummary());
+        setSelected(null);
+        return;
+      }
+      const list = Array.isArray(data.items) ? data.items : [];
+      setItems(list);
+      setSummary(data.summary && typeof data.summary === "object" ? data.summary : emptySummary());
       setSelected((current) => {
-        const next = (data.items || []).find((item: FraudFlag) => item.id === current?.id);
-        return next || (data.items || [])[0] || null;
+        const next = list.find((item) => item.id === current?.id);
+        return next || list[0] || null;
       });
     } catch (error) {
       console.error("Failed to load fraud items", error);
+      setItems([]);
+      setSummary(emptySummary());
     }
   };
 
@@ -68,14 +97,23 @@ export default function AdminFraudPage() {
       const res = await fetch("/api/admin/fraud", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          flagId: selected.id, 
-          orderId: selected.orderId, 
-          action, 
-          note: actionNote 
+        credentials: "include",
+        body: JSON.stringify({
+          flagId: selected.id,
+          orderId: selected.orderId,
+          action,
+          note: actionNote,
         }),
       });
-      const data = await res.json();
+      const ct = res.headers.get("content-type") || "";
+      let data: { message?: string } = {};
+      if (ct.includes("application/json")) {
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+          /* ignore */
+        }
+      }
       if (!res.ok) {
         alert(data.message || "Action failed");
         return;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { createNotification } from "@/lib/notifications";
 import { createWalletIfMissing } from "@/lib/wallet";
 import { getPrisma } from "@/lib/db";
@@ -65,13 +65,10 @@ async function resolveUniqueUsername(
 }
 
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("agents");
+  const access = await requireAdminPermission("MANAGE_USERS");
   if (!access.ok) {
-    return NextResponse.json(
-      { success: false, message: access.message },
-      { status: access.status }
-    );
-  }
+      return respondIfAdminAccessDenied(access, { success: false });
+    }
 
   try {
     const { agentId, action } = await req.json();
@@ -160,6 +157,7 @@ export async function POST(req: Request) {
           where: { id: existingByEmail.id },
           data: {
             role: "AGENT",
+            applicationStatus: "APPROVED",
             frozen: false,
             agentId: updatedAgent.id,
             assignedAgentId: null,
@@ -182,11 +180,11 @@ export async function POST(req: Request) {
           username: uniqueUsername,
           passwordHash,
           role: "AGENT",
+          applicationStatus: "APPROVED",
           frozen: false,
           agentId: updatedAgent.id,
           playerStatus: null,
           assignedAgentId: null,
-          permissions: null,
         },
       });
 

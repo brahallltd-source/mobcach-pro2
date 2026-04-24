@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 
@@ -33,13 +34,22 @@ function mapOrder(order: any) {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSessionUserFromCookies();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized", message: "Unauthorized" }, { status: 401 });
+    }
+    const roleU = String(session.role ?? "").trim().toUpperCase();
+    if (roleU !== "PLAYER") {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
+
     const prisma = getPrisma();
     if (!prisma) {
       return NextResponse.json({ orders: [], order: null });
     }
 
+    const email = String(session.email || "").trim().toLowerCase();
     const { searchParams } = new URL(req.url);
-    const email = String(searchParams.get("email") || "").trim().toLowerCase();
     const orderId = String(searchParams.get("orderId") || "").trim();
 
     if (!email) {

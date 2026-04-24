@@ -1,8 +1,10 @@
 "use client";
 
+import { clsx } from "clsx";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, MessageCircleMore, Clock, ShieldCheck } from "lucide-react";
+import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 import {
   EmptyState,
   GlassCard,
@@ -13,6 +15,8 @@ import {
   StatusBadge,
   TextField,
 } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Msg = {
   senderRole: string;
@@ -69,23 +73,46 @@ function lastMessageFromOtherParty(messages?: Msg[]) {
 export default function PlayerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadHint, setLoadHint] = useState<string | null>(null);
   const [mainTab, setMainTab] = useState<MainTab>("ongoing");
   const [filter, setFilter] = useState<FilterTab>("all");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
+    void (async () => {
+      let u = await fetchSessionUser();
+      if (!u) {
+        await new Promise((r) => setTimeout(r, 200));
+        u = await fetchSessionUser();
+      }
+      if (!u || String((u as { role?: string }).role ?? "").toLowerCase() !== "player") {
+        redirectToLogin();
+        return;
+      }
+      try {
+        localStorage.setItem("mobcash_user", JSON.stringify(u));
+      } catch {
+        /* ignore */
+      }
 
-    const user = JSON.parse(saved);
-    if (user.role !== "player") return void (window.location.href = "/login");
-
-    fetch(`/api/player/orders?email=${encodeURIComponent(user.email)}`, {
-      cache: "no-store",
-    })
-      .then((res) => res.json())
-      .then((data) => setOrders(data.orders || []))
-      .finally(() => setLoading(false));
+      const res = await fetch("/api/player/orders", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as { orders?: Order[] };
+      if (res.ok) {
+        setLoadHint(null);
+        setOrders(Array.isArray(data.orders) ? data.orders : []);
+      } else {
+        setOrders([]);
+        if (res.status === 401 || res.status === 403) {
+          setLoadHint("تعذّر التحقق من الجلسة لهذه الصفحة. جرّب تحديث الصفحة.");
+        } else {
+          setLoadHint("تعذّر تحميل الطلبات. حاول مرة أخرى لاحقاً.");
+        }
+      }
+      setLoading(false);
+    })();
   }, []);
 
   const counts = useMemo(() => {
@@ -146,38 +173,50 @@ export default function PlayerOrdersPage() {
         }
       />
 
-      <GlassCard className="overflow-hidden p-0">
+      {loadHint ? (
+        <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100" role="status">
+          {loadHint}
+        </p>
+      ) : null}
+
+      <GlassCard className="overflow-hidden border-primary/25 bg-white/[0.04] p-0 shadow-xl backdrop-blur-md">
         <div className="border-b border-white/10 px-4 pt-4 md:px-6">
-          <div className="flex items-center gap-6 text-lg font-semibold">
-            <button
+          <div className="flex items-center gap-4 text-lg font-semibold md:gap-6">
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => {
                 setMainTab("ongoing");
                 setFilter("all");
               }}
-              className={`relative pb-4 transition ${
-                mainTab === "ongoing" ? "text-cyan-300" : "text-white/55 hover:text-white/80"
-              }`}
+              className={clsx(
+                "relative rounded-none px-2 pb-4 text-base font-semibold hover:bg-transparent hover:text-white/85",
+                mainTab === "ongoing" ? "text-cyan-300" : "text-white/55"
+              )}
             >
               Ongoing Orders
               {mainTab === "ongoing" ? (
-                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-cyan-400" />
+                <span className="absolute bottom-0 start-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
-            </button>
+            </Button>
 
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => {
                 setMainTab("fulfilled");
                 setFilter("all");
               }}
-              className={`relative pb-4 transition ${
-                mainTab === "fulfilled" ? "text-cyan-300" : "text-white/55 hover:text-white/80"
-              }`}
+              className={clsx(
+                "relative rounded-none px-2 pb-4 text-base font-semibold hover:bg-transparent hover:text-white/85",
+                mainTab === "fulfilled" ? "text-cyan-300" : "text-white/55"
+              )}
             >
               Fulfilled
               {mainTab === "fulfilled" ? (
-                <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-cyan-400" />
+                <span className="absolute bottom-0 start-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -185,41 +224,45 @@ export default function PlayerOrdersPage() {
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
             <div className="flex flex-wrap gap-2">
               {filterOptions.map((item) => (
-                <button
+                <Button
                   key={item.key}
+                  type="button"
+                  variant={filter === item.key ? "default" : "outline"}
                   onClick={() => setFilter(item.key)}
-                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
-                    filter === item.key
-                      ? "bg-cyan-400 text-slate-950"
-                      : "border border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
-                  }`}
+                  className={clsx(
+                    "rounded-2xl px-4 py-2 text-sm font-semibold",
+                    filter === item.key && "bg-cyan-400 text-slate-950 shadow-md hover:bg-cyan-300"
+                  )}
                 >
                   {item.label}
-                </button>
+                </Button>
               ))}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
               <div className="relative min-w-[220px]">
                 <Search
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
+                  className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-white/35"
                   size={16}
                 />
                 <TextField
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by order, method or username"
-                  className="pl-11"
+                  className="ps-11"
                 />
               </div>
 
-              <div className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/60">
+              <div
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-muted/10 px-4 text-sm text-white/60"
+                aria-hidden
+              >
                 <SlidersHorizontal size={16} />
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
+          <div className="rounded-2xl border border-primary/20 bg-muted/10 px-4 py-3 text-sm text-white/65">
             {mainTab === "ongoing"
               ? `${counts.ongoing} ongoing order(s)`
               : `${counts.fulfilled} fulfilled order(s)`}
@@ -241,76 +284,76 @@ export default function PlayerOrdersPage() {
                 const detailHref = `/player/orders/${order.id}`;
 
                 return (
-                  <Link
-                    key={order.id}
-                    href={detailHref}
-                    className="block rounded-[28px] border border-white/10 bg-white/[0.04] p-5 transition hover:border-cyan-400/30 hover:bg-white/[0.08]"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <p className="text-3xl font-semibold">
-                            {order.amount.toLocaleString()} <span className="text-xl font-normal text-white/60">DH</span>
-                          </p>
-                          <StatusBadge status={order.status} />
-                          {hasUnread ? (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200">
-                              <MessageCircleMore size={14} />
-                              New message
-                            </span>
-                          ) : null}
-                        </div>
+                  <Link key={order.id} href={detailHref} className="block">
+                    <Card className="border-primary/25 bg-white/[0.04] shadow-lg backdrop-blur-md transition hover:border-cyan-400/35 hover:bg-white/[0.07]">
+                      <CardContent className="p-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <p className="text-4xl font-black tabular-nums tracking-tight text-white">
+                                {order.amount.toLocaleString()}{" "}
+                                <span className="text-xl font-semibold text-white/50">DH</span>
+                              </p>
+                              <StatusBadge status={order.status} />
+                              {hasUnread ? (
+                                <span className="inline-flex items-center gap-2 rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200">
+                                  <MessageCircleMore size={14} />
+                                  New message
+                                </span>
+                              ) : null}
+                            </div>
 
-                        <p className="mt-3 text-sm text-white/65">
-                          <span className="font-medium text-white/80">{order.paymentMethodName || "Method pending"}</span> •{" "}
-                          {order.gosportUsername || "Username pending"}
-                        </p>
+                            <p className="mt-3 text-sm text-white/65">
+                              <span className="font-medium text-white/80">
+                                {order.paymentMethodName || "Method pending"}
+                              </span>{" "}
+                              • {order.gosportUsername || "Username pending"}
+                            </p>
 
-                        <div className="mt-4 grid gap-2 text-sm text-white/50 md:grid-cols-2 xl:grid-cols-4">
-                          <p>
-                            <span className="text-white/35">Order:</span> {order.id.split('-')[0]}
-                          </p>
-                          <p>
-                            <span className="text-white/35">Created:</span>{" "}
-                            {formatDate(order.createdAt)}
-                          </p>
-                          <p>
-                            <span className="text-white/35">Updated:</span>{" "}
-                            {formatDate(order.updatedAt || order.createdAt)}
-                          </p>
-                          <p className="capitalize">
-                            <span className="text-white/35">Flow:</span>{" "}
-                            {getFilterTab(order).replaceAll("_", " ")}
-                          </p>
-                        </div>
+                            <div className="mt-4 grid gap-2 text-sm text-white/50 md:grid-cols-2 xl:grid-cols-4">
+                              <p>
+                                <span className="text-white/35">Order:</span> {order.id.split("-")[0]}
+                              </p>
+                              <p>
+                                <span className="text-white/35">Created:</span> {formatDate(order.createdAt)}
+                              </p>
+                              <p>
+                                <span className="text-white/35">Updated:</span>{" "}
+                                {formatDate(order.updatedAt || order.createdAt)}
+                              </p>
+                              <p className="capitalize">
+                                <span className="text-white/35">Flow:</span>{" "}
+                                {getFilterTab(order).replaceAll("_", " ")}
+                              </p>
+                            </div>
 
-                        {/* التوجيهات الدقيقة بناءً على الحالات الأمنية الجديدة */}
-                        {order.status === "pending_payment" && (
-                          <div className="mt-4 flex items-center gap-2 text-sm text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-xl inline-flex">
-                            <Clock size={16} /> Waiting for your payment. Open to view details and upload receipt.
+                            {order.status === "pending_payment" ? (
+                              <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-300">
+                                <Clock size={16} /> Waiting for your payment. Open to view details and upload receipt.
+                              </div>
+                            ) : null}
+
+                            {order.status === "proof_uploaded" || order.status === "flagged_for_review" ? (
+                              <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                                <Clock size={16} /> Proof submitted. Waiting for agent to verify and release.
+                              </div>
+                            ) : null}
+
+                            {order.status === "agent_approved_waiting_player" ? (
+                              <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                                <ShieldCheck size={16} /> Payment verified by agent. Open to confirm recharge receipt.
+                              </div>
+                            ) : null}
                           </div>
-                        )}
 
-{(order.status === "proof_uploaded" || order.status === "flagged_for_review") && (
-  <div className="mt-4 flex items-center gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl inline-flex">
-    <Clock size={16} /> Proof submitted. Waiting for agent to verify and release.
-  </div>
-)}
-
-{order.status === "agent_approved_waiting_player" && (
-  <div className="mt-4 flex items-center gap-2 text-sm text-emerald-200 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl inline-flex">
-    <ShieldCheck size={16} /> Payment verified by agent. Open to confirm recharge receipt.
-  </div>
-)}
-                        
-                      </div>
-
-                      <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
-                        <span className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition text-center">
-                          {order.status === "pending_payment" ? "Pay Now" : "View Details"}
-                        </span>
-                      </div>
-                    </div>
+                          <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
+                            <span className="rounded-2xl border border-white/10 bg-muted/10 px-4 py-3 text-center text-sm font-semibold text-white/85">
+                              {order.status === "pending_payment" ? "Pay Now" : "View Details"}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </Link>
                 );
               })}

@@ -1,5 +1,7 @@
+import { UserAccountStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 
 export const runtime = "nodejs";
 
@@ -16,7 +18,7 @@ export async function POST(req: Request) {
     // 1. جلب الوكيل مع معلومات اليوزر المرتبط به
     const agent = await prisma.agent.findUnique({
       where: { id: agentId },
-      include: { user: true }
+      include: { user: { select: USER_SELECT_SAFE_RELATION } },
     });
 
     if (!agent || !agent.user) {
@@ -31,7 +33,10 @@ export async function POST(req: Request) {
       // أ. تحديث حالة التجميد فـ جدول اليوزر (المسؤول عن تسجيل الدخول)
       await tx.user.update({
         where: { id: agent.userId },
-        data: { frozen: nextFrozenStatus }
+        data: {
+          frozen: nextFrozenStatus,
+          accountStatus: nextFrozenStatus ? UserAccountStatus.SUSPENDED : UserAccountStatus.ACTIVE,
+        },
       });
 
       // ب. تحديث حالة الوكيل فـ جدول الـ Agent

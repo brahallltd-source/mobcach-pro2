@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatCard, TextField } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 export default function InviteAgentPage() {
   const [user, setUser] = useState<any>(null);
@@ -19,15 +20,13 @@ export default function InviteAgentPage() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const current = JSON.parse(saved);
-    if (String(current.role).toLowerCase() !== "agent") return void (window.location.href = "/login");
-    
-    setUser(current);
-    // 🟢 الإصلاح 1: نخدمو بـ agentId ولا id لي كاين
-    const currentAgentId = current.agentId || current.id;
-    load(currentAgentId).finally(() => setLoading(false));
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) return void redirectToLogin();
+      setUser(u);
+      const currentAgentId = String((u as { agentId?: string }).agentId || u.id);
+      load(currentAgentId).finally(() => setLoading(false));
+    })();
   }, []);
 
   const eligible = useMemo(() => {

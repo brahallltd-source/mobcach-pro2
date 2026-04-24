@@ -1,0 +1,39 @@
+{
+  "dashboard": {
+    "monitoringTitle": "Centre de supervision admin",
+    "monitoringSubtitle": "KPI financiers en direct, file de recharges, extrait du grand livre et volumes opérationnels — actualisation toutes les 60 secondes.",
+    "refreshMetrics": "Actualiser les indicateurs",
+    "metricsUtcHint": "L’agrégation « aujourd’hui » est en UTC : {{date}}",
+    "metricsUtcHintFallback": "Les recharges approuvées dont updatedAt tombe sur le jour calendaire UTC en cours.",
+    "loadingAdminDashboard": "Chargement du tableau de bord admin…",
+    "totalSalesToday": "Ventes du jour",
+    "bonusDistributed": "Bonus distribué",
+    "bonusDistributedHint": "Somme de bonusAmount pour les demandes de recharge approuvées aujourd’hui (UTC).",
+    "agentLiquidity": "Liquidité des agents (marché)",
+    "agentLiquidityHint": "Somme des soldes de portefeuille des utilisateurs au rôle AGENT.",
+    "pendingRechargeReviews": "Recharges en attente de validation",
+    "pendingRechargeHint": "Demandes de recharge en PENDING nécessitent une revue immédiate.",
+    "noFinancialPermission": "Vous n’avez pas la permission VIEW_FINANCIALS. Les KPI financiers, le livre et les exports sont masqués.",
+    "approvedDepositsLifetime": "Dépôts de recharge approuvés (total)",
+    "approvedRechargeCountLabel": "Demandes de recharge approuvées :",
+    "bonusGiftedLifetime": "Bonus offerts (total)",
+    "bonusGiftedLifetimeSub": "À partir des recharges approuvées (bonusAmount) — périmètre plus large que le bonus du jour.",
+    "activeAgents": "Agents actifs",
+    "activeAgentsSub": "Comptes AGENT au statut ACTIVE sur la plateforme.",
+    "liveLedgerTitle": "Flux d’activité en direct",
+    "liveLedgerSub": "10 derniers mouvements du WalletLedger — mis à jour avec les indicateurs toutes les 60 s ou au clic sur actualiser.",
+    "exportLedgerTitle": "Export du livre",
+    "exportLedgerSub": "Choisissez la période d’export",
+    "dateRangeInvalid": "La date de début doit être antérieure ou égale à la date de fin.",
+    "exporting": "Export en cours…",
+    "exportButton": "Exporter le relevé (Excel)",
+    "exportFooterHint": "Sans dates dans l’URL, le serveur exporte les 30 derniers jours par défaut. Le CSV s’ouvre bien dans Excel."
+  },
+  "sidebar": {
+    "systemSettings": "Paramètres système",
+    "applications": "Candidatures",
+    "users": "Utilisateurs",
+    "supportInbox": "Boîte support",
+    "historyArchive": "Historique / Archives"
+  }
+}

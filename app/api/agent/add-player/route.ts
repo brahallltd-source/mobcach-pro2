@@ -3,6 +3,10 @@ import { createNotification } from "@/lib/notifications";
 import { normalizePhoneWithCountry } from "@/lib/countries";
 import { hashPassword } from "@/lib/security";
 import { getPrisma } from "@/lib/db";
+import {
+  rejectAgentIfSuspended,
+  rejectIfMaintenanceBlocksAgents,
+} from "@/lib/agent-account-guard";
 
 export const runtime = "nodejs";
 
@@ -98,6 +102,12 @@ if (!password) {
         { status: 404 }
       );
     }
+
+    const maintenanceBlock = await rejectIfMaintenanceBlocksAgents(prisma);
+    if (maintenanceBlock) return maintenanceBlock;
+
+    const suspendedBlock = await rejectAgentIfSuspended(prisma, agentUser.id);
+    if (suspendedBlock) return suspendedBlock;
 
     const existingEmail = await prisma.user.findFirst({
       where: { email },

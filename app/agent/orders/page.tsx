@@ -13,6 +13,7 @@ import {
   StatusBadge,
   TextField,
 } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 type Order = {
   id: string;
@@ -39,16 +40,23 @@ export default function AgentOrdersPage() {
       .then((data) => setOrders(data.orders || []));
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    if (user.role !== "agent") return void (window.location.href = "/login");
-    
-    load(user.email).finally(() => setLoading(false));
-
-    // تحديث تلقائي كل 10 ثوانٍ لضمان بقاء الوكيل على اطلاع بأحدث الطلبات والرسائل
-    const timer = setInterval(() => load(user.email), 10000);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) {
+        if (!cancelled) redirectToLogin();
+        return;
+      }
+      if (cancelled) return;
+      const email = String(u.email);
+      load(email).finally(() => { if (!cancelled) setLoading(false); });
+      timer = setInterval(() => { if (!cancelled) void load(email); }, 10000);
+    })();
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
   }, []);
 
   // إحصائيات سريعة للوحة التحكم

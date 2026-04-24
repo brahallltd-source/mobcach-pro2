@@ -10,6 +10,7 @@ import {
   SidebarShell,
   TextArea,
 } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 type Msg = {
   id?: string;
@@ -42,10 +43,11 @@ export default function AgentChatThreadPage() {
   const [actionBusy, setActionBusy] = useState(false);
 
   const load = async () => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return;
-
-    const user = JSON.parse(saved);
+    const user = await requireMobcashUserOnClient("agent");
+    if (!user) {
+      redirectToLogin();
+      return;
+    }
     const email = String(user.email || "").trim();
 
     const res = await fetch(
@@ -96,13 +98,11 @@ export default function AgentChatThreadPage() {
     try {
       setActionBusy(true);
 
-      const saved = localStorage.getItem("mobcash_user");
-      if (!saved) {
+      const user = await requireMobcashUserOnClient("agent");
+      if (!user) {
         alert("Login required");
         return;
       }
-
-      const user = JSON.parse(saved);
       const email = String(user.email || "").trim();
 
       const reason =

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Copy, Mail, MessageCircle } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatusBadge, TextArea } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 export default function AgentActivationsPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -20,11 +21,11 @@ export default function AgentActivationsPage() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    if (user.role !== "agent") return void (window.location.href = "/login");
-    load(user.email).finally(() => setLoading(false));
+    void (async () => {
+      const u = await requireMobcashUserOnClient("agent");
+      if (!u) return void redirectToLogin();
+      load(String(u.email)).finally(() => setLoading(false));
+    })();
   }, []);
 
   const activate = async (playerUserId: string) => {

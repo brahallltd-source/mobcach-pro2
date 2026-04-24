@@ -1,46 +1,71 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { requireAdminPermission } from "@/lib/server-auth";
-import { creditWallet, getWalletBalance } from "@/lib/wallet";
+import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { dbCreditWallet, dbGetWalletBalance } from "@/lib/wallet-db";
 import { applyPendingBonusesToRecharge } from "@/lib/bonus";
-import { createNotification } from "@/lib/notifications";
 import { getPrisma, isDatabaseEnabled } from "@/lib/db";
+import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const access = await requireAdminPermission("wallets");
-  if (!access.ok) return NextResponse.json({ message: access.message }, { status: access.status });
+  const access = await requireAdminPermission("APPROVE_RECHARGES");
+  if (!access.ok) {
+    return respondIfAdminAccessDenied(access);
+  }
   
   try {
     const { agentId, amount, adminEmail } = await req.json();
     const numericAmount = Number(amount);
 
+    if (!agentId || !String(agentId).trim()) {
+      return NextResponse.json({ message: "agentId is required" }, { status: 400 });
+    }
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return NextResponse.json({ message: "Invalid amount" }, { status: 400 });
+    }
+
     if (isDatabaseEnabled()) {
       const prisma = getPrisma();
       if (prisma) {
-        const agent = await prisma.agent.findUnique({ where: { id: String(agentId) } });
-        if (!agent) return NextResponse.json({ message: "Agent not found" }, { status: 404 });
+        const resolved = await resolveAgentWalletIds(prisma, agentId);
+        if (!resolved) return NextResponse.json({ message: "Agent not found" }, { status: 404 });
 
-        const previousBalance = await dbGetWalletBalance(String(agentId));
-        
+        const walletKey = resolved.agentTableId;
+        const previousBalance = await dbGetWalletBalance(walletKey);
+
         // 1. زيادة المبلغ الأصلي
-        await dbCreditWallet(String(agentId), numericAmount, "admin_topup", { adminEmail });
-        
+        await dbCreditWallet(walletKey, numericAmount, "admin_topup", {
+          adminEmail: adminEmail ?? access.user.email,
+        });
+
         // 2. زيادة بونص 10%
         const bonusAmount = Math.floor(numericAmount * 0.1);
         if (bonusAmount > 0) {
-          await dbCreditWallet(String(agentId), bonusAmount, "admin_topup_bonus", { adminEmail });
+          await dbCreditWallet(walletKey, bonusAmount, "admin_topup_bonus", {
+            adminEmail: adminEmail ?? access.user.email,
+          });
         }
-        
-        // 3. تطبيق البونص المعلق (Async/Await)
-        const pendingApplied = await applyPendingBonusesToRecharge(String(agentId), adminEmail);
-        
-        const newBalance = await dbGetWalletBalance(String(agentId));
-        
-        return NextResponse.json({ 
+
+        // 3. تطبيق البونص المعلق (Async/Await) — `PendingBonus.agentId` is `Agent.id`
+        const pendingApplied = await applyPendingBonusesToRecharge(
+          walletKey,
+          String(adminEmail ?? access.user.email),
+        );
+
+        const newBalance = await dbGetWalletBalance(walletKey);
+
+        revalidatePath("/agent/dashboard", "layout");
+
+        return NextResponse.json({
           success: true,
-          summary: { previousBalance, credited: numericAmount, bonus: bonusAmount, extra: pendingApplied.totalApplied, newBalance } 
+          summary: {
+            previousBalance,
+            credited: numericAmount,
+            bonus: bonusAmount,
+            extra: pendingApplied.totalApplied,
+            newBalance,
+          },
         });
       }
     }

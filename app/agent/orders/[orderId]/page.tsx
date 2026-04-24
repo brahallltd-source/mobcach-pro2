@@ -13,6 +13,7 @@ import {
   LoadingCard,
   DangerButton,
 } from "@/components/ui";
+import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 
 export default function AgentOrderDetailPage() {
   const params = useParams<{ orderId: string }>();
@@ -29,15 +30,18 @@ export default function AgentOrderDetailPage() {
   const [isFlagging, setIsFlagging] = useState(false); // 👈 حالة السينيال
 
   const load = async () => {
-    const saved = localStorage.getItem("mobcash_user");
-    if (!saved) return;
-    const user = JSON.parse(saved);
+    const user = await requireMobcashUserOnClient("agent");
+    if (!user) {
+      redirectToLogin();
+      return;
+    }
     setCurrentUser(user);
 
     try {
+      const agentId = (user as { agentId?: string }).agentId || user.id;
       const [orderRes, profileRes] = await Promise.all([
         fetch(`/api/order-messages?orderId=${params.orderId}`),
-        fetch(`/api/agent/wallet?agentId=${user.agentId}`)
+        fetch(`/api/agent/wallet?agentId=${agentId}`),
       ]);
       
       const oData = await orderRes.json();

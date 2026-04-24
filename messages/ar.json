@@ -1,0 +1,39 @@
+{
+  "dashboard": {
+    "monitoringTitle": "مركز مراقبة الإدارة",
+    "monitoringSubtitle": "مؤشرات مالية حية، قائمة انتظار الشحن، آخر حركات السجل وأعداد تشغيلية — تُحدَّث كل 60 ثانية.",
+    "refreshMetrics": "تحديث المؤشرات",
+    "metricsUtcHint": "تجميع «اليوم» بالتوقيت UTC: {{date}}",
+    "metricsUtcHintFallback": "الشحنات المعتمدة التي يقع updatedAt لها ضمن يوم التقويم الحالي بتوقيت UTC.",
+    "loadingAdminDashboard": "جاري تحميل لوحة الإدارة…",
+    "totalSalesToday": "مبيعات اليوم",
+    "bonusDistributed": "البونص الموزع",
+    "bonusDistributedHint": "مجموع bonusAmount لطلبات الشحن المعتمدة اليوم (UTC).",
+    "agentLiquidity": "سيولة الوكلاء (في السوق)",
+    "agentLiquidityHint": "مجموع أرصدة المحافظ للمستخدمين بدور AGENT.",
+    "pendingRechargeReviews": "طلبات تنتظر المراجعة",
+    "pendingRechargeHint": "طلبات شحن بحالة PENDING تحتاج مراجعة فورية.",
+    "noFinancialPermission": "ليس لديك صلاحية VIEW_FINANCIALS. تم إخفاء المؤشرات المالية والسجل والتصدير.",
+    "approvedDepositsLifetime": "إجمالي الشحنات الفعلية (كلّي)",
+    "approvedRechargeCountLabel": "طلبات شحن معتمدة:",
+    "bonusGiftedLifetime": "إجمالي البونص الموزع (كلّي)",
+    "bonusGiftedLifetimeSub": "من طلبات الشحن المعتمدة (حسب bonusAmount) — نطاق أوسع من «بونص اليوم».",
+    "activeAgents": "وكلاء نشطون",
+    "activeAgentsSub": "حسابات AGENT بحالة ACTIVE في المنصّة.",
+    "liveLedgerTitle": "سجل النشاط المباشر",
+    "liveLedgerSub": "آخر 10 حركات من سجل المعاملات (WalletLedger) — يُحدَّث مع المؤشرات كل 60 ثانية أو عند الضغط على تحديث.",
+    "exportLedgerTitle": "تصدير السجل",
+    "exportLedgerSub": "تحديد الفترة الزمنية للتصدير",
+    "dateRangeInvalid": "تاريخ البداية يجب أن يكون قبل أو نفس تاريخ النهاية.",
+    "exporting": "جاري التصدير…",
+    "exportButton": "تصدير كشف الحساب (Excel)",
+    "exportFooterHint": "بدون تواريخ في الرابط، الخادم يصدّر آخر 30 يومًا تلقائيًا. الملف CSV مناسب لفتحه في Excel."
+  },
+  "sidebar": {
+    "systemSettings": "إعدادات النظام",
+    "applications": "طلبات التسجيل",
+    "users": "المستخدمون",
+    "supportInbox": "صندوق الدعم",
+    "historyArchive": "السجل / الأرشيف"
+  }
+}

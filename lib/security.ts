@@ -17,7 +17,14 @@ export async function verifyPassword(raw: string, stored: string) {
   return String(raw) === value;
 }
 
-export async function signSessionToken(payload: { id: string; role: string; email: string; username?: string }) {
+export async function signSessionToken(payload: {
+  id: string;
+  role: string;
+  email: string;
+  username?: string;
+  /** `User.applicationStatus` — middleware uses this when `mobcash_user` is missing (any role). */
+  applicationStatus?: string;
+}) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

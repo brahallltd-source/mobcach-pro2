@@ -1,196 +1,205 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, ShieldCheck, Star, WalletCards, Zap, AlertCircle } from "lucide-react";
-import { useLanguage } from "@/components/language";
-import {
-  GlassCard,
-  LoadingCard,
-  PageHeader,
-  PrimaryButton,
-  SidebarShell,
-  StatCard,
-  TextField,
-} from "@/components/ui";
+import { clsx } from "clsx";
+import { Clock3, ShieldCheck, WalletCards } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AgentProfileCard, type AgentProfilePaymentMethod } from "@/components/AgentProfileCard";
+import { GlassCard, LoadingCard, PageHeader, SelectField, SidebarShell, StatCard } from "@/components/ui";
 
-// ... (نفس الـ Types اللي عندك الفوق) ...
+type DiscoveryAgent = {
+  agentId: string;
+  display_name: string;
+  username: string;
+  email: string;
+  online: boolean;
+  likes: number;
+  dislikes: number;
+  payment_pills: string[];
+  execution_time_label: string;
+  available_balance: number;
+  response_minutes: number;
+  verified: boolean;
+  bank_methods: string[];
+  rating_percent: number;
+  paymentMethods?: AgentProfilePaymentMethod[];
+};
 
 export default function PlayerSelectAgentPage() {
-  const { t } = useLanguage();
-  const [user, setUser] = useState<any>(null);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [user, setUser] = useState<{ email: string; role: string; assignedAgentId?: string } | null>(
+    null
+  );
+  const [agents, setAgents] = useState<DiscoveryAgent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectingAgentId, setSelectingAgentId] = useState<string | null>(null);
-  
-  // الفلاتر
   const [country, setCountry] = useState("Morocco");
   const [method, setMethod] = useState("All");
   const [amount, setAmount] = useState("");
   const [time, setTime] = useState("0");
+  const [joiningId, setJoiningId] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
-    const current = JSON.parse(saved);
+    const current = JSON.parse(saved) as {
+      email?: string;
+      role?: string;
+      assigned_agent_id?: string;
+      assignedAgentId?: string;
+    };
     if (current.role !== "player") return void (window.location.href = "/login");
-    
-    // إلا كان ديجا عندو وكيل، نصيفطوه للداشبورد نيشان
     if (current.assigned_agent_id || current.assignedAgentId) {
       window.location.href = "/player/dashboard";
       return;
     }
-    setUser(current);
+    setUser({ email: String(current.email || ""), role: "player" });
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const query = new URLSearchParams({ country, method, amount, time });
       const res = await fetch(`/api/agents/discovery?${query.toString()}`, { cache: "no-store" });
       const data = await res.json();
-      setAgents(data.agents || []);
-    } catch (err) {
-      console.error("Discovery Error:", err);
+      setAgents((data.agents || []) as DiscoveryAgent[]);
+    } catch (e) {
+      console.error(e);
+      setAgents([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [country, method, amount, time]);
 
-  useEffect(() => { load(); }, [country, method, amount, time]);
-
-  // 🟢 الدالة السحرية لاختيار الوكيل
-  const chooseAgent = async (agent: any) => {
-    // تحديد الـ ID الصحيح (سواء سميتو id أو agentId)
-    const agentId = agent.id || agent.agentId;
-    
-    if (!user?.email) {
-      alert("انتهت الجلسة، المرجو تسجيل الدخول مرة أخرى.");
-      window.location.href = "/login";
-      return;
-    }
-
-    if (!agentId) {
-      alert("خطأ: معرف الوكيل غير موجود.");
-      return;
-    }
-
-    setSelectingAgentId(agentId);
-
-    try {
-      const res = await fetch("/api/player/select-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          playerEmail: user.email, 
-          agentId: agentId 
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "فشل ربط الوكيل");
-      }
-
-      // 1. تحديث البيانات فـ localStorage (ضرورية بزاف)
-      const updatedUser = { 
-        ...user, 
-        assigned_agent_id: agentId, 
-        assignedAgentId: agentId,
-        player_status: "active" 
-      };
-      localStorage.setItem("mobcash_user", JSON.stringify(updatedUser));
-
-      alert("تم اختيار الوكيل بنجاح! سيتم توجيهك للداشبورد ✅");
-
-      // 2. التوجيه النهائي
-      window.location.href = "/player/dashboard";
-
-    } catch (error: any) {
-      alert(error.message);
-      setSelectingAgentId(null);
-    }
-  };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const availableMethods = useMemo(() => {
     const set = new Set<string>();
-    agents.forEach((a) => a.bank_methods?.forEach((m: string) => m && set.add(m)));
+    agents.forEach((a) => a.bank_methods?.forEach((m) => m && set.add(m)));
     return ["All", ...Array.from(set)];
   }, [agents]);
 
-  if (loading) return <SidebarShell role="player"><LoadingCard text="جاري البحث عن أفضل الوكلاء..." /></SidebarShell>;
+  const handleJoin = useCallback(
+    async (agentId: string) => {
+      const email = user?.email?.trim();
+      if (!email) {
+        window.location.href = "/login";
+        return;
+      }
+      setJoiningId(agentId);
+      try {
+        const res = await fetch("/api/player/select-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerEmail: email, agentId }),
+        });
+        const data = (await res.json()) as { message?: string; user?: unknown };
+        if (!res.ok) throw new Error(data.message || "تعذر الربط بالوكيل");
+        const me = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" }).then((r) => r.json());
+        if (me.success && me.user) {
+          localStorage.setItem("mobcash_user", JSON.stringify(me.user));
+        } else if (data.user) {
+          localStorage.setItem("mobcash_user", JSON.stringify(data.user));
+        }
+        window.location.href = "/player/dashboard";
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "خطأ غير متوقع");
+      } finally {
+        setJoiningId(null);
+      }
+    },
+    [user?.email]
+  );
+
+  if (loading && !user) {
+    return (
+      <SidebarShell role="player">
+        <LoadingCard text="جاري التحميل..." />
+      </SidebarShell>
+    );
+  }
 
   return (
     <SidebarShell role="player">
       <PageHeader
-        title="اختر الوكيل الخاص بك"
-        subtitle="اختر الوكيل المناسب بناءً على طرق الدفع المتوفرة، الرصيد، والسمعة."
+        title="اختر وكيلك"
+        subtitle="قارن التقييم ووسائل الدفع، ثم اضغط «انضم الآن» لربط حسابك بالوكيل."
       />
 
-      {/* ... (إحصائيات الكارطيات - Stats Cards) ... */}
-
-      <div className="space-y-4 mt-6">
-        {agents.length === 0 ? (
-          <GlassCard className="p-10 text-center text-white/50">
-            لا يوجد وكلاء متاحون حالياً بهذه الفلاتر.
-          </GlassCard>
-        ) : (
-          agents.map((agent) => (
-            <GlassCard key={agent.id || agent.agentId} className="overflow-hidden p-5 md:p-6 border-white/5 hover:border-cyan-500/30 transition-all">
-              <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-                <div>
-                  <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-xl font-bold text-cyan-400">
-                      {(agent.display_name || "A").slice(0, 1)}
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-semibold flex items-center gap-2">
-                        {agent.display_name}
-                        <span className={`h-2.5 w-2.5 rounded-full ${agent.online ? "bg-emerald-400 animate-pulse" : "bg-white/20"}`} />
-                      </h3>
-                      <p className="text-sm text-white/50">{agent.bank_methods?.join(" • ") || "All methods supported"}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[10px] uppercase text-white/40">Available</p>
-                      <p className="text-lg font-bold">{agent.available_balance || 0} DH</p>
-                    </div>
-                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[10px] uppercase text-white/40">Min Limit</p>
-                      <p className="text-lg font-bold">{agent.min_limit || 100} DH</p>
-                    </div>
-                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[10px] uppercase text-white/40">Rating</p>
-                      <p className="text-lg font-bold text-amber-400">{agent.rating || 100}%</p>
-                    </div>
-                    <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[10px] uppercase text-white/40">Response</p>
-                      <p className="text-lg font-bold text-emerald-400">~{agent.response_minutes || 5}m</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col justify-center gap-4 bg-white/5 p-5 rounded-3xl border border-white/10">
-                  <div className="text-center md:text-left">
-                    <h4 className="font-semibold text-lg">اربط حسابك بهذا الوكيل</h4>
-                    <p className="text-xs text-white/50 mt-1">سيتم توجيه جميع طلبات الشحن الخاصة بك لهذا الوكيل مباشرة.</p>
-                  </div>
-                  
-                  {/* 🟢 الزر دابا ولا كياخد الـ agent كامل كباراميتر */}
-                  <PrimaryButton 
-                    onClick={() => chooseAgent(agent)} 
-                    disabled={selectingAgentId === (agent.id || agent.agentId)}
-                    className="w-full py-4 shadow-lg shadow-cyan-500/10"
-                  >
-                    {selectingAgentId === (agent.id || agent.agentId) ? "جاري الربط..." : "اختيار هذا الوكيل"}
-                  </PrimaryButton>
-                </div>
-              </div>
-            </GlassCard>
-          ))
-        )}
+      <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <StatCard label="متاح" value={String(agents.length)} icon={<ShieldCheck className="text-cyan-400" />} />
+        <StatCard
+          label="طرق الدفع"
+          value={String(Math.max(0, availableMethods.length - 1))}
+          icon={<WalletCards className="text-emerald-400" />}
+        />
+        <StatCard label="تصفية" value="نشطة" icon={<Clock3 className="text-amber-400" />} />
       </div>
+
+      <GlassCard className="mb-6 p-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <SelectField value={country} onChange={(e) => setCountry(e.target.value)}>
+            <option value="Morocco">Morocco</option>
+          </SelectField>
+          <SelectField value={method} onChange={(e) => setMethod(e.target.value)}>
+            {availableMethods.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </SelectField>
+          <input
+            type="number"
+            placeholder="Min amount"
+            className="rounded-2xl border border-white/10 bg-background px-4 py-3 text-sm text-white"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <input
+            type="number"
+            placeholder="Max response (min)"
+            className="rounded-2xl border border-white/10 bg-background px-4 py-3 text-sm text-white"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+          />
+        </div>
+      </GlassCard>
+
+      {loading ? (
+        <LoadingCard text="جاري البحث عن أفضل الوكلاء..." />
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {agents.length === 0 ? (
+            <GlassCard className="p-10 text-center text-white/50 md:col-span-2 xl:col-span-3">
+              لا يوجد وكلاء متاحون حالياً بهذه الفلاتر.
+            </GlassCard>
+          ) : (
+            agents.map((agent) => (
+              <div
+                key={agent.agentId}
+                className={clsx("relative", joiningId === agent.agentId && "pointer-events-none opacity-60")}
+              >
+                <AgentProfileCard
+                  agent={{
+                    id: agent.agentId,
+                    name: agent.display_name,
+                    username: agent.username,
+                    isOnline: agent.online,
+                    rating: agent.rating_percent,
+                    paymentMethods: agent.paymentMethods,
+                  }}
+                  headerLabel="وكيل متاح"
+                  actionType="join"
+                  onAction={() => void handleJoin(agent.agentId)}
+                />
+                {joiningId === agent.agentId ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/35 backdrop-blur-[1px]">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </SidebarShell>
   );
 }

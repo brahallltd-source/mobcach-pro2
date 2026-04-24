@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none" role="img" aria-label="GS365 Cash">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="38" height="38" rx="10" stroke="url(#g)" stroke-width="2" fill="rgba(34,211,238,0.12)"/>
+  <path d="M12 26V14h6c4 0 6 2 6 5.5S22 25 18 25h-2v1h4" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="48" y="27" fill="#f8fafc" font-family="system-ui,Segoe UI,sans-serif" font-size="18" font-weight="700">GS365</text>
+  <text x="118" y="27" fill="#94a3b8" font-family="system-ui,Segoe UI,sans-serif" font-size="14" font-weight="600">Cash</text>
+</svg>

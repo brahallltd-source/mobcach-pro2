@@ -5,6 +5,25 @@ import { createNotification } from "@/lib/notifications";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const ONLINE_WINDOW_MS = 3 * 60 * 1000;
+
+function recentlySeen(lastSeen: Date | string | null | undefined): boolean {
+  if (!lastSeen) return false;
+  const t = lastSeen instanceof Date ? lastSeen.getTime() : new Date(lastSeen).getTime();
+  return Number.isFinite(t) && Date.now() - t < ONLINE_WINDOW_MS;
+}
+
+function deriveAgentContactOnline(agent: {
+  online: boolean;
+  user: { isOnline: boolean; lastSeen: Date } | null;
+}): boolean {
+  return Boolean(agent.online) || Boolean(agent.user?.isOnline) || recentlySeen(agent.user?.lastSeen);
+}
+
+function derivePlayerUserOnline(user: { isOnline: boolean; lastSeen: Date }): boolean {
+  return Boolean(user.isOnline) || recentlySeen(user.lastSeen);
+}
+
 // دالة لتنسيق الرسالة
 function mapMessage(msg: any) {
   return {
@@ -28,19 +47,171 @@ export async function GET(req: Request) {
     const listRole = searchParams.get("listRole");
     const userEmail = searchParams.get("userEmail")?.toLowerCase();
 
-    // 1. جلب قائمة المحادثات (Conversations List)
+    // 1. جلب قائمة المحادثات (Conversations List) + جهات اتصال مجمّعة للواجهة
     if (listRole && userEmail) {
+      if (listRole === "player") {
+        const orders = await prisma.order.findMany({
+          where: { playerEmail: userEmail },
+          select: {
+            id: true,
+            agentId: true,
+            playerEmail: true,
+            gosportUsername: true,
+            updatedAt: true,
+            agent: {
+              select: {
+                id: true,
+                fullName: true,
+                username: true,
+                online: true,
+                user: { select: { isOnline: true, lastSeen: true } },
+              },
+            },
+            messages: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { id: true, message: true, senderRole: true, createdAt: true },
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+        });
+
+        const byAgent = new Map<
+          string,
+          {
+            preview: string;
+            atMs: number;
+            agent: NonNullable<(typeof orders)[number]["agent"]>;
+          }
+        >();
+
+        for (const o of orders) {
+          if (!o.agentId || !o.agent) continue;
+          const m = o.messages[0];
+          const msgMs = m?.createdAt ? new Date(m.createdAt).getTime() : 0;
+          const orderMs = new Date(o.updatedAt).getTime();
+          const score = Math.max(msgMs, orderMs);
+          const prev = byAgent.get(o.agentId);
+          const preview = (m?.message ?? "").trim();
+          if (!prev || score >= prev.atMs) {
+            byAgent.set(o.agentId, {
+              atMs: score,
+              preview: preview || prev?.preview || "",
+              agent: o.agent,
+            });
+          }
+        }
+
+        const contacts = Array.from(byAgent.entries()).map(([id, row]) => {
+          const { agent } = row;
+          const lastSeen = agent.user?.lastSeen ?? null;
+          return {
+            id,
+            name: (agent.fullName || agent.username || "وكيل").trim(),
+            subtitle: agent.username ? `@${agent.username}` : null,
+            lastMessagePreview: row.preview,
+            lastMessageAt: new Date(row.atMs).toISOString(),
+            isOnline: deriveAgentContactOnline(agent),
+            lastSeenIso: lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen ? String(lastSeen) : null,
+          };
+        });
+        contacts.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+
+        return NextResponse.json({ conversations: orders, contacts });
+      }
+
       const orders = await prisma.order.findMany({
-        where: listRole === 'player' ? { playerEmail: userEmail } : { agentId: userEmail },
+        where: { agentId: userEmail },
         select: {
           id: true,
           agentId: true,
           playerEmail: true,
           gosportUsername: true,
-          messages: { orderBy: { createdAt: 'desc' }, take: 1 }
-        }
+          updatedAt: true,
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { id: true, message: true, senderRole: true, createdAt: true },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
       });
-      return NextResponse.json({ conversations: orders });
+
+      const emails = [...new Set(orders.map((o) => o.playerEmail.toLowerCase()))];
+      const users =
+        emails.length > 0
+          ? await prisma.user.findMany({
+              where: { email: { in: emails }, role: "PLAYER" },
+              select: {
+                email: true,
+                isOnline: true,
+                lastSeen: true,
+                username: true,
+                player: {
+                  select: { gosportUsername: true, username: true, firstName: true, lastName: true },
+                },
+              },
+            })
+          : [];
+      const userByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u]));
+
+      const byPlayer = new Map<
+        string,
+        {
+          preview: string;
+          atMs: number;
+          gosport: string;
+          email: string;
+          user?: (typeof users)[number];
+        }
+      >();
+
+      for (const o of orders) {
+        const key = o.playerEmail.toLowerCase();
+        const m = o.messages[0];
+        const msgMs = m?.createdAt ? new Date(m.createdAt).getTime() : 0;
+        const orderMs = new Date(o.updatedAt).getTime();
+        const score = Math.max(msgMs, orderMs);
+        const prev = byPlayer.get(key);
+        const preview = (m?.message ?? "").trim();
+        const u = userByEmail.get(key);
+        if (!prev || score >= prev.atMs) {
+          byPlayer.set(key, {
+            atMs: score,
+            preview: preview || prev?.preview || "",
+            gosport: o.gosportUsername || prev?.gosport || "",
+            email: o.playerEmail,
+            user: u ?? prev?.user,
+          });
+        } else if (!byPlayer.get(key)?.user && u) {
+          const cur = byPlayer.get(key)!;
+          byPlayer.set(key, { ...cur, user: u });
+        }
+      }
+
+      const contacts = Array.from(byPlayer.values()).map((row) => {
+        const u = row.user;
+        const displayName =
+          row.gosport ||
+          u?.player?.gosportUsername ||
+          u?.player?.username ||
+          u?.username ||
+          row.email.split("@")[0] ||
+          "لاعب";
+        const lastSeen = u?.lastSeen ?? null;
+        return {
+          id: row.email,
+          name: String(displayName).trim(),
+          subtitle: row.email,
+          lastMessagePreview: row.preview,
+          lastMessageAt: new Date(row.atMs).toISOString(),
+          isOnline: u ? derivePlayerUserOnline(u) : false,
+          lastSeenIso: lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen ? String(lastSeen) : null,
+        };
+      });
+      contacts.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+
+      return NextResponse.json({ conversations: orders, contacts });
     }
 
     // 2. جلب التاريخ الموحد بين لاعب ووكيل معين
@@ -130,7 +301,7 @@ export async function POST(req: Request) {
         await createNotification({
           targetRole: "agent",
           targetId: finalAgentId,
-          title: `رسالة من: ${finalPlayerEmail}`, 
+          title: `رسالة جديدة من اللاعب (${finalPlayerEmail})`,
           message: message.length > 60 ? message.substring(0, 60) + "..." : message,
         });
       } 
@@ -139,7 +310,7 @@ export async function POST(req: Request) {
         await createNotification({
           targetRole: "player",
           targetId: finalPlayerEmail,
-          title: "رد جديد من الوكيل 💬",
+          title: "رسالة جديدة من الوكيل",
           message: message.length > 60 ? message.substring(0, 60) + "..." : message,
         });
       }
