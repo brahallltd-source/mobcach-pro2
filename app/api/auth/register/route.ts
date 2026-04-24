@@ -9,9 +9,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message, message }, { status });
 }
 
-/**
- * Same handler as `POST /api/register` (canonical). Exposed for clients that call `/api/auth/register`.
- */
+/** Canonical `POST` endpoint for player self-registration (uses {@link registerPlayerCore}). */
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

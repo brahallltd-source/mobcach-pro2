@@ -77,7 +77,7 @@ export default function PlayerOrderMapPage({ params }: { params: Promise<{ order
       formData.append("orderId", order.id);
       formData.append("paymentMethodName", selectedMethod.methodName);
 
-      const res = await fetch("/api/player/upload-proof", { method: "POST", body: formData });
+      const res = await fetch("/api/upload-proof", { method: "POST", body: formData });
       if (res.ok) { 
         alert("تم الإرسال بنجاح!"); 
         await loadData(); 

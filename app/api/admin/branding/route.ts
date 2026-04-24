@@ -37,6 +37,25 @@ const defaultMarketingBranding = {
   }>,
 };
 
+/** Public marketing fields (DB/JSON use plain strings; avoids literal-type conflicts with `defaultMarketingBranding`). */
+type NormalizedMarketing = {
+  brandName: string;
+  logoUrl: string;
+  heroTitle: string;
+  heroBody: string;
+  primaryCta: string;
+  secondaryCta: string;
+  heroImages: string[];
+  banners: Array<{
+    title: string;
+    subtitle: string;
+    image: string;
+    link: string;
+    active: boolean;
+    order?: number;
+  }>;
+};
+
 async function uploadIfNeeded(value: string, folder: string) {
   const raw = String(value || "").trim();
   if (!raw || !raw.startsWith("data:image/")) return raw;
@@ -83,7 +102,7 @@ async function loadMarketingFromAudit(prisma: NonNullable<ReturnType<typeof getP
     orderBy: { createdAt: "desc" },
   });
   const parsed = parseMarketingFromMeta(latest?.meta);
-  if (!parsed) return { ...defaultMarketingBranding };
+  if (!parsed) return { ...defaultMarketingBranding } as NormalizedMarketing;
   return {
     ...defaultMarketingBranding,
     ...parsed,
@@ -91,7 +110,7 @@ async function loadMarketingFromAudit(prisma: NonNullable<ReturnType<typeof getP
       ? [...(parsed.heroImages as unknown[]).map(String)]
       : defaultMarketingBranding.heroImages,
     banners: Array.isArray(parsed.banners) ? (parsed.banners as typeof defaultMarketingBranding.banners) : defaultMarketingBranding.banners,
-  };
+  } as NormalizedMarketing;
 }
 
 function normalizeHexColor(input: string, fallback: string) {
@@ -106,7 +125,7 @@ type BrandingSysSlice = {
   faviconUrl: string | null;
 };
 
-function mergePublicBranding(sys: BrandingSysSlice, marketing: typeof defaultMarketingBranding) {
+function mergePublicBranding(sys: BrandingSysSlice, marketing: NormalizedMarketing) {
   const logoFromSys = String(sys.logoUrl ?? "").trim();
   const logoFromMarketing = String(marketing.logoUrl ?? "").trim();
 
@@ -120,7 +139,7 @@ function mergePublicBranding(sys: BrandingSysSlice, marketing: typeof defaultMar
   };
 }
 
-async function normalizeMarketingBranding(input: Record<string, unknown>) {
+async function normalizeMarketingBranding(input: Record<string, unknown>): Promise<NormalizedMarketing> {
   const heroImages = Array.isArray(input.heroImages) ? [...input.heroImages] : [];
   const banners = Array.isArray(input.banners) ? [...input.banners] : [];
 
@@ -154,7 +173,7 @@ async function normalizeMarketingBranding(input: Record<string, unknown>) {
     secondaryCta: String(input.secondaryCta || defaultMarketingBranding.secondaryCta).trim(),
     heroImages: normalizedHeroImages,
     banners: normalizedBanners.length > 0 ? normalizedBanners : defaultMarketingBranding.banners,
-  };
+  } satisfies NormalizedMarketing;
 }
 
 export async function GET() {
@@ -169,7 +188,7 @@ export async function GET() {
             logoUrl: null,
             faviconUrl: null,
           },
-          { ...defaultMarketingBranding }
+          { ...defaultMarketingBranding } as NormalizedMarketing
         ),
       });
     }
@@ -188,7 +207,7 @@ export async function GET() {
           logoUrl: null,
           faviconUrl: null,
         },
-        { ...defaultMarketingBranding }
+        { ...defaultMarketingBranding } as NormalizedMarketing
       ),
     });
   }

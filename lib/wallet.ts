@@ -6,7 +6,7 @@
  * - debits use conditional SQL where needed to avoid negative balances under concurrency,
  * - API routes / jobs only orchestrate domain rules and call these primitives.
  *
- * Prisma schema: `Wallet` (1:1 `userId` → `User.id`), `WalletLedger` (`type`: IN | OUT, `purpose` free text).
+ * Prisma schema: `Wallet` (1:1 `userId` → `User.id`), `WalletLedger` (`type`: IN | OUT, `reason` text, `agentId` = user id).
  */
 
 import { Prisma, type Wallet, type WalletLedger } from "@prisma/client";
@@ -89,14 +89,14 @@ function walletRowToSnapshot(row: WalletRow): WalletSnapshot {
 }
 
 function toLedgerSnapshot(
-  e: Pick<WalletLedger, "id" | "walletId" | "amount" | "type" | "purpose" | "createdAt">
+  e: Pick<WalletLedger, "id" | "walletId" | "amount" | "type" | "reason" | "createdAt">
 ): WalletLedgerSnapshot {
   const snapshot: WalletLedgerSnapshot = {
     id: e.id,
     walletId: e.walletId,
     amount: Number(e.amount),
     type: e.type as LedgerDirection,
-    purpose: e.purpose,
+    purpose: e.reason,
     createdAt: e.createdAt,
   };
   return snapshot;
@@ -189,7 +189,7 @@ export const getWalletBalance: typeof dbGetWalletBalance = dbGetWalletBalance;
 
 /**
  * Atomically increases balance and appends a ledger row.
- * `reason` is stored as `WalletLedger.purpose`.
+ * `reason` is persisted on `WalletLedger.reason`.
  */
 export async function dbCreditWallet(
   agentId: string,
@@ -212,10 +212,11 @@ export async function dbCreditWallet(
     const previousBalance: number = Number(wallet.balance) - amt;
     const ledgerEntry: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: userId,
         walletId: wallet.id,
         amount: amt,
         type: LEDGER_IN,
-        purpose,
+        reason: purpose,
       },
     });
 
@@ -265,10 +266,11 @@ export async function dbDebitWallet(
 
     const ledgerEntry: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: userId,
         walletId: row.id,
         amount: amt,
         type: LEDGER_OUT,
-        purpose,
+        reason: purpose,
       },
     });
 
@@ -341,20 +343,22 @@ export async function processTransfer(
     // (e) Sender ledger — OUT, amount, purpose
     const outLedger: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: from,
         walletId: fromWallet.id,
         amount: amt,
         type: LEDGER_OUT,
-        purpose: p,
+        reason: p,
       },
     });
 
     // (f) Receiver ledger — IN, amount, purpose
     const inLedger: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: to,
         walletId: toWallet.id,
         amount: amt,
         type: LEDGER_IN,
-        purpose: p,
+        reason: p,
       },
     });
 
@@ -413,10 +417,11 @@ export async function manualAdjustment(
       // (d) Ledger — log adjustment (IN, amount, purpose)
       const ledgerEntry: WalletLedger = await tx.walletLedger.create({
         data: {
+          agentId: uid,
           walletId: walletRow.id,
           amount: amt,
           type: "IN",
-          purpose: p,
+          reason: p,
         },
       });
       const creditResult: ManualAdjustmentResult = {
@@ -443,10 +448,11 @@ export async function manualAdjustment(
     // (d) Ledger — log adjustment (OUT, amount, purpose)
     const ledgerEntry: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: uid,
         walletId: walletRow.id,
         amount: amt,
         type: "OUT",
-        purpose: p,
+        reason: p,
       },
     });
 
@@ -505,19 +511,21 @@ export async function dbTransferWallet(
 
     const outLedger: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: from,
         walletId: fromRow.id,
         amount: amt,
         type: LEDGER_OUT,
-        purpose: p,
+        reason: p,
       },
     });
 
     const inLedger: WalletLedger = await tx.walletLedger.create({
       data: {
+        agentId: to,
         walletId: toWallet.id,
         amount: amt,
         type: LEDGER_IN,
-        purpose: p,
+        reason: p,
       },
     });
 

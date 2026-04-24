@@ -243,7 +243,14 @@ export default function AdminDashboardPage() {
             ADMIN_FETCH
           ),
           safeFetchJson<{ disputes?: unknown[] }>("/api/admin/disputes", { disputes: [] }, ADMIN_FETCH),
-          safeFetchJson<{ items?: unknown[]; summary?: { pendingFlags?: number } | null }>(
+          safeFetchJson<{
+            items?: unknown[];
+            summary?: {
+              pendingFlags?: number;
+              suspiciousOrders?: number;
+              highRisk?: number;
+            } | null;
+          }>(
             "/api/admin/fraud",
             { items: [], summary: { pendingFlags: 0, suspiciousOrders: 0, highRisk: 0 } },
             ADMIN_FETCH
@@ -278,12 +285,13 @@ export default function AdminDashboardPage() {
 
         const bt = analytics?.bonusTracking;
         if (bt && typeof bt === "object") {
+          const b = bt as Record<string, unknown>;
           setBonusTracking({
-            approvedRechargeRequests: Number(bt.approvedRechargeRequests) || 0,
-            totalRealDepositsDh: Number(bt.totalRealDepositsDh) || 0,
-            totalBonusGiftedDh: Number(bt.totalBonusGiftedDh) || 0,
-            activeAgents: Number(bt.activeAgents) || 0,
-            totalAgentWalletBalancesDh: Number(bt.totalAgentWalletBalancesDh) || 0,
+            approvedRechargeRequests: Number(b.approvedRechargeRequests) || 0,
+            totalRealDepositsDh: Number(b.totalRealDepositsDh) || 0,
+            totalBonusGiftedDh: Number(b.totalBonusGiftedDh) || 0,
+            activeAgents: Number(b.activeAgents) || 0,
+            totalAgentWalletBalancesDh: Number(b.totalAgentWalletBalancesDh) || 0,
           });
         } else {
           setBonusTracking({

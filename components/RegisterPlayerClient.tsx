@@ -72,7 +72,7 @@ function resolvePostRegistrationRedirect(args: {
 }
 
 export function RegisterPlayerClient({
-  registerApiPath = "/api/register",
+  registerApiPath = "/api/auth/register",
   pageTitle,
   pageSubtitle,
   multiStepAgentSelection = false,

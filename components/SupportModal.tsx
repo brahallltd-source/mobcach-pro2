@@ -74,14 +74,13 @@ export function SupportModal() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="player-support-dialog-title"
+          onClick={() => setOpen(false)}
           onKeyDown={(e) => {
             if (e.key === "Escape") setOpen(false);
           }}
         >
-          <GlassCard
-            className="relative w-full max-w-md p-6 shadow-glass"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <GlassCard className="relative w-full max-w-md p-6 shadow-glass">
             <button
               type="button"
               className="absolute end-3 top-3 rounded-full border border-white/15 p-1.5 text-white/70 hover:bg-white/10"
@@ -135,7 +134,8 @@ export function SupportModal() {
                 </PrimaryButton>
               </div>
             </form>
-          </GlassCard>
+            </GlassCard>
+          </div>
         </div>
       ) : null}
     </>

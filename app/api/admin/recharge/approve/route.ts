@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       adminEmail: access.user.email,
     });
 
-    if (!result.ok) {
+    if (result.ok === false) {
       return NextResponse.json(
         { success: false, message: result.message },
         { status: result.status ?? 400 }

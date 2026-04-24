@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import {
+  type AgentPaymentMethodRow,
   parseAgentPaymentMethodsJson,
   toPublicPaymentMethodPayload,
 } from "@/lib/agent-payment-settings";
@@ -157,9 +158,12 @@ export async function POST(req: Request) {
       const rows = parseAgentPaymentMethodsJson(agent.user?.paymentMethods);
       const hit = rows
         .filter((r) => r.isActive)
-        .find((r) => toPublicPaymentMethodPayload(r).methodTitle === paymentMethodName);
+        .find(
+          (r) =>
+            toPublicPaymentMethodPayload(r as AgentPaymentMethodRow).methodTitle === paymentMethodName
+        );
       if (hit) {
-        const pub = toPublicPaymentMethodPayload(hit);
+        const pub = toPublicPaymentMethodPayload(hit as AgentPaymentMethodRow);
         if (amount < pub.minAmount || amount > pub.maxAmount) {
           return NextResponse.json(
             {

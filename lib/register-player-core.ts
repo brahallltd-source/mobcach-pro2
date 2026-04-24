@@ -27,7 +27,7 @@ export type RegisterPlayerCoreFailure = {
 export type RegisterPlayerCoreResult = RegisterPlayerCoreSuccess | RegisterPlayerCoreFailure;
 
 /**
- * Creates a PLAYER account (same rules as legacy `/api/register-player`).
+ * Creates a PLAYER account (used by `POST /api/auth/register`).
  * Rejects `body.role` unless it is PLAYER (case-insensitive) to block AGENT injection via public forms.
  */
 export async function registerPlayerCore(

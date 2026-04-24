@@ -47,11 +47,12 @@ export const registerPlayerApiSchema = z
     agent_code: z.string().optional(),
     /** Public registration: chosen agent (`Agent.id`) from marketplace slider — creates `AgentCustomer` with `PENDING`. */
     selectedAgentId: z
-      .preprocess(
-        (v) =>
-          v === null || v === undefined || String(v).trim() === "" ? undefined : String(v).trim(),
-        z.string().uuid("معرف الوكيل غير صالح").optional()
-      ),
+      .string()
+      .trim()
+      .optional()
+      .refine((v) => !v || z.string().uuid().safeParse(v).success, {
+        message: "معرف الوكيل غير صالح",
+      }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "كلمتا المرور غير متطابقتين",

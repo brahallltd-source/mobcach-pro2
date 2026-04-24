@@ -6,27 +6,32 @@ import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 
 export const runtime = "nodejs";
 
-function parseDetails(log: { details?: string | null }) {
-  if (!log.details) return {} as Record<string, any>;
-  try {
-    return JSON.parse(log.details) as Record<string, any>;
-  } catch {
-    return {} as Record<string, any>;
+function parseDetails(log: { meta?: unknown }) {
+  const m = log.meta;
+  if (m == null) return {} as Record<string, unknown>;
+  if (typeof m === "string") {
+    try {
+      return JSON.parse(m) as Record<string, unknown>;
+    } catch {
+      return {} as Record<string, unknown>;
+    }
   }
+  if (typeof m === "object" && !Array.isArray(m)) return m as Record<string, unknown>;
+  return {} as Record<string, unknown>;
 }
 
-function mapInvite(log: any) {
+function mapInvite(log: { id: string; entityId: string | null; createdAt: Date; meta?: unknown }) {
   const meta = parseDetails(log);
   return {
     id: log.id,
-    referrer_agent_id: meta.referrer_agent_id || log.entityId || "",
-    invited_agent_email: meta.invited_agent_email || "",
-    invite_code: meta.invite_code || "",
-    invite_link: meta.invite_link || "",
-    total_recharge_amount: Number(meta.total_recharge_amount || 0),
+    referrer_agent_id: String(meta.referrer_agent_id ?? log.entityId ?? ""),
+    invited_agent_email: String(meta.invited_agent_email ?? ""),
+    invite_code: String(meta.invite_code ?? ""),
+    invite_link: String(meta.invite_link ?? ""),
+    total_recharge_amount: Number(meta.total_recharge_amount ?? 0),
     bonus_awarded: Boolean(meta.bonus_awarded),
     created_at: log.createdAt,
-    updated_at: meta.updated_at || log.createdAt,
+    updated_at: (meta.updated_at as string | undefined) || log.createdAt,
   };
 }
 
@@ -102,7 +107,7 @@ export async function POST(req: Request) {
           action: "agent_invite_generated",
           entityType: "agent_invite",
           entityId: referrerAgent.id,
-          details: JSON.stringify({
+          meta: {
             referrer_agent_id: referrerAgent.id,
             invited_agent_email: invitedAgentEmail,
             invite_code: code,
@@ -110,7 +115,7 @@ export async function POST(req: Request) {
             total_recharge_amount: 0,
             bonus_awarded: false,
             updated_at: new Date().toISOString(),
-          }),
+          },
         },
       });
 
@@ -151,7 +156,7 @@ export async function POST(req: Request) {
       const next = { ...meta, bonus_awarded: true, updated_at: new Date().toISOString() };
       await prisma.auditLog.update({
         where: { id: log.id },
-        data: { details: JSON.stringify(next) },
+        data: { meta: next },
       });
     }
 
