@@ -76,6 +76,20 @@ export const SIDEBAR_PLAYER_AR = {
   profile: "الملف الشخصي",
 } as const;
 
+/**
+ * True when a player nav `href` should show as active (includes nested order/chat/achat routes).
+ */
+export function isPlayerNavActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+  if (href === "/player/achat" && pathname.startsWith("/player/achat")) return true;
+  if (href === "/player/orders" && pathname.startsWith("/player/orders")) return true;
+  if (href === "/player/chat" && pathname.startsWith("/player/chat")) return true;
+  if (href === "/player/winnings" && pathname.startsWith("/player/winnings")) return true;
+  if (href === "/player/profile" && pathname.startsWith("/player/profile")) return true;
+  if (href === "/player/dashboard" && pathname.startsWith("/player/dashboard")) return true;
+  return false;
+}
+
 /** Sidebar labels — agent (Arabic, unified). */
 export const SIDEBAR_AGENT_AR = {
   home: "الرئيسية",

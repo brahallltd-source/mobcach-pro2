@@ -5,8 +5,8 @@ import type { AgentProfileCardAgent } from "@/components/AgentProfileCard";
 const MOCK_AGENTS: AgentProfileCardAgent[] = [
   {
     id: "mock-1",
-    name: "Agent Sarah",
-    username: "sarah_pay",
+    name: "Agent Simo",
+    username: "Simo_pay",
     isOnline: true,
     rating: 96,
     paymentMethods: [

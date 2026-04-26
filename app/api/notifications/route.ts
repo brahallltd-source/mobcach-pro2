@@ -15,18 +15,21 @@ function serializeRow(n: {
   read: boolean;
   createdAt: Date;
 }) {
+  const createdAt = n.createdAt.toISOString();
   return {
     id: n.id,
     title: n.title,
     message: n.message,
     type: n.type,
     link: n.link,
+    read: n.read,
     isRead: n.read,
-    createdAt: n.createdAt.toISOString(),
+    createdAt,
+    created_at: createdAt,
   };
 }
 
-/** In-app list for the signed-in user (`?for=me`). Legacy chat polling: `role` + `targetId`. */
+/** Authenticated in-app list for the signed-in user only (`?for=me`). */
 export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
@@ -35,59 +38,41 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const forMe = searchParams.get("for") === "me";
-
-    if (forMe) {
-      const user = await getSessionUserFromCookies();
-      if (!user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const limit = Math.min(
-        50,
-        Math.max(1, parseInt(searchParams.get("limit") || "5", 10) || 5)
+    if (searchParams.get("for") !== "me") {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Use ?for=me with a signed-in session." },
+        { status: 401 }
       );
-
-      const [notifications, unreadCount] = await Promise.all([
-        prisma.notification.findMany({
-          where: { userId: user.id },
-          orderBy: { createdAt: "desc" },
-          take: limit,
-        }),
-        prisma.notification.count({
-          where: { userId: user.id, read: false },
-        }),
-      ]);
-
-      return NextResponse.json({
-        notifications: notifications.map(serializeRow),
-        unreadCount,
-      });
     }
 
-    const targetRole =
-      searchParams.get("targetRole") || searchParams.get("role");
-    const targetId = searchParams.get("targetId");
-
-    if (!targetRole || !targetId) {
-      return NextResponse.json({ notifications: [] });
+    const user = await getSessionUserFromCookies();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notifications = await prisma.notification.findMany({
-      where: {
-        targetRole: targetRole,
-        targetId: String(targetId),
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 30,
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(searchParams.get("limit") || "5", 10) || 5)
+    );
+
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.notification.count({
+        where: { userId: user.id, read: false },
+      }),
+    ]);
+
+    return NextResponse.json({
+      notifications: notifications.map(serializeRow),
+      unreadCount,
     });
-
-    return NextResponse.json({ notifications });
   } catch (error) {
     console.error("GET NOTIFICATIONS ERROR:", error);
-    return NextResponse.json({ notifications: [] }, { status: 500 });
+    return NextResponse.json({ notifications: [], unreadCount: 0 }, { status: 500 });
   }
 }
 

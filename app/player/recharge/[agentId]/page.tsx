@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, Copy, Zap } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import {
   GlassCard,
   LoadingCard,

@@ -13,7 +13,7 @@ import {
   SidebarShell,
   TextArea,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
 
 type Ticket = {
   id: string;
@@ -51,7 +51,6 @@ export default function AdminSupportPage() {
 function AdminSupportInboxBody() {
   const searchParams = useSearchParams();
   const urlTicket = searchParams.get("ticket");
-  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,7 +63,7 @@ function AdminSupportInboxBody() {
       const res = await fetch("/api/admin/support", { credentials: "include", cache: "no-store" });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed to load") });
+        toast.error(String(j.message || "Failed to load"));
         setTickets([]);
         return;
       }
@@ -74,7 +73,7 @@ function AdminSupportInboxBody() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -140,15 +139,15 @@ function AdminSupportInboxBody() {
       });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed to send") });
+        toast.error(String(j.message || "Failed to send"));
         return;
       }
-      showToast({ type: "success", title: "Reply sent and ticket closed" });
+      toast.success("Reply sent and ticket closed");
       setReplyDraft("");
       await load();
       setSelectedId(null);
     } catch {
-      showToast({ type: "error", title: "Network error" });
+      toast.error("Network error");
     } finally {
       setBusy(false);
     }
@@ -165,14 +164,14 @@ function AdminSupportInboxBody() {
       });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed") });
+        toast.error(String(j.message || "Failed"));
         return;
       }
-      showToast({ type: "success", title: "Ticket re-opened" });
+      toast.success("Ticket re-opened");
       await load();
       setSelectedId(id);
     } catch {
-      showToast({ type: "error", title: "Network error" });
+      toast.error("Network error");
     } finally {
       setBusy(false);
     }

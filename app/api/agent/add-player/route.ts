@@ -191,8 +191,7 @@ if (!password) {
     });
 
     await createNotification({
-      targetRole: "player",
-      targetId: result.user.id,
+      userId: result.user.id,
       title: "Account created by your agent",
       message:
         "Your player account has been created and activated directly by your agent.",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,15 +89,17 @@ export async function POST(req: Request) {
       return updatedClaim;
     });
 
-    // 3. إرسال إشعار للوكيل
-    await createNotification({
-      targetRole: "agent",
-      targetId: claim.agentId,
-      title: action === "approve" ? "تم قبول المكافأة 🎁" : "تم رفض طلب المكافأة",
-      message: action === "approve" 
-        ? `مبروك! تم إضافة ${claim.amount} درهم لرصيدك كمكافأة.` 
-        : `نعتذر، تم رفض طلبك للحصول على المكافأة المتعلقة بـ ${claim.source}.`
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(claim.agentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: action === "approve" ? "تم قبول المكافأة 🎁" : "تم رفض طلب المكافأة",
+        message:
+          action === "approve"
+            ? `مبروك! تم إضافة ${claim.amount} درهم لرصيدك كمكافأة.`
+            : `نعتذر، تم رفض طلبك للحصول على المكافأة المتعلقة بـ ${claim.source}.`,
+      });
+    }
 
     return NextResponse.json({
       message: action === "approve" ? "تم قبول المكافأة وإيداعها" : "تم رفض المكافأة بنجاح",

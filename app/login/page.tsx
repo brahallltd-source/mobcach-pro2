@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { GlassCard, PrimaryButton, Shell, TextField } from "@/components/ui";
-import { useLanguage } from "@/components/language";
+import { useTranslation } from "@/lib/i18n";
 
 type LoginJson = {
   success?: boolean;
   message?: string;
+  error?: string;
   redirectAfterLogin?: string;
   user?: {
     role?: string;
@@ -19,15 +20,28 @@ type LoginJson = {
   role?: string;
 };
 
+function resolveLoginErrorMessage(
+  tx: (path: string, vars?: Record<string, string>) => string,
+  payload: { error?: string; message?: string },
+): string {
+  const code = String(payload.error ?? "").trim();
+  if (code) {
+    const path = `auth.errors.${code}`;
+    const out = tx(path);
+    if (out !== path) return out;
+  }
+  return tx("auth.errors.generic");
+}
+
 export default function LoginPage() {
-  const { t } = useLanguage();
+  const { t, tx, dir } = useTranslation();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
-      toast.error("أدخل اسم المستخدم أو البريد وكلمة المرور");
+      toast.error(tx("auth.login.toastMissingFields"));
       return;
     }
     setLoading(true);
@@ -41,13 +55,13 @@ export default function LoginPage() {
       const data = (await res.json().catch(() => ({}))) as LoginJson;
 
       if (!res.ok || !data.success || !data.user) {
-        throw new Error(data.message || "فشل تسجيل الدخول");
+        toast.error(resolveLoginErrorMessage(tx, data));
+        return;
       }
 
       localStorage.setItem("mobcash_user", JSON.stringify(data.user));
-      toast.success("تم تسجيل الدخول بنجاح!");
+      toast.success(tx("auth.login.toastSuccess"));
 
-      /** Hard navigation so `Set-Cookie` on the login response is visible to the next document + middleware. */
       const redirect =
         typeof data.redirectAfterLogin === "string" && data.redirectAfterLogin.trim()
           ? data.redirectAfterLogin.trim()
@@ -92,7 +106,7 @@ export default function LoginPage() {
       window.location.href = "/";
     } catch (e: unknown) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "خطأ في الشبكة");
+      toast.error(tx("auth.login.toastNetwork"));
     } finally {
       setLoading(false);
     }
@@ -100,22 +114,46 @@ export default function LoginPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-5xl space-y-8">
+      <div dir={dir} className="mx-auto max-w-5xl space-y-8">
         <div className="grid gap-6">
           <GlassCard className="p-6 md:p-8">
             <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">{t("login")}</h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/60 md:text-base">{t("heroBody")}</p>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/60 md:text-base">{tx("auth.login.subtitle")}</p>
             <div className="mt-8 space-y-4">
-              <TextField placeholder="Username or email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-              <TextField type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <PrimaryButton onClick={handleLogin} disabled={loading} className="w-full">{loading ? t("processing") : t("login")}</PrimaryButton>
+              <TextField
+                placeholder={tx("auth.login.placeholderIdentifier")}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                dir="auto"
+                autoComplete="username"
+              />
+              <TextField
+                type="password"
+                placeholder={tx("auth.login.placeholderPassword")}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                dir="ltr"
+                autoComplete="current-password"
+              />
+              <PrimaryButton type="button" onClick={() => void handleLogin()} disabled={loading} className="w-full">
+                {loading ? tx("auth.login.submitLoading") : tx("auth.login.submit")}
+              </PrimaryButton>
             </div>
             <div className="mt-5 flex flex-wrap gap-3 text-sm text-white/60">
-              <Link href="/register/player" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10">{t("createPlayer")}</Link>
-              <Link href="/register/agent" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10">{t("becomeAgent")}</Link>
+              <Link
+                href="/register/player"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
+              >
+                {t("createPlayer")}
+              </Link>
+              <Link
+                href="/register/agent"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
+              >
+                {t("becomeAgent")}
+              </Link>
             </div>
           </GlassCard>
-         
         </div>
       </div>
     </Shell>

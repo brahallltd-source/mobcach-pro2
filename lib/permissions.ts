@@ -116,6 +116,7 @@ export const ALL_PERMISSION_IDS: PermissionId[] = PERMISSIONS.map((p) => p.id);
 export const ADMIN_ROUTE_PERMISSION: Record<string, PermissionId> = {
   "/admin/dashboard": "VIEW_FINANCIALS",
   "/admin/settings": "MANAGE_SETTINGS",
+  "/admin/broadcast": "MANAGE_SETTINGS",
   "/admin/agent-applications": "MANAGE_USERS",
   "/admin/agents": "MANAGE_USERS",
   "/admin/users": "MANAGE_USERS",
@@ -131,4 +132,5 @@ export const ADMIN_ROUTE_PERMISSION: Record<string, PermissionId> = {
   "/admin/launch-check": "MANAGE_SETTINGS",
   "/admin/analytics": "VIEW_FINANCIALS",
   "/admin/fraud": "VIEW_FINANCIALS",
+  "/admin/affiliate-network": "MANAGE_USERS",
 };

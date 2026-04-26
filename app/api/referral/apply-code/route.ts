@@ -73,11 +73,10 @@ export async function POST(req: Request) {
     });
 
     // 5. إرسال إشعار للوكيل
-    await createNotification({ 
-      targetRole: "agent", 
-      targetId: agent.id, 
-      title: "Referral code used", 
-      message: `${user.username || user.email} applied your agent code.` 
+    await createNotification({
+      userId: agent.userId,
+      title: "Referral code used",
+      message: `${user.username || user.email} applied your agent code.`,
     });
 
     return NextResponse.json({ 

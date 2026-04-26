@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,17 +134,17 @@ export async function POST(req: Request) {
       return { updatedUser, updatedPlayer };
     });
 
-    // 5. إرسال الإشعارات (مع await لضمان التنفيذ)
-    await createNotification({
-      targetRole: "agent",
-      targetId: cleanAgentId,
-      title: "لاعب جديد مربوط",
-      message: `قام اللاعب ${result.updatedUser.username} باختيارك كوكيل له.`,
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(cleanAgentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: "لاعب جديد مربوط",
+        message: `قام اللاعب ${result.updatedUser.username} باختيارك كوكيل له.`,
+      });
+    }
 
     await createNotification({
-      targetRole: "player",
-      targetId: user.id,
+      userId: user.id,
       title: "تم الربط بنجاح",
       message: "تم ربط حسابك بالوكيل. يمكنك البدء بطلب الشحن الآن.",
     });

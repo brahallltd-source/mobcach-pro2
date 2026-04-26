@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const RECHARGE_MIN_AMOUNT = 1000;
-
 function isHttpProofUrl(s: string): boolean {
   const t = s.trim();
   if (!t) return false;
@@ -35,7 +33,7 @@ export function parseAgentRechargeForm(
     gosport365_username: string;
     confirm_gosport365_username: string;
   },
-  opts: { isCrypto: boolean; minAmount: number },
+  opts: { isCrypto: boolean; minAmount: number; amountTooLowMessage?: string },
 ) {
   const schema = z
     .object(baseFields)
@@ -47,7 +45,9 @@ export function parseAgentRechargeForm(
         ctx.addIssue({
           code: "custom",
           path: ["amount"],
-          message: `Minimum recharge is ${opts.minAmount} DH`,
+          message:
+            opts.amountTooLowMessage ??
+            `Minimum recharge is ${opts.minAmount} DH`,
         });
       }
 

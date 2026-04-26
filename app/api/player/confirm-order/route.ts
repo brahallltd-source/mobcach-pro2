@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,13 +52,14 @@ export async function POST(req: Request) {
       return upd;
     });
 
-    // 3. إشعار الوكيل بأن اللاعب أكمل العملية
-    await createNotification({
-      targetRole: "agent",
-      targetId: order.agentId,
-      title: "تم إكمال الطلب ✅",
-      message: `اللاعب أكد استلام الشحن للطلب رقم ${order.id.split('-')[0]}.`,
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(order.agentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: "تم إكمال الطلب ✅",
+        message: `اللاعب أكد استلام الشحن للطلب رقم ${order.id.split("-")[0]}.`,
+      });
+    }
 
     return NextResponse.json({ 
       success: true,

@@ -143,8 +143,6 @@ export async function POST(req: Request) {
     });
 
     await createNotification({
-      targetRole: "agent",
-      targetId: agentProfile.id,
       userId: agentProfile.user.id,
       title: "إثبات دفع جديد",
       message: `اللاعب ${playerUser.username || playerUser.email} أرسل إثبات تحويل بمبلغ ${amount} MAD (${methodTitle}).`,

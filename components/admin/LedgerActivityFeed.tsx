@@ -3,6 +3,7 @@
 import { ArrowDownLeft, ArrowUpRight, ScrollText } from "lucide-react";
 import { clsx } from "clsx";
 import { formatNumberEn } from "@/lib/format-dh";
+import { localeForLang, useTranslation } from "@/lib/i18n";
 
 export type LedgerFeedEntry = {
   id: string;
@@ -21,12 +22,15 @@ function amountTone(amount: number): string {
 }
 
 export function LedgerActivityFeed({ entries }: { entries: LedgerFeedEntry[] }) {
+  const { lang, tx } = useTranslation();
+  const locale = localeForLang(lang);
+
   if (!entries.length) {
-    return <p className="py-6 text-center text-sm text-white/40">لا حركات في السجل بعد.</p>;
+    return <p className="py-6 text-center text-sm text-white/40">{tx("admin.ledger.empty")}</p>;
   }
 
   return (
-    <ul className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+    <ul className="max-h-[360px] space-y-2 overflow-y-auto pe-1 ps-1">
       {entries.map((e) => (
         <li
           key={e.id}
@@ -39,12 +43,12 @@ export function LedgerActivityFeed({ entries }: { entries: LedgerFeedEntry[] }) 
               <ArrowUpRight className="h-4 w-4 text-rose-400/90" aria-hidden />
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 text-start">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="truncate font-medium text-white/90">{e.reason || e.type}</span>
               <span className={clsx("shrink-0 text-xs font-bold tabular-nums", amountTone(e.amount))} dir="ltr">
                 {e.amount > 0 ? "+" : ""}
-                {formatNumberEn(e.amount)} DH
+                {formatNumberEn(e.amount, 2)} DH
               </span>
             </div>
             <p className="mt-0.5 truncate text-xs text-white/45">{e.agentLabel}</p>
@@ -52,7 +56,7 @@ export function LedgerActivityFeed({ entries }: { entries: LedgerFeedEntry[] }) 
               <ScrollText className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
               {e.type}
               <span className="mx-1 text-white/20">·</span>
-              {new Date(e.createdAt).toLocaleString()}
+              {new Date(e.createdAt).toLocaleString(locale)}
             </p>
           </div>
         </li>

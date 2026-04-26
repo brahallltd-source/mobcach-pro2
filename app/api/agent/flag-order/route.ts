@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 
 export const runtime = "nodejs";
 
@@ -49,12 +49,9 @@ export async function POST(req: Request) {
       return { updatedOrder, newDispute };
     });
 
-    // 3. إرسال إشعار للإدارة (Admin)
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "طلب مشبوه 🚩",
-      message: `قام الوكيل بتبليغ عن الطلب ${order.id}. السبب: ${reason || "مراجعة يدوية"}.`
+      message: `قام الوكيل بتبليغ عن الطلب ${order.id}. السبب: ${reason || "مراجعة يدوية"}.`,
     });
 
     return NextResponse.json({ 

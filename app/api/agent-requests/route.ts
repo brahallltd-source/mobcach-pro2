@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 import { agentRequestKycSchema, assertAdultDateString } from "@/lib/validations/auth";
 
@@ -85,9 +85,7 @@ export async function POST(req: Request) {
       },
     });
 
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "طلب التحويل إلى وكيل",
       message: `اللاعب ${user.email} طلب الانضمام كوكيل (قيد المراجعة).`,
     });

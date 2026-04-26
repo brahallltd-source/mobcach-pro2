@@ -1,12 +1,21 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import { writeFile } from "fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { getPrisma } from "@/lib/db";
 import { getOrCreateSystemSettings } from "@/lib/system-settings";
 import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
-import { BRANDING } from "@/lib/branding";
+import {
+  defaultMarketingBranding,
+  getPublicBrandingMerged,
+  loadMarketingFromAudit,
+  mergePublicBranding,
+  normalizeHexColor,
+  type NormalizedMarketing,
+} from "@/lib/get-public-branding-merged";
 
 export const runtime = "nodejs";
 
@@ -16,45 +25,77 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const DEFAULT_PRIMARY = "#0f172a";
-const DEFAULT_PLATFORM = BRANDING.name;
+type PwaPublicFile = "icon-192x192.png" | "icon-512x512.png";
 
-const defaultMarketingBranding = {
-  brandName: BRANDING.name,
-  logoUrl: "",
-  heroTitle: BRANDING.defaultHeroTitleEn,
-  heroBody: BRANDING.defaultHeroBodyEn,
-  primaryCta: "Start Recharge",
-  secondaryCta: "Become an Agent",
-  heroImages: ["/hero/hero-1.svg", "/hero/hero-2.svg"],
-  banners: [] as Array<{
-    title: string;
-    subtitle: string;
-    image: string;
-    link: string;
-    active: boolean;
-    order?: number;
-  }>,
-};
+function readOptionalNullableString(body: Record<string, unknown>, key: string): string | null | undefined {
+  if (!(key in body)) return undefined;
+  const v = body[key];
+  if (v === null) return null;
+  const s = String(v ?? "").trim();
+  return s.length ? s : null;
+}
 
-/** Public marketing fields (DB/JSON use plain strings; avoids literal-type conflicts with `defaultMarketingBranding`). */
-type NormalizedMarketing = {
-  brandName: string;
-  logoUrl: string;
-  heroTitle: string;
-  heroBody: string;
-  primaryCta: string;
-  secondaryCta: string;
-  heroImages: string[];
-  banners: Array<{
-    title: string;
-    subtitle: string;
-    image: string;
-    link: string;
-    active: boolean;
-    order?: number;
-  }>;
-};
+function assertPngDataUrl(dataUrl: string, label: string) {
+  const head = dataUrl.slice(0, 40).toLowerCase();
+  if (!head.startsWith("data:image/png")) {
+    throw new Error(`${label}: PWA icons must be PNG (image/png).`);
+  }
+}
+
+async function persistPwaPngDataUrl(dataUrl: string, publicFileName: PwaPublicFile): Promise<string> {
+  assertPngDataUrl(dataUrl, publicFileName);
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) throw new Error("Malformed PNG data URL.");
+  const buf = Buffer.from(dataUrl.slice(comma + 1), "base64");
+
+  const hasCloud =
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET;
+
+  if (hasCloud) {
+    const publicId =
+      publicFileName === "icon-192x192.png" ? "mobcash/branding/pwa/icon-192x192" : "mobcash/branding/pwa/icon-512x512";
+    const uploaded = await cloudinary.uploader.upload(dataUrl, {
+      public_id: publicId,
+      overwrite: true,
+      invalidate: true,
+      resource_type: "image",
+    });
+    return uploaded.secure_url;
+  }
+
+  const outPath = path.join(process.cwd(), "public", publicFileName);
+  try {
+    await writeFile(outPath, buf);
+  } catch (err) {
+    console.error("PWA icon write to public/ failed:", err);
+    throw new Error(
+      "Could not save PWA icon to public/. Configure Cloudinary (CLOUDINARY_*) or ensure the server can write to public/."
+    );
+  }
+  return `/${publicFileName}`;
+}
+
+async function normalizePwaIconField(
+  value: string | null | undefined,
+  publicFileName: PwaPublicFile
+): Promise<string | null | undefined> {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  const s = value.trim();
+  if (s.startsWith("data:")) {
+    return persistPwaPngDataUrl(s, publicFileName);
+  }
+  if (s.startsWith("/")) return s;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error();
+  } catch {
+    throw new Error("PWA icon must be a PNG data URL, https URL, or a path starting with /.");
+  }
+  return s;
+}
 
 async function uploadIfNeeded(value: string, folder: string) {
   const raw = String(value || "").trim();
@@ -79,64 +120,6 @@ async function uploadIfNeeded(value: string, folder: string) {
     console.error("Cloudinary Upload Error:", err);
     return raw;
   }
-}
-
-function parseMarketingFromMeta(meta: unknown): Record<string, unknown> | null {
-  if (meta == null) return null;
-  if (typeof meta === "string") {
-    try {
-      return JSON.parse(meta) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-  if (typeof meta === "object" && !Array.isArray(meta)) {
-    return meta as Record<string, unknown>;
-  }
-  return null;
-}
-
-async function loadMarketingFromAudit(prisma: NonNullable<ReturnType<typeof getPrisma>>) {
-  const latest = await prisma.auditLog.findFirst({
-    where: { action: "branding_updated", entityType: "branding" },
-    orderBy: { createdAt: "desc" },
-  });
-  const parsed = parseMarketingFromMeta(latest?.meta);
-  if (!parsed) return { ...defaultMarketingBranding } as NormalizedMarketing;
-  return {
-    ...defaultMarketingBranding,
-    ...parsed,
-    heroImages: Array.isArray(parsed.heroImages)
-      ? [...(parsed.heroImages as unknown[]).map(String)]
-      : defaultMarketingBranding.heroImages,
-    banners: Array.isArray(parsed.banners) ? (parsed.banners as typeof defaultMarketingBranding.banners) : defaultMarketingBranding.banners,
-  } as NormalizedMarketing;
-}
-
-function normalizeHexColor(input: string, fallback: string) {
-  const s = String(input || "").trim();
-  return /^#[0-9A-Fa-f]{3,8}$/.test(s) ? s : fallback;
-}
-
-type BrandingSysSlice = {
-  platformName: string;
-  primaryColor: string;
-  logoUrl: string | null;
-  faviconUrl: string | null;
-};
-
-function mergePublicBranding(sys: BrandingSysSlice, marketing: NormalizedMarketing) {
-  const logoFromSys = String(sys.logoUrl ?? "").trim();
-  const logoFromMarketing = String(marketing.logoUrl ?? "").trim();
-
-  return {
-    ...marketing,
-    platformName: sys.platformName || DEFAULT_PLATFORM,
-    primaryColor: normalizeHexColor(sys.primaryColor, DEFAULT_PRIMARY),
-    faviconUrl: String(sys.faviconUrl ?? "").trim(),
-    brandName: sys.platformName || marketing.brandName,
-    logoUrl: logoFromSys || logoFromMarketing,
-  };
 }
 
 async function normalizeMarketingBranding(input: Record<string, unknown>): Promise<NormalizedMarketing> {
@@ -177,40 +160,8 @@ async function normalizeMarketingBranding(input: Record<string, unknown>): Promi
 }
 
 export async function GET() {
-  try {
-    const prisma = getPrisma();
-    if (!prisma) {
-      return NextResponse.json({
-        branding: mergePublicBranding(
-          {
-            platformName: DEFAULT_PLATFORM,
-            primaryColor: DEFAULT_PRIMARY,
-            logoUrl: null,
-            faviconUrl: null,
-          },
-          { ...defaultMarketingBranding } as NormalizedMarketing
-        ),
-      });
-    }
-
-    const sys = await getOrCreateSystemSettings(prisma);
-    const marketing = await loadMarketingFromAudit(prisma);
-    return NextResponse.json({
-      branding: mergePublicBranding(sys, marketing),
-    });
-  } catch {
-    return NextResponse.json({
-      branding: mergePublicBranding(
-        {
-          platformName: DEFAULT_PLATFORM,
-          primaryColor: DEFAULT_PRIMARY,
-          logoUrl: null,
-          faviconUrl: null,
-        },
-        { ...defaultMarketingBranding } as NormalizedMarketing
-      ),
-    });
-  }
+  const branding = await getPublicBrandingMerged();
+  return NextResponse.json({ branding });
 }
 
 export async function PATCH(req: Request) {
@@ -243,6 +194,15 @@ export async function PATCH(req: Request) {
       faviconUrl = await uploadIfNeeded(faviconUrl, "mobcash/branding/favicon");
     }
 
+    let pwaIcon192 = readOptionalNullableString(body, "pwaIcon192");
+    let pwaIcon512 = readOptionalNullableString(body, "pwaIcon512");
+    if (pwaIcon192 !== undefined) {
+      pwaIcon192 = await normalizePwaIconField(pwaIcon192, "icon-192x192.png");
+    }
+    if (pwaIcon512 !== undefined) {
+      pwaIcon512 = await normalizePwaIconField(pwaIcon512, "icon-512x512.png");
+    }
+
     const nextPlatform = platformNameRaw !== undefined ? platformNameRaw.slice(0, 120) : sys.platformName;
     const nextPrimary =
       primaryColorRaw !== undefined ? normalizeHexColor(primaryColorRaw, sys.primaryColor) : sys.primaryColor;
@@ -254,6 +214,8 @@ export async function PATCH(req: Request) {
         ...(primaryColorRaw !== undefined ? { primaryColor: nextPrimary } : {}),
         ...(logoUrl !== undefined ? { logoUrl } : {}),
         ...(faviconUrl !== undefined ? { faviconUrl } : {}),
+        ...(pwaIcon192 !== undefined ? { pwaIcon192 } : {}),
+        ...(pwaIcon512 !== undefined ? { pwaIcon512 } : {}),
       },
     });
 

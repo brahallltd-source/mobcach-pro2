@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -80,13 +80,14 @@ export async function POST(req: Request) {
       return updatedWallet;
     });
 
-    // 6. الإشعار
-    await createNotification({
-      targetRole: "agent",
-      targetId: agentId,
-      title: "مكافأة دعوات اللاعبين ✅",
-      message: "مبروك! حصلت على 200 درهم مكافأة مقابل نشاط لاعبيك المدعوين."
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(agentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: "مكافأة دعوات اللاعبين ✅",
+        message: "مبروك! حصلت على 200 درهم مكافأة مقابل نشاط لاعبيك المدعوين.",
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

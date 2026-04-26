@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
@@ -52,9 +52,7 @@ export async function POST(req: Request) {
       select: { id: true, createdAt: true },
     });
 
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "تذكرة دعم من لاعب",
       message: `${session.email}: ${parsed.data.subject}`,
     });

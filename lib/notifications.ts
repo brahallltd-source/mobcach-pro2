@@ -3,29 +3,56 @@ import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/co
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
+function normalizeTargetRole(role: string): string {
+  const r = String(role || "PLAYER").trim().toUpperCase();
+  if (r === "ADMIN" || r === "SUPER_ADMIN") return "ADMIN";
+  if (r === "AGENT") return "AGENT";
+  return "PLAYER";
+}
+
+/** `Order` / `Withdrawal` / marketplace fields use `Agent.id` (profile). Maps to the agent's `User.id`. */
+export async function getAgentUserIdByAgentProfileId(agentProfileId: string): Promise<string | null> {
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const row = await prisma.agent.findUnique({
+    where: { id: agentProfileId },
+    select: { userId: true },
+  });
+  return row?.userId ?? null;
+}
+
+/**
+ * Persist one in-app notification for a recipient `User`.
+ * Always sets `userId` and aligns `targetRole` / `targetId` with that user.
+ */
 export async function createNotification(payload: {
-  targetRole: string;
-  targetId: string;
+  userId: string;
   title: string;
   message: string;
-  userId?: string | null;
   type?: AppNotificationType;
   link?: string | null;
 }) {
   const prisma = getPrisma();
   if (!prisma) return null;
 
+  const user = await prisma.user.findFirst({
+    where: { id: payload.userId, deletedAt: null },
+    select: { id: true, role: true },
+  });
+  if (!user) return null;
+
   const title = localizeNotificationTitle(payload.title);
   const message = localizeNotificationMessage(payload.message);
+  const targetRole = normalizeTargetRole(String(user.role));
 
   return prisma.notification.create({
     data: {
       title,
       message,
       read: false,
-      targetRole: payload.targetRole,
-      targetId: String(payload.targetId),
-      userId: payload.userId ?? null,
+      userId: user.id,
+      targetRole,
+      targetId: user.id,
       type: payload.type ?? "INFO",
       link: payload.link ?? null,
     },

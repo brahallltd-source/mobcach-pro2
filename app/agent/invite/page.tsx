@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { ChevronDown, Copy, Gift, Info, Users } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import {
   GlassCard,
   LoadingCard,

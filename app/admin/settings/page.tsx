@@ -11,20 +11,27 @@ import {
   TextArea,
   TextField,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 type SettingsState = {
   bonusPercentage: string;
+  minRechargeAmount: string;
+  affiliateBonusEnabled: boolean;
+  maxWithdrawalAmount: string;
   isMaintenance: boolean;
   announcement: string;
 };
 
 export default function AdminSystemSettingsPage() {
-  const { showToast } = useToast();
+  const { tx } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<SettingsState>({
     bonusPercentage: "10",
+    minRechargeAmount: "1000",
+    affiliateBonusEnabled: true,
+    maxWithdrawalAmount: "100000",
     isMaintenance: false,
     announcement: "",
   });
@@ -35,20 +42,23 @@ export default function AdminSystemSettingsPage() {
       const res = await fetch("/api/admin/system-settings", { credentials: "include", cache: "no-store" });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "تعذّر تحميل الإعدادات") });
+        toast.error(String(j.message || tx("admin.settings.loadError")));
         return;
       }
       setForm({
         bonusPercentage: String(j.bonusPercentage ?? 10),
+        minRechargeAmount: String(j.minRechargeAmount ?? 1000),
+        affiliateBonusEnabled: Boolean(j.affiliateBonusEnabled ?? true),
+        maxWithdrawalAmount: String(j.maxWithdrawalAmount ?? 100000),
         isMaintenance: Boolean(j.isMaintenance),
         announcement: String(j.announcement ?? ""),
       });
     } catch {
-      showToast({ type: "error", title: "تعذّر تحميل الإعدادات" });
+      toast.error(tx("admin.settings.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [tx]);
 
   useEffect(() => {
     void load();
@@ -57,7 +67,17 @@ export default function AdminSystemSettingsPage() {
   const save = async () => {
     const pct = parseFloat(form.bonusPercentage.trim());
     if (!Number.isFinite(pct) || pct < 0 || pct > 1000) {
-      showToast({ type: "error", title: "نسبة البونص يجب أن تكون رقماً بين 0 و 1000" });
+      toast.error(tx("admin.settings.bonusPctInvalid"));
+      return;
+    }
+    const minRecharge = parseFloat(String(form.minRechargeAmount).trim());
+    if (!Number.isFinite(minRecharge) || minRecharge < 1 || minRecharge > 10_000_000) {
+      toast.error(tx("admin.settings.minRechargeInvalid"));
+      return;
+    }
+    const maxWithdrawal = parseFloat(String(form.maxWithdrawalAmount).trim());
+    if (!Number.isFinite(maxWithdrawal) || maxWithdrawal < 100 || maxWithdrawal > 50_000_000) {
+      toast.error(tx("admin.settings.maxWithdrawInvalid"));
       return;
     }
     setSaving(true);
@@ -68,23 +88,29 @@ export default function AdminSystemSettingsPage() {
         credentials: "include",
         body: JSON.stringify({
           bonusPercentage: pct,
+          minRechargeAmount: minRecharge,
+          affiliateBonusEnabled: form.affiliateBonusEnabled,
+          maxWithdrawalAmount: maxWithdrawal,
           isMaintenance: form.isMaintenance,
           announcement: form.announcement,
         }),
       });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "فشل الحفظ") });
+        toast.error(String(j.message || tx("admin.settings.saveError")));
         return;
       }
       setForm({
         bonusPercentage: String(j.bonusPercentage ?? pct),
+        minRechargeAmount: String(j.minRechargeAmount ?? minRecharge),
+        affiliateBonusEnabled: Boolean(j.affiliateBonusEnabled ?? form.affiliateBonusEnabled),
+        maxWithdrawalAmount: String(j.maxWithdrawalAmount ?? maxWithdrawal),
         isMaintenance: Boolean(j.isMaintenance),
         announcement: String(j.announcement ?? ""),
       });
-      showToast({ type: "success", title: "تم حفظ إعدادات المنصّة" });
+      toast.success(tx("admin.settings.saveSuccess"));
     } catch {
-      showToast({ type: "error", title: "فشل الحفظ" });
+      toast.error(tx("admin.settings.saveError"));
     } finally {
       setSaving(false);
     }
@@ -93,21 +119,64 @@ export default function AdminSystemSettingsPage() {
   if (loading) {
     return (
       <SidebarShell role="admin">
-        <LoadingCard text="جاري تحميل الإعدادات..." />
+        <LoadingCard text={tx("admin.settings.loading")} />
       </SidebarShell>
     );
   }
 
   return (
     <SidebarShell role="admin">
-      <PageHeader
-        title="إعدادات المنصّة"
-        subtitle="نسبة بونص الشحن والتعديل اليدوي، وضع الصيانة (يمنع دخول الوكلاء وطلبات الشحن/إضافة اللاعبين)، والإعلان يظهر في لوحة الوكيل."
-      />
+      <PageHeader title={tx("admin.settings.pageTitle")} subtitle={tx("admin.settings.pageSubtitle")} />
 
       <GlassCard className="mt-6 max-w-2xl space-y-5 p-6">
+        <div className="border-b border-white/10 pb-5">
+          <h2 className="mb-3 text-sm font-bold text-white">{tx("admin.settings.sectionAdvanced")}</h2>
+          <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.settings.minRechargeLabel")}</label>
+          <TextField
+            type="number"
+            inputMode="decimal"
+            min={1}
+            step="any"
+            dir="ltr"
+            value={form.minRechargeAmount}
+            onChange={(e) => setForm((f) => ({ ...f, minRechargeAmount: e.target.value }))}
+            className="max-w-xs"
+          />
+          <p className="mt-1 text-xs text-white/40">{tx("admin.settings.minRechargeHint")}</p>
+
+          <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-white/85">
+            <input
+              type="checkbox"
+              checked={form.affiliateBonusEnabled}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, affiliateBonusEnabled: e.target.checked }))
+              }
+              className="mt-1"
+            />
+            <span>
+              <span className="font-semibold text-white">{tx("admin.settings.affiliateMergeLabel")}</span>
+              <span className="block text-xs text-white/45">{tx("admin.settings.affiliateMergeHint")}</span>
+            </span>
+          </label>
+
+          <label className="mt-4 mb-1 block text-xs font-medium text-white/60">
+            {tx("admin.settings.maxWithdrawLabel")}
+          </label>
+          <TextField
+            type="number"
+            inputMode="decimal"
+            min={100}
+            step="any"
+            dir="ltr"
+            value={form.maxWithdrawalAmount}
+            onChange={(e) => setForm((f) => ({ ...f, maxWithdrawalAmount: e.target.value }))}
+            className="max-w-xs"
+          />
+          <p className="mt-1 text-xs text-white/40">{tx("admin.settings.maxWithdrawHint")}</p>
+        </div>
+
         <div>
-          <label className="mb-1 block text-xs font-medium text-white/60">نسبة البونص اليدوي (%)</label>
+          <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.settings.bonusPctLabel")}</label>
           <TextField
             type="number"
             inputMode="decimal"
@@ -119,10 +188,7 @@ export default function AdminSystemSettingsPage() {
             onChange={(e) => setForm((f) => ({ ...f, bonusPercentage: e.target.value }))}
             className="max-w-xs"
           />
-          <p className="mt-1 text-xs text-white/40">
-            تُستخدم لطلبات شحن المحفظة وللتعديل اليدوي للرصيد عند تفعيل البونص التلقائي (إضافة فقط). الافتراضي
-            10%.
-          </p>
+          <p className="mt-1 text-xs text-white/40">{tx("admin.settings.bonusPctHint")}</p>
         </div>
 
         <label className="flex cursor-pointer items-start gap-3 text-sm text-white/85">
@@ -133,35 +199,31 @@ export default function AdminSystemSettingsPage() {
             className="mt-1"
           />
           <span>
-            <span className="font-semibold text-white">وضع الصيانة</span>
-            <span className="block text-xs text-white/45">
-              عند التفعيل: لا يمكن للوكلاء تسجيل الدخول، ولا إنشاء طلبات شحن أو إضافة لاعبين (403 من الخادم).
-            </span>
+            <span className="font-semibold text-white">{tx("admin.settings.maintenanceLabel")}</span>
+            <span className="block text-xs text-white/45">{tx("admin.settings.maintenanceHint")}</span>
           </span>
         </label>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-white/60">إعلان للوكلاء (Announcement)</label>
+          <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.settings.announcementLabel")}</label>
           <TextArea
             rows={5}
             dir="auto"
-            placeholder="مثال: صيانة مجدولة يوم الجمعة من 22:00 إلى 23:00…"
+            placeholder={tx("admin.settings.announcementPlaceholder")}
             value={form.announcement}
             onChange={(e) => setForm((f) => ({ ...f, announcement: e.target.value }))}
           />
-          <p className="mt-1 text-xs text-white/40">
-            تظهر أعلى لوحة تحكم الوكيل عندما يكون الحقل غير فارغ.
-          </p>
+          <p className="mt-1 text-xs text-white/40">{tx("admin.settings.announcementHint")}</p>
         </div>
 
         <PrimaryButton type="button" onClick={() => void save()} disabled={saving}>
           {saving ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              جاري الحفظ…
+              {tx("admin.settings.saving")}
             </span>
           ) : (
-            "حفظ الإعدادات"
+            tx("admin.settings.saveButton")
           )}
         </PrimaryButton>
       </GlassCard>

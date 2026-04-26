@@ -2,7 +2,7 @@
 
 import { ImageIcon, Loader2, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
 

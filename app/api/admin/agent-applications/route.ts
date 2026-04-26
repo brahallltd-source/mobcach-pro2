@@ -183,8 +183,7 @@ export async function POST(req: Request) {
     try {
       await createWalletIfMissing(result.agent.id);
       await createNotification({
-        targetRole: "agent",
-        targetId: result.agent.id,
+        userId: result.user.id,
         title: "Application approved",
         message: "Your account has been upgraded to agent successfully.",
       });

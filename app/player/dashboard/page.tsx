@@ -15,7 +15,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useLanguage } from "@/components/language";
+import { useTranslation } from "@/lib/i18n";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { fetchSessionUser, redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { AlertTriangle, MousePointer2, UserCheck } from "lucide-react";
@@ -79,7 +80,8 @@ type MyAgentBundle = {
 };
 
 export default function PlayerDashboardPage() {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
+  const tp = usePlayerTx();
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [assignedAgent, setAssignedAgent] = useState<AgentSummary | null>(null);
@@ -202,7 +204,7 @@ export default function PlayerDashboardPage() {
       setUser(updatedUser);
       setAssignedAgent(agent);
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "تعذّر اختيار الوكيل");
+      toast.error(error instanceof Error ? error.message : tp("dashboard.selectAgentFailed"));
     } finally {
       setSelectingId(null);
     }
@@ -249,7 +251,13 @@ export default function PlayerDashboardPage() {
     return null;
   }, [myAgentBundle, assignedAgent, availableAgents]);
 
-  if (loading || !user) return <SidebarShell role="player"><LoadingCard text="جاري تحميل بياناتك..." /></SidebarShell>;
+  if (loading || !user) {
+    return (
+      <SidebarShell role="player">
+        <LoadingCard text={tp("dashboard.loading")} />
+      </SidebarShell>
+    );
+  }
 
   const acctUpper = String(user.status ?? "").trim().toUpperCase();
   const psLower = String(user.playerLinkStatus ?? "").trim().toLowerCase();
@@ -265,17 +273,16 @@ export default function PlayerDashboardPage() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 ring-2 ring-amber-400/40">
               <AlertTriangle className="h-9 w-9 text-amber-300" aria-hidden />
             </div>
-            <h1 className="mt-6 text-2xl font-bold text-white md:text-3xl">تم رفض طلب ارتباطك</h1>
+            <h1 className="mt-6 text-2xl font-bold text-white md:text-3xl">{tp("dashboard.rejectionTitle")}</h1>
             <p className="mt-4 text-base leading-relaxed text-white/80">
-              عذراً، لقد قام الوكيل برفض طلبك للسبب التالي:{" "}
-              <span className="font-semibold text-amber-100">{rej || "—"}</span>
+              {tp("dashboard.rejectionBody", { reason: rej || tp("common.emDash") })}
             </p>
             <PrimaryButton
               type="button"
               className="mt-8 w-full max-w-sm"
               onClick={() => router.push("/player/select-agent")}
             >
-              اختيار وكيل جديد
+              {tp("dashboard.chooseNewAgent")}
             </PrimaryButton>
           </div>
         </GlassCard>
@@ -284,16 +291,18 @@ export default function PlayerDashboardPage() {
   }
 
   if (acctUpper === "PENDING_APPROVAL") {
-    const agentLabel = assignedAgent?.display_name || "الوكيل";
+    const agentLabel = assignedAgent?.display_name || tp("agent.fallbackName");
     return (
       <SidebarShell role="player">
-        <PageHeader title="حسابك قيد التفعيل" subtitle="بانتظار إعداد الوكيل لحسابك على GoSport365." />
+        <PageHeader
+          title={tp("dashboard.pendingTitle")}
+          subtitle={tp("dashboard.pendingSubtitle")}
+        />
         <GlassCard className="mx-auto mt-8 max-w-xl border-primary/25 p-8 text-center md:p-10">
-          <p className="text-lg leading-relaxed text-white/85">
-            طلبك قيد المعالجة. الوكيل <span className="font-semibold text-cyan-200">{agentLabel}</span> يقوم حالياً
-            بإعداد حسابك على gosport365.
+          <p className="text-lg leading-relaxed text-white/85 text-balance">
+            {tp("dashboard.pendingBody", { agent: agentLabel })}
           </p>
-          <p className="mt-4 text-sm text-white/50">ستصلك إشعاراً عند اكتمال التفعيل — يمكنك تحديث الصفحة لاحقاً.</p>
+          <p className="mt-4 text-sm text-white/50 text-balance">{tp("dashboard.pendingHint")}</p>
         </GlassCard>
       </SidebarShell>
     );
@@ -309,8 +318,8 @@ export default function PlayerDashboardPage() {
         hideBranding
         title={
           <div className="flex flex-wrap items-center gap-4 md:gap-6">
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-4xl">
-              مرحباً بك، {user.username || "لاعب"} 👋
+            <h1 className="text-2xl font-bold tracking-tight text-white md:text-4xl text-balance">
+              {tp("dashboard.welcome", { name: user.username || tp("dashboard.guestName") })} 👋
             </h1>
             {accountActive ? (
               <Badge
@@ -318,17 +327,17 @@ export default function PlayerDashboardPage() {
                 className="inline-flex items-center gap-1.5 border-emerald-400/35 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200"
               >
                 <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden />
-                نشط
+                {tp("status.active")}
               </Badge>
             ) : (
               <Badge variant="secondary" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium">
                 <span className="h-2 w-2 rounded-full bg-white/35" aria-hidden />
-                حساب غير مفعل
+                {tp("status.inactive")}
               </Badge>
             )}
           </div>
         }
-        subtitle="إليك ملخص نشاطك الأسبوعي وحالة حسابك مع الوكيل."
+        subtitle={tp("dashboard.subtitleSummary")}
         action={<PrimaryButton onClick={changeAgent}>{t("changeAgent")}</PrimaryButton>}
       />
 
@@ -343,13 +352,17 @@ export default function PlayerDashboardPage() {
         <div className="lg:col-span-4 xl:col-span-3">
           <Card className="h-full">
             <CardContent className="flex flex-col justify-center gap-4 py-8">
-              <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">آخر شحنة</p>
+              <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45 text-balance">
+                {tp("dashboard.lastTopup")}
+              </p>
               <p className="text-center text-4xl font-black tabular-nums tracking-tight text-white">
                 {latestOrder ? latestOrder.amount : 0}
                 <span className="ms-2 text-xl font-semibold text-white/50">DH</span>
               </p>
-              <p className="text-center text-xs text-white/45">
-                {latestOrder ? `الحالة: ${latestOrder.status}` : "لم تقم بأي طلب بعد"}
+              <p className="text-center text-xs text-white/45 text-balance">
+                {latestOrder
+                  ? tp("dashboard.statusWithValue", { status: latestOrder.status })
+                  : tp("dashboard.noOrdersYet")}
               </p>
             </CardContent>
           </Card>
@@ -360,9 +373,9 @@ export default function PlayerDashboardPage() {
         <GlassCard className="mt-8 border-primary/25 p-6 md:p-8">
           <div className="flex items-center gap-4">
             <UserCheck className="text-cyan-400" size={28} />
-            <h2 className="text-2xl font-semibold text-white">اختر وكيلك المفضل</h2>
+            <h2 className="text-2xl font-semibold text-white text-balance">{tp("dashboard.pickAgentTitle")}</h2>
           </div>
-          <p className="mt-2 text-sm text-white/60">اضغط مباشرة على بطاقة الوكيل لربط حسابك به والبدء في الشحن فوراً.</p>
+          <p className="mt-2 text-sm text-white/60 text-balance">{tp("dashboard.pickAgentHint")}</p>
 
           <div className="mt-8 grid gap-6 md:grid-cols-2 md:gap-8 xl:grid-cols-3">
             {availableAgents.map((agent) => (
@@ -386,7 +399,9 @@ export default function PlayerDashboardPage() {
                       <MousePointer2 size={16} className="shrink-0 text-white/25 opacity-0 transition group-hover:opacity-100" />
                     </div>
                     <div className="flex w-full items-center justify-between text-xs">
-                      <span className="text-white/45">{agent.rating}% تقييم</span>
+                      <span className="text-white/45">
+                        {tp("dashboard.ratingLabel", { pct: String(agent.rating) })}
+                      </span>
                       <span className="flex items-center gap-1.5 font-medium text-white/70">
                         <span
                           className={clsx(
@@ -394,7 +409,7 @@ export default function PlayerDashboardPage() {
                             agent.online ? "animate-pulse bg-emerald-400" : "bg-white/25"
                           )}
                         />
-                        {agent.online ? "متصل" : "غير متصل"}
+                        {agent.online ? tp("agent.online") : tp("agent.offline")}
                       </span>
                     </div>
                   </Button>
@@ -411,7 +426,7 @@ export default function PlayerDashboardPage() {
       )}
 
       <GlassCard className="mt-8 p-6 md:p-8">
-        <RevenueAreaChart title="إحصائيات الشحن الأسبوعية" data={chartData} />
+        <RevenueAreaChart title={tp("dashboard.chartTitle")} data={chartData} />
       </GlassCard>
     </SidebarShell>
   );

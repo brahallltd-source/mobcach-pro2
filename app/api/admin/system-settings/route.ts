@@ -15,8 +15,14 @@ export async function GET() {
     return respondIfAdminAccessDenied(auth);
   }
   const row = await getOrCreateSystemSettings(prisma);
+  const maxRaw = Number(row.maxWithdrawalAmount);
+  const maxWithdrawalAmount =
+    Number.isFinite(maxRaw) && maxRaw >= 100 ? maxRaw : 100000;
   return NextResponse.json({
     bonusPercentage: row.bonusPercentage,
+    minRechargeAmount: Number(row.minRechargeAmount),
+    affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
+    maxWithdrawalAmount,
     isMaintenance: row.isMaintenance,
     announcement: row.announcement,
   });
@@ -34,6 +40,9 @@ export async function PATCH(request: Request) {
 
   let body: {
     bonusPercentage?: unknown;
+    minRechargeAmount?: unknown;
+    affiliateBonusEnabled?: unknown;
+    maxWithdrawalAmount?: unknown;
     isMaintenance?: unknown;
     announcement?: unknown;
   };
@@ -45,6 +54,9 @@ export async function PATCH(request: Request) {
 
   const data: {
     bonusPercentage?: number;
+    minRechargeAmount?: number;
+    affiliateBonusEnabled?: boolean;
+    maxWithdrawalAmount?: number;
     isMaintenance?: boolean;
     announcement?: string;
   } = {};
@@ -58,6 +70,33 @@ export async function PATCH(request: Request) {
       );
     }
     data.bonusPercentage = n;
+  }
+
+  if (body.minRechargeAmount !== undefined && body.minRechargeAmount !== null) {
+    const n = parseFloat(String(body.minRechargeAmount));
+    if (!Number.isFinite(n) || n < 1 || n > 10_000_000) {
+      return NextResponse.json(
+        { message: "minRechargeAmount must be a number between 1 and 10000000" },
+        { status: 400 }
+      );
+    }
+    data.minRechargeAmount = n;
+  }
+
+  if (body.affiliateBonusEnabled !== undefined && body.affiliateBonusEnabled !== null) {
+    data.affiliateBonusEnabled =
+      body.affiliateBonusEnabled === true || String(body.affiliateBonusEnabled) === "true";
+  }
+
+  if (body.maxWithdrawalAmount !== undefined && body.maxWithdrawalAmount !== null) {
+    const n = parseFloat(String(body.maxWithdrawalAmount));
+    if (!Number.isFinite(n) || n < 100 || n > 50_000_000) {
+      return NextResponse.json(
+        { message: "maxWithdrawalAmount must be a number between 100 and 50000000" },
+        { status: 400 }
+      );
+    }
+    data.maxWithdrawalAmount = n;
   }
 
   if (body.isMaintenance !== undefined && body.isMaintenance !== null) {
@@ -82,8 +121,15 @@ export async function PATCH(request: Request) {
     data,
   });
 
+  const maxOut = Number(row.maxWithdrawalAmount);
+  const maxWithdrawalAmount =
+    Number.isFinite(maxOut) && maxOut >= 100 ? maxOut : 100000;
+
   return NextResponse.json({
     bonusPercentage: row.bonusPercentage,
+    minRechargeAmount: Number(row.minRechargeAmount),
+    affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
+    maxWithdrawalAmount,
     isMaintenance: row.isMaintenance,
     announcement: row.announcement,
   });

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { GlassCard, LoadingCard, SidebarShell } from "@/components/ui";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 
 type SessionRecord = Record<string, unknown> & {
@@ -11,6 +12,7 @@ type SessionRecord = Record<string, unknown> & {
 };
 
 export default function AchatPage() {
+  const tp = usePlayerTx();
   useEffect(() => {
     void (async () => {
       let u = (await fetchSessionUser()) as SessionRecord | null;
@@ -45,8 +47,10 @@ export default function AchatPage() {
 
   return (
     <SidebarShell role="player">
-      <LoadingCard text="Opening your direct achat flow..." />
-      <GlassCard className="p-8 text-center text-white/60">You are being redirected to your assigned agent checkout.</GlassCard>
+      <LoadingCard text={tp("achat.redirectLoading")} />
+      <GlassCard className="p-8 text-center text-sm text-white/60 text-balance sm:text-base">
+        {tp("achat.redirectHint")}
+      </GlassCard>
     </SidebarShell>
   );
 }

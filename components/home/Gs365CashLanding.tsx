@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
@@ -21,20 +21,9 @@ import { Shell } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Footer } from "@/components/Footer";
+import { useTranslation } from "@/lib/i18n";
 
 const TRUST_MARQUEE = ["CIH", "Attijari", "Cash Plus", "Wafacash", "USDT"] as const;
-
-const HERO_CARD_FALLBACK: AgentProfileCardAgent = {
-  id: "hero-demo",
-  name: "Agent Sarah",
-  username: "sarah_pay",
-  isOnline: true,
-  rating: 97,
-  paymentMethods: [
-    { id: "h1", methodName: "CIH Bank" },
-    { id: "h2", methodName: "USDT" },
-  ],
-};
 
 type Gs365CashLandingProps = {
   agents: AgentProfileCardAgent[];
@@ -86,12 +75,33 @@ function RoadmapConnectorHorizontal() {
 }
 
 function TransactionRoadmapSection() {
-  const steps = [
-    { Icon: UserSearch, label: "اختر الوكيل", hint: "Select Agent" },
-    { Icon: Landmark, label: "طرق الدفع", hint: "Payment Methods" },
-    { Icon: BadgeCheck, label: "تأكيد اللاعب", hint: "Player Confirm" },
-    { Icon: Send, label: "تحويل الرصيد", hint: "Sold Sent" },
-  ] as const;
+  const { tx } = useTranslation();
+  const steps = useMemo(
+    () =>
+      [
+        {
+          Icon: UserSearch,
+          label: tx("home.roadmap.step1Label"),
+          hint: tx("home.roadmap.step1Hint"),
+        },
+        {
+          Icon: Landmark,
+          label: tx("home.roadmap.step2Label"),
+          hint: tx("home.roadmap.step2Hint"),
+        },
+        {
+          Icon: BadgeCheck,
+          label: tx("home.roadmap.step3Label"),
+          hint: tx("home.roadmap.step3Hint"),
+        },
+        {
+          Icon: Send,
+          label: tx("home.roadmap.step4Label"),
+          hint: tx("home.roadmap.step4Hint"),
+        },
+      ] as const,
+    [tx],
+  );
 
   return (
     <RevealSection className="space-y-8">
@@ -103,7 +113,7 @@ function TransactionRoadmapSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.45 }}
         >
-          مسار المعاملة
+          {tx("home.roadmap.title")}
         </motion.h2>
         <motion.p
           className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base"
@@ -112,7 +122,7 @@ function TransactionRoadmapSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.45, delay: 0.05 }}
         >
-          تدفق واضح بين اللاعب والوكيل — من الاختيار حتى إتمام التحويل.
+          {tx("home.roadmap.subtitle")}
         </motion.p>
       </div>
 
@@ -122,9 +132,11 @@ function TransactionRoadmapSection() {
           aria-hidden
         />
         <div className="relative mb-6 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-white/35">
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">اللاعب</span>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">{tx("home.roadmap.rolePlayer")}</span>
           <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" aria-hidden />
-          <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200/90">الوكيل</span>
+          <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200/90">
+            {tx("home.roadmap.roleAgent")}
+          </span>
         </div>
 
         {/* Mobile: vertical stack */}
@@ -190,6 +202,7 @@ function TransactionRoadmapSection() {
 }
 
 function MutualSecuritySection() {
+  const { tx } = useTranslation();
   return (
     <RevealSection className="space-y-8">
       <div>
@@ -200,7 +213,7 @@ function MutualSecuritySection() {
           viewport={{ once: true }}
           transition={{ duration: 0.45 }}
         >
-          الأمان والثقة
+          {tx("home.security.title")}
         </motion.h2>
         <motion.p
           className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base"
@@ -209,7 +222,7 @@ function MutualSecuritySection() {
           viewport={{ once: true }}
           transition={{ duration: 0.45, delay: 0.05 }}
         >
-          نظام أمان متبادل يحمي طرفي كل معاملة.
+          {tx("home.security.subtitle")}
         </motion.p>
       </div>
 
@@ -224,10 +237,8 @@ function MutualSecuritySection() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
             <ShieldCheck className="h-6 w-6" aria-hidden />
           </div>
-          <h3 className="text-lg font-bold text-white">حماية اللاعب</h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            تحويلات مضمونة عبر وكلاء معتمدين وموثقين 100%.
-          </p>
+          <h3 className="text-lg font-bold text-white">{tx("home.security.playerTitle")}</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">{tx("home.security.playerBody")}</p>
         </motion.div>
         <motion.div
           className="flex flex-col gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6 shadow-glass backdrop-blur-xl md:p-8"
@@ -239,10 +250,8 @@ function MutualSecuritySection() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-cyan-200">
             <Shield className="h-6 w-6" aria-hidden />
           </div>
-          <h3 className="text-lg font-bold text-white">حماية الوكيل</h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            نظام مكافحة احتيال متطور يمنع تكرار وصولات الدفع ويحمي رصيدك.
-          </p>
+          <h3 className="text-lg font-bold text-white">{tx("home.security.agentTitle")}</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">{tx("home.security.agentBody")}</p>
         </motion.div>
       </div>
     </RevealSection>
@@ -269,6 +278,7 @@ function FloatingHeroAgentCard({
   agent: AgentProfileCardAgent;
   onCta: () => void;
 }) {
+  const { tx } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
@@ -310,8 +320,8 @@ function FloatingHeroAgentCard({
             <AgentProfileCard
               agent={agent}
               actionType="join"
-              headerLabel="معاينة حية"
-              actionButtonLabel="ابدأ مع وكيل"
+              headerLabel={tx("home.heroCard.headerLabel")}
+              actionButtonLabel={tx("home.heroCard.ctaLabel")}
               onAction={onCta}
             />
           </div>
@@ -327,13 +337,50 @@ function FloatingHeroAgentCard({
 
 export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
   const router = useRouter();
-  const heroAgent = agents[0] ?? HERO_CARD_FALLBACK;
+  const { tx, dir } = useTranslation();
+  const heroFallback = useMemo(
+    (): AgentProfileCardAgent => ({
+      id: "hero-demo",
+      name: tx("home.hero.demoAgentName"),
+      username: tx("home.hero.demoUsername"),
+      isOnline: true,
+      rating: 97,
+      paymentMethods: [
+        { id: "h1", methodName: "CIH Bank" },
+        { id: "h2", methodName: "USDT" },
+      ],
+    }),
+    [tx],
+  );
+  const heroAgent = agents[0] ?? heroFallback;
   const spotlight = agents.slice(0, 3);
   const marqueeItems = [...TRUST_MARQUEE, ...TRUST_MARQUEE, ...TRUST_MARQUEE];
 
+  const howSteps = useMemo(
+    () =>
+      [
+        {
+          icon: <UserRound className="h-7 w-7" aria-hidden />,
+          title: tx("home.how.step1Title"),
+          body: tx("home.how.step1Body"),
+        },
+        {
+          icon: <Handshake className="h-7 w-7" aria-hidden />,
+          title: tx("home.how.step2Title"),
+          body: tx("home.how.step2Body"),
+        },
+        {
+          icon: <Wallet className="h-7 w-7" aria-hidden />,
+          title: tx("home.how.step3Title"),
+          body: tx("home.how.step3Body"),
+        },
+      ] as const,
+    [tx],
+  );
+
   return (
     <Shell>
-      <div dir="rtl" className="mx-auto max-w-7xl space-y-14 pb-20 md:space-y-20 md:pb-28">
+      <div dir={dir} className="mx-auto max-w-7xl space-y-14 pb-20 md:space-y-20 md:pb-28">
         {/* Hero */}
         <motion.section
           className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-white/[0.03] p-6 shadow-glass backdrop-blur-2xl md:p-10 lg:p-14"
@@ -351,13 +398,12 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
             <div>
               <FadeIn delay={0.05} className="block">
                 <h1 className="text-4xl font-black leading-[1.06] tracking-tight text-white sm:text-5xl md:text-6xl">
-                  شحن وسحب أرباحك في ثوانٍ
+                  {tx("home.hero.title")}
                 </h1>
               </FadeIn>
               <FadeIn delay={0.14} className="mt-5 block">
                 <p className="max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-                  منصة GS365 Cash تربطك بوكلاء معتمدين لشحن وسحب آمن عبر البنوك المغربية والرصيد الرقمي — بدون
-                  تعقيد، بتتبع فوري وتجربة واجهة عصرية.
+                  {tx("home.hero.description")}
                 </p>
               </FadeIn>
               <FadeIn delay={0.22} className="mt-8 flex flex-wrap gap-4">
@@ -367,7 +413,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                   className="bg-cyan-500 text-[#0B0F19] shadow-[0_0_32px_rgba(34,211,238,0.35)] hover:bg-cyan-400"
                   onClick={() => router.push("/register")}
                 >
-                  ابدأ مجاناً
+                  {tx("home.hero.start_btn")}
                 </Button>
                 <Button
                   type="button"
@@ -376,7 +422,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                   className="border-cyan-500/30 bg-white/[0.04] text-white shadow-none backdrop-blur-md hover:border-cyan-400/50 hover:bg-cyan-500/10"
                   onClick={() => document.getElementById("become-agent")?.scrollIntoView({ behavior: "smooth" })}
                 >
-                  كن وكيلاً لدينا
+                  {tx("home.hero.agent_btn")}
                 </Button>
               </FadeIn>
             </div>
@@ -390,7 +436,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
         {/* Trust marquee */}
         <RevealSection
           className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-black/30 py-5 shadow-inner backdrop-blur-md"
-          aria-label="شركاء الدفع"
+          aria-label={tx("home.trustMarqueeAria")}
         >
           <motion.div
             className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-[#0B0F19] to-transparent md:w-28"
@@ -429,7 +475,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
               viewport={{ once: true }}
               transition={{ duration: 0.45 }}
             >
-              كيف تعمل المنصة؟
+              {tx("home.how.title")}
             </motion.h2>
             <motion.p
               className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base"
@@ -438,30 +484,12 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
               viewport={{ once: true }}
               transition={{ duration: 0.45, delay: 0.06 }}
             >
-              ثلاث خطوات بسيطة للوصول إلى شحن وسحب سريع مع وكيلك الموثوق.
+              {tx("home.how.subtitle")}
             </motion.p>
           </div>
 
           <StaggerContainer className="grid gap-6 md:grid-cols-3">
-            {(
-              [
-                {
-                  icon: <UserRound className="h-7 w-7" aria-hidden />,
-                  title: "سجل حسابك 👤",
-                  body: "أنشئ حساب لاعب في دقائق وفعّل بريدك لتأمين الوصول.",
-                },
-                {
-                  icon: <Handshake className="h-7 w-7" aria-hidden />,
-                  title: "اختر وكيلك 🤝",
-                  body: "تصفح الوكلاء المتصلين، قارن وسائل الدفع، واربط وكيلك المعتمد.",
-                },
-                {
-                  icon: <Wallet className="h-7 w-7" aria-hidden />,
-                  title: "اشحن واسحب 💸",
-                  body: "نفّذ طلب الشحن أو السحب وتابع الحالة لحظة بلحظة حتى الإتمام.",
-                },
-              ] as const
-            ).map((step) => (
+            {howSteps.map((step) => (
               <StaggerItem key={step.title}>
                 <div className="flex h-full flex-col gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6 shadow-glass backdrop-blur-xl transition hover:border-cyan-400/25 hover:shadow-[0_0_40px_rgba(34,211,238,0.08)]">
                   <NeonIconWrap>{step.icon}</NeonIconWrap>
@@ -481,9 +509,9 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
         <RevealSection id="become-agent" className="scroll-mt-28 space-y-8">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white md:text-3xl">كن وكيلاً لدينا</h2>
+              <h2 className="text-2xl font-bold text-white md:text-3xl">{tx("home.spotlight.title")}</h2>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                انضم لشبكة الوكلاء المعتمدين — مؤشر الاتصال الأخضر يعكس جاهزية استقبال الطلبات.
+                {tx("home.spotlight.subtitle")}
               </p>
             </div>
             <Button
@@ -492,7 +520,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
               className="self-start text-cyan-300 hover:bg-white/10 hover:text-cyan-200"
               onClick={() => router.push("/register/agent")}
             >
-              طلب الوكالة ←
+              {tx("home.spotlight.ctaLink")}
             </Button>
           </div>
 
@@ -508,8 +536,8 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                     <AgentProfileCard
                       agent={{ ...agent, isOnline: true }}
                       actionType="join"
-                      headerLabel="متصل"
-                      actionButtonLabel="انضم كوكيل"
+                      headerLabel={tx("home.spotlight.onlineLabel")}
+                      actionButtonLabel={tx("home.spotlight.joinCta")}
                       onAction={() => router.push("/register/agent")}
                     />
                   </div>
@@ -533,10 +561,8 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
               aria-hidden
             />
             <div className="relative mx-auto max-w-2xl text-center">
-              <h3 className="text-xl font-bold text-white md:text-2xl">انضم كوكيل GS365 Cash</h3>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
-                وسّع قاعدة عملائك، أدر طلبات الشحن والسحب، وابنِ دخلاً متكرراً مع دعم المنصة.
-              </p>
+              <h3 className="text-xl font-bold text-white md:text-2xl">{tx("home.recruit.title")}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">{tx("home.recruit.subtitle")}</p>
               <div className="mt-8">
                 <Button
                   size="lg"
@@ -544,7 +570,7 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                   className="bg-cyan-500 px-8 text-base font-bold text-[#0B0F19] shadow-[0_0_36px_rgba(34,211,238,0.4)] hover:bg-cyan-400"
                   onClick={() => router.push("/register/agent")}
                 >
-                  قدم طلب الوكالة الآن
+                  {tx("home.recruit.cta")}
                 </Button>
               </div>
             </div>

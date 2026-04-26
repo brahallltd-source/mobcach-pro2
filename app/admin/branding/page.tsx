@@ -25,6 +25,8 @@ type VisualBranding = {
   primaryColor: string;
   logoUrl: string;
   faviconUrl: string;
+  pwaIcon192: string;
+  pwaIcon512: string;
 };
 
 type SocialBranding = {
@@ -54,6 +56,8 @@ export default function AdminBrandingPage() {
     primaryColor: DEFAULT_PRIMARY,
     logoUrl: "",
     faviconUrl: "",
+    pwaIcon192: "",
+    pwaIcon512: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,6 +79,8 @@ export default function AdminBrandingPage() {
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
+  const pwa192InputRef = useRef<HTMLInputElement>(null);
+  const pwa512InputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,6 +95,8 @@ export default function AdminBrandingPage() {
           primaryColor: String(b.primaryColor ?? DEFAULT_PRIMARY),
           logoUrl: String(b.logoUrl ?? ""),
           faviconUrl: String(b.faviconUrl ?? ""),
+          pwaIcon192: String(b.pwaIcon192 ?? ""),
+          pwaIcon512: String(b.pwaIcon512 ?? ""),
         });
       }
     } catch {
@@ -179,6 +187,16 @@ export default function AdminBrandingPage() {
     return fileToDataUrl(file);
   };
 
+  const readPwaPngOnly = async (event: ChangeEvent<HTMLInputElement>, label: string) => {
+    const file = event.target.files?.[0];
+    if (!file) return null;
+    if (file.type !== "image/png") {
+      toast.error(`${label}: PWA icons must be PNG files only.`);
+      return null;
+    }
+    return fileToDataUrl(file);
+  };
+
   const save = async () => {
     setSaving(true);
     setMessage(null);
@@ -192,6 +210,8 @@ export default function AdminBrandingPage() {
           primaryColor: form.primaryColor.trim(),
           logoUrl: form.logoUrl.trim() || null,
           faviconUrl: form.faviconUrl.trim() || null,
+          pwaIcon192: form.pwaIcon192.trim() || null,
+          pwaIcon512: form.pwaIcon512.trim() || null,
         }),
       });
       const data = await res.json();
@@ -202,6 +222,8 @@ export default function AdminBrandingPage() {
           primaryColor: String(data.branding.primaryColor ?? DEFAULT_PRIMARY),
           logoUrl: String(data.branding.logoUrl ?? ""),
           faviconUrl: String(data.branding.faviconUrl ?? ""),
+          pwaIcon192: String(data.branding.pwaIcon192 ?? ""),
+          pwaIcon512: String(data.branding.pwaIcon512 ?? ""),
         });
       }
       setMessage("Saved. Theme updates apply site-wide after refresh.");
@@ -334,6 +356,80 @@ export default function AdminBrandingPage() {
                     onChange={async (e) => {
                       const img = await readImage(e);
                       if (img) setForm((f) => ({ ...f, faviconUrl: img }));
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard className="space-y-5 p-6 md:p-8">
+              <h2 className="text-lg font-semibold text-white">PWA &amp; mobile app icons</h2>
+              <p className="text-sm text-white/50">
+                Used by <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">/manifest.json</code> for install
+                prompts and splash screens. Only PNG is accepted.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">PWA icon (192×192)</p>
+                  <p className="mt-1 text-xs text-white/40">Required for mobile home screen (PNG, 192×192px).</p>
+                  {form.pwaIcon192 ? (
+                    <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-white/5 p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={form.pwaIcon192} alt="" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex h-28 items-center justify-center rounded-xl border border-dashed border-white/15 text-white/35">
+                      <ImageIcon className="h-8 w-8" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => pwa192InputRef.current?.click()}
+                    className="mt-3 w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                  >
+                    Upload 192×192 PNG
+                  </button>
+                  <input
+                    ref={pwa192InputRef}
+                    type="file"
+                    accept="image/png"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const img = await readPwaPngOnly(e, "192×192 icon");
+                      if (img) setForm((f) => ({ ...f, pwaIcon192: img }));
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">PWA icon (512×512)</p>
+                  <p className="mt-1 text-xs text-white/40">Required for splash screen (PNG, 512×512px).</p>
+                  {form.pwaIcon512 ? (
+                    <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-white/5 p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={form.pwaIcon512} alt="" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex h-28 items-center justify-center rounded-xl border border-dashed border-white/15 text-white/35">
+                      <ImageIcon className="h-8 w-8" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => pwa512InputRef.current?.click()}
+                    className="mt-3 w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                  >
+                    Upload 512×512 PNG
+                  </button>
+                  <input
+                    ref={pwa512InputRef}
+                    type="file"
+                    accept="image/png"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const img = await readPwaPngOnly(e, "512×512 icon");
+                      if (img) setForm((f) => ({ ...f, pwaIcon512: img }));
                       e.target.value = "";
                     }}
                   />

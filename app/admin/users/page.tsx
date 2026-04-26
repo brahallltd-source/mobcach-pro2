@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Key, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import { FlagBadges } from "@/components/FlagBadges";
@@ -13,7 +13,9 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
+import { PasswordResetModal } from "@/components/admin/PasswordResetModal";
+import { localeForLang, useTranslation } from "@/lib/i18n";
 
 type UserRow = {
   id: string;
@@ -54,20 +56,21 @@ function normRole(s: string): string {
   return String(s ?? "").trim().toUpperCase();
 }
 
-function formatDh(value: number): string {
+function formatDh(value: number, locale: string): string {
   const n = Number.isFinite(value) ? value : 0;
-  return `${new Intl.NumberFormat("ar-MA", { maximumFractionDigits: 2 }).format(n)} DH`;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(n)} DH`;
 }
 
 /** Numeric display for the live formula (no currency suffix). */
-function formatNum(value: number): string {
-  return new Intl.NumberFormat("ar-MA", { maximumFractionDigits: 2 }).format(
-    Number.isFinite(value) ? value : 0
+function formatNum(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+    Number.isFinite(value) ? value : 0,
   );
 }
 
 export default function AdminUsersManagementPage() {
-  const { showToast } = useToast();
+  const { tx, lang } = useTranslation();
+  const locale = useMemo(() => localeForLang(lang), [lang]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
@@ -86,6 +89,7 @@ export default function AdminUsersManagementPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [freezeBusyId, setFreezeBusyId] = useState<string | null>(null);
+  const [passwordModalUser, setPasswordModalUser] = useState<UserRow | null>(null);
   /** Manual-adjust bonus % (platform default from System settings). */
   const [systemBonusPct, setSystemBonusPct] = useState(10);
 
@@ -97,12 +101,12 @@ export default function AdminUsersManagementPage() {
     const res = await fetch("/api/admin/users/list", { cache: "no-store", credentials: "include" });
     const data = await res.json();
     if (!res.ok) {
-      showToast({ type: "error", title: data.message || "تعذر تحميل المستخدمين" });
+      toast.error(String(data.message || tx("admin.users.loadError")));
       setUsers([]);
       return;
     }
     setUsers(data.users || []);
-  }, [showToast]);
+  }, [tx]);
 
   useEffect(() => {
     load().finally(() => setLoading(false));
@@ -193,10 +197,7 @@ export default function AdminUsersManagementPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showToast({
-        type: "error",
-        title: String(data.message || "فشل التحديث"),
-      });
+      toast.error(String(data.message || tx("admin.users.updateFailed")));
       return false;
     }
     if (data.user) {
@@ -218,7 +219,7 @@ export default function AdminUsersManagementPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(data.message || "تعذّر تغيير التجميد") });
+        toast.error(String(data.message || tx("admin.users.freezeError")));
         return;
       }
       if (data.user) {
@@ -226,10 +227,9 @@ export default function AdminUsersManagementPage() {
       } else {
         await load();
       }
-      showToast({
-        type: "success",
-        title: String(data.message || (data.frozen ? "تم التجميد" : "تم إلغاء التجميد")),
-      });
+      toast.success(
+        String(data.message || (data.frozen ? tx("admin.users.frozenSuccess") : tx("admin.users.unfrozenSuccess"))),
+      );
     } finally {
       setFreezeBusyId(null);
     }
@@ -242,10 +242,7 @@ export default function AdminUsersManagementPage() {
     const ok = await patchUser({ userId: u.id, status: next });
     setStatusBusyId(null);
     if (ok) {
-      showToast({
-        type: "success",
-        title: "تم تحديث حالة الحساب بنجاح",
-      });
+      toast.success(tx("admin.users.statusUpdated"));
     }
   };
 
@@ -308,10 +305,8 @@ export default function AdminUsersManagementPage() {
   const submitEdit = async () => {
     if (!editUserId) return;
     if (balanceAdjustmentBlocked) {
-      showToast({
-        type: "error",
-        title: "مبلغ الخصم أكبر من الرصيد المتاح",
-        message: "فعّل «السماح برصيد سالب» إن كانت السياسة تسمح بذلك، أو قلّل المبلغ.",
+      toast.error(tx("admin.users.subtractExceedsTitle"), {
+        description: tx("admin.users.subtractExceedsMessage"),
       });
       return;
     }
@@ -350,13 +345,13 @@ export default function AdminUsersManagementPage() {
     setSaveBusy(false);
     if (ok) {
       if (data.newTotal !== undefined) {
-        showToast({
-          type: "success",
-          title: "تم تحديث بيانات المستخدم بنجاح",
-          message: `الرصيد الجديد: ${formatDh(Number(data.newTotal))}`,
+        toast.success(tx("admin.users.userUpdated"), {
+          description: tx("admin.users.userUpdatedWithBalance", {
+            balance: formatDh(Number(data.newTotal), locale),
+          }),
         });
       } else {
-        showToast({ type: "success", title: "تم تحديث بيانات المستخدم بنجاح" });
+        toast.success(tx("admin.users.userUpdated"));
       }
       closeEdit();
     }
@@ -365,33 +360,30 @@ export default function AdminUsersManagementPage() {
   if (loading) {
     return (
       <SidebarShell role="admin">
-        <LoadingCard text="جاري تحميل المستخدمين..." />
+        <LoadingCard text={tx("admin.users.loading")} />
       </SidebarShell>
     );
   }
 
   return (
     <SidebarShell role="admin">
-      <PageHeader
-        title="إدارة المستخدمين"
-        subtitle="عرض جميع الحسابات، تفعيل أو تعطيل الحسابات، وتعديل البريد واسم المستخدم والدور."
-      />
+      <PageHeader title={tx("admin.users.pageTitle")} subtitle={tx("admin.users.pageSubtitle")} />
 
       <GlassCard className="mt-6 p-4 md:p-5">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-white/55">بحث (بريد أو اسم مستخدم)</label>
+            <label className="mb-1 block text-xs font-medium text-white/55">{tx("admin.users.searchLabel")}</label>
             <TextField
-              placeholder="ابحث…"
+              placeholder={tx("admin.users.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-white/55">الدور</label>
+            <label className="mb-1 block text-xs font-medium text-white/55">{tx("admin.users.filterRole")}</label>
             <SelectField value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}>
-              <option value="all">الكل</option>
+              <option value="all">{tx("admin.common.all")}</option>
               <option value="ADMIN">ADMIN</option>
               <option value="AGENT">AGENT</option>
               <option value="PLAYER">PLAYER</option>
@@ -407,27 +399,28 @@ export default function AdminUsersManagementPage() {
           </div>
         </div>
         <p className="mt-3 text-xs text-white/40" aria-live="polite" aria-atomic="true">
-          المعروض:{" "}
-          <span className="font-semibold text-white/60 tabular-nums">{filteredUsers.length}</span> من{" "}
-          <span className="tabular-nums">{users.length}</span>
+          {tx("admin.users.displayed", {
+            filtered: String(filteredUsers.length),
+            total: String(users.length),
+          })}
         </p>
       </GlassCard>
 
       <GlassCard className="mt-4 overflow-x-auto p-0">
-        <table className="w-full min-w-[720px] text-right text-sm">
+        <table className="w-full min-w-[720px] text-start text-sm">
           <thead>
             <tr className="border-b border-white/10 bg-white/[0.04] text-white/60">
-              <th className="px-4 py-3 font-semibold">البريد</th>
-              <th className="px-4 py-3 font-semibold">اسم المستخدم</th>
-              <th className="px-4 py-3 font-semibold">الدور</th>
-              <th className="min-w-[120px] px-4 py-3 font-semibold">علامات</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colEmail")}</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colUsername")}</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colRole")}</th>
+              <th className="min-w-[120px] px-4 py-3 font-semibold">{tx("admin.users.colFlags")}</th>
               <th className="px-4 py-3 font-semibold" dir="ltr">
-                Wallet
+                {tx("admin.users.colWallet")}
               </th>
-              <th className="px-4 py-3 font-semibold">الحالة</th>
-              <th className="px-4 py-3 font-semibold">مجمّد</th>
-              <th className="px-4 py-3 font-semibold">تاريخ الإنشاء</th>
-              <th className="px-4 py-3 font-semibold">إجراءات</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colStatus")}</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colFrozen")}</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colCreated")}</th>
+              <th className="px-4 py-3 font-semibold">{tx("admin.users.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -444,14 +437,18 @@ export default function AdminUsersManagementPage() {
                     <FlagBadges flags={u.displayFlags} />
                   </td>
                   <td className="px-4 py-3 text-white/70 tabular-nums" dir="ltr">
-                    {u.wallet != null ? `${Number(u.wallet.balance).toLocaleString()} DH` : "—"}
+                    {u.wallet != null
+                      ? `${Number(u.wallet.balance).toLocaleString(locale)} DH`
+                      : tx("admin.common.dash")}
                   </td>
                   <td className="px-4 py-3 text-white/70">{u.status}</td>
                   <td className="px-4 py-3 text-white/70">
-                    {u.frozen || String(u.accountStatus ?? "").toUpperCase() === "SUSPENDED" ? "نعم" : "لا"}
+                    {u.frozen || String(u.accountStatus ?? "").toUpperCase() === "SUSPENDED"
+                      ? tx("admin.common.yes")
+                      : tx("admin.common.no")}
                   </td>
                   <td className="px-4 py-3 text-white/50" dir="ltr">
-                    {new Date(u.createdAt).toLocaleString()}
+                    {new Date(u.createdAt).toLocaleString(locale)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -467,8 +464,8 @@ export default function AdminUsersManagementPage() {
                       >
                         {freezeBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                         {u.frozen || String(u.accountStatus ?? "").toUpperCase() === "SUSPENDED"
-                          ? "إلغاء التجميد"
-                          : "تجميد"}
+                          ? tx("admin.users.unfreeze")
+                          : tx("admin.users.freeze")}
                       </button>
                       <button
                         type="button"
@@ -481,14 +478,23 @@ export default function AdminUsersManagementPage() {
                         }
                       >
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                        {active ? "تعطيل" : "تفعيل"}
+                        {active ? tx("admin.users.deactivate") : tx("admin.users.activate")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPasswordModalUser(u)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
+                        title={tx("admin.users.actions.change_password")}
+                      >
+                        <Key className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {tx("admin.users.actions.change_password")}
                       </button>
                       <button
                         type="button"
                         onClick={() => openEdit(u)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
                       >
-                        تعديل
+                        {tx("admin.users.edit")}
                       </button>
                     </div>
                   </td>
@@ -498,9 +504,9 @@ export default function AdminUsersManagementPage() {
           </tbody>
         </table>
         {!users.length ? (
-          <p className="p-8 text-center text-sm text-white/50">لا يوجد مستخدمون.</p>
+          <p className="p-8 text-center text-sm text-white/50">{tx("admin.users.emptyUsers")}</p>
         ) : !filteredUsers.length ? (
-          <p className="p-8 text-center text-sm text-white/50">لا توجد نتائج تطابق التصفية.</p>
+          <p className="p-8 text-center text-sm text-white/50">{tx("admin.users.emptyFiltered")}</p>
         ) : null}
       </GlassCard>
 
@@ -513,11 +519,9 @@ export default function AdminUsersManagementPage() {
         >
           <GlassCard className="max-h-[90vh] w-full max-w-lg overflow-y-auto p-6">
             <h2 id="edit-user-title" className="text-lg font-bold text-white">
-              تعديل المستخدم
+              {tx("admin.users.editTitle")}
             </h2>
-            <p className="mt-1 text-xs text-white/45">
-              تحديث البريد واسم المستخدم والدور، وتعديل رصيد المحفظة عبر الإضافة أو الخصم.
-            </p>
+            <p className="mt-1 text-xs text-white/45">{tx("admin.users.editSubtitle")}</p>
             <div className="mt-4 flex gap-2 border-b border-white/10 pb-3">
               <button
                 type="button"
@@ -527,7 +531,7 @@ export default function AdminUsersManagementPage() {
                   modalTab === "edit" ? "bg-white text-slate-950" : "text-white/60 hover:bg-white/5"
                 )}
               >
-                التعديل
+                {tx("admin.users.tabEdit")}
               </button>
               <button
                 type="button"
@@ -537,43 +541,45 @@ export default function AdminUsersManagementPage() {
                   modalTab === "history" ? "bg-white text-slate-950" : "text-white/60 hover:bg-white/5"
                 )}
               >
-                السجل (5 الأخيرة)
+                {tx("admin.users.tabHistory")}
               </button>
             </div>
 
             {modalTab === "history" ? (
               <div className="mt-5">
                 {historyLoading ? (
-                  <p className="py-8 text-center text-sm text-white/50">جاري التحميل…</p>
+                  <p className="py-8 text-center text-sm text-white/50">{tx("admin.users.historyLoading")}</p>
                 ) : balanceHistory.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-white/50">لا يوجد تعديلات يدوية مسجّلة.</p>
+                  <p className="py-8 text-center text-sm text-white/50">{tx("admin.users.historyEmpty")}</p>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-white/10">
-                    <table className="w-full min-w-[520px] text-left text-xs">
+                    <table className="w-full min-w-[520px] text-start text-xs">
                       <thead>
                         <tr className="border-b border-white/10 bg-white/[0.04] text-white/50">
-                          <th className="px-3 py-2 font-semibold">التاريخ</th>
-                          <th className="px-3 py-2 font-semibold">الإداري</th>
-                          <th className="px-3 py-2 font-semibold">العملية</th>
-                          <th className="px-3 py-2 font-semibold">المبلغ</th>
-                          <th className="px-3 py-2 font-semibold">بونص</th>
-                          <th className="px-3 py-2 font-semibold">قبل → بعد</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColDate")}</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColAdmin")}</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColOp")}</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColAmount")}</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColBonus")}</th>
+                          <th className="px-3 py-2 font-semibold">{tx("admin.users.historyColBeforeAfter")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {balanceHistory.map((row) => (
                           <tr key={row.id} className="border-b border-white/5 text-white/80">
                             <td className="px-3 py-2 tabular-nums" dir="ltr">
-                              {new Date(row.createdAt).toLocaleString()}
+                              {new Date(row.createdAt).toLocaleString(locale)}
                             </td>
                             <td className="px-3 py-2">{row.adminUsername || row.adminEmail}</td>
                             <td className="px-3 py-2 font-semibold">{row.operation}</td>
                             <td className="px-3 py-2 tabular-nums" dir="ltr">
-                              {formatNum(row.amount)}
+                              {formatNum(row.amount, locale)}
                             </td>
-                            <td className="px-3 py-2">{row.bonusApplied ? "نعم" : "—"}</td>
+                            <td className="px-3 py-2">
+                              {row.bonusApplied ? tx("admin.common.yes") : tx("admin.common.dash")}
+                            </td>
                             <td className="px-3 py-2 tabular-nums text-white/70" dir="ltr">
-                              {formatNum(row.previousBalance)} → {formatNum(row.newBalance)}
+                              {formatNum(row.previousBalance, locale)} → {formatNum(row.newBalance, locale)}
                             </td>
                           </tr>
                         ))}
@@ -587,15 +593,15 @@ export default function AdminUsersManagementPage() {
             {modalTab === "edit" ? (
             <div className="mt-5 grid gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-white/60">البريد</label>
+                <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.users.colEmail")}</label>
                 <TextField value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-white/60">اسم المستخدم</label>
+                <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.users.colUsername")}</label>
                 <TextField value={editUsername} onChange={(e) => setEditUsername(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-white/60">الدور</label>
+                <label className="mb-1 block text-xs font-medium text-white/60">{tx("admin.users.colRole")}</label>
                 <SelectField value={editRole} onChange={(e) => setEditRole(e.target.value)}>
                   <option value="ADMIN">ADMIN</option>
                   <option value="AGENT">AGENT</option>
@@ -605,17 +611,17 @@ export default function AdminUsersManagementPage() {
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-white/45">
-                  Adjustment Tool
+                  {tx("admin.users.adjustmentTool")}
                 </p>
-                <p className="mt-2 text-xs font-medium text-white/50">Current balance (read-only)</p>
+                <p className="mt-2 text-xs font-medium text-white/50">{tx("admin.users.currentBalance")}</p>
                 <p className="text-2xl font-bold tabular-nums text-white" dir="ltr">
-                  {formatDh(editWalletBaseline)}
+                  {formatDh(editWalletBaseline, locale)}
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-white/55" dir="ltr">
-                      adjustmentAmount (DH)
+                      {tx("admin.users.adjustmentAmountLabel")}
                     </label>
                     <TextField
                       type="number"
@@ -634,8 +640,8 @@ export default function AdminUsersManagementPage() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-white/55">Operation</label>
-                    <div className="flex rounded-2xl border border-white/10 p-1" role="group" aria-label="Balance operation">
+                    <label className="mb-1 block text-xs font-medium text-white/55">{tx("admin.users.operationLabel")}</label>
+                    <div className="flex rounded-2xl border border-white/10 p-1" role="group" aria-label={tx("admin.users.ariaBalanceOp")}>
                       <button
                         type="button"
                         onClick={() => setBalanceOperation("add")}
@@ -646,7 +652,7 @@ export default function AdminUsersManagementPage() {
                             : "text-white/65 hover:bg-white/5"
                         )}
                       >
-                        Add
+                        {tx("admin.users.add")}
                       </button>
                       <button
                         type="button"
@@ -658,7 +664,7 @@ export default function AdminUsersManagementPage() {
                             : "text-white/65 hover:bg-white/5"
                         )}
                       >
-                        Subtract
+                        {tx("admin.users.subtract")}
                       </button>
                     </div>
                   </div>
@@ -677,9 +683,7 @@ export default function AdminUsersManagementPage() {
                     onChange={(e) => setApplyBonus10(e.target.checked)}
                     className="mt-0.5"
                   />
-                  <span>
-                    إضافة بونص {systemBonusPct}% تلقائياً (عند الإضافة فقط — من إعدادات المنصّة)
-                  </span>
+                  <span>{tx("admin.users.bonusAuto", { pct: String(systemBonusPct) })}</span>
                 </label>
 
                 <div
@@ -692,23 +696,23 @@ export default function AdminUsersManagementPage() {
                   dir="ltr"
                 >
                   <p className="text-base font-bold leading-relaxed text-white">
-                    <span>{formatNum(editWalletBaseline)}</span>{" "}
+                    <span>{formatNum(editWalletBaseline, locale)}</span>{" "}
                     <span className="text-white">{balanceOperation === "add" ? "+" : "−"}</span>{" "}
                     <span>
                       {adjustmentParsed.valid && adjustmentParsed.value > 0
-                        ? formatNum(adjustmentParsed.value)
-                        : formatNum(0)}
+                        ? formatNum(adjustmentParsed.value, locale)
+                        : formatNum(0, locale)}
                     </span>
                     {bonusPortion > 0 ? (
                       <>
                         {" "}
                         <span className="text-white">+</span>{" "}
-                        <span className="text-violet-300">{formatNum(bonusPortion)}</span>
+                        <span className="text-violet-300">{formatNum(bonusPortion, locale)}</span>
                         <span className="text-xs font-semibold text-violet-200/80"> ({systemBonusPct}%)</span>
                       </>
                     ) : null}{" "}
                     <span className="text-white">=</span>{" "}
-                    <span className="text-emerald-200">{formatNum(computedNewBalance)}</span>
+                    <span className="text-emerald-200">{formatNum(computedNewBalance, locale)}</span>
                     <span className="ms-1 text-sm font-bold text-white/60">DH</span>
                   </p>
                   {adjustmentParsed.valid && adjustmentParsed.value > 0 ? (
@@ -718,11 +722,11 @@ export default function AdminUsersManagementPage() {
                         return (
                           <span className={dTotal >= 0 ? "text-emerald-400" : "text-rose-400"}>
                             {dTotal > 0 ? "+" : dTotal < 0 ? "−" : ""}
-                            {formatNum(Math.abs(dTotal))} DH
+                            {formatNum(Math.abs(dTotal), locale)} DH
                           </span>
                         );
                       })()}
-                      <span className="ms-2 text-xs font-normal text-white/45">Δ delta</span>
+                      <span className="ms-2 text-xs font-normal text-white/45">{tx("admin.users.deltaLabel")}</span>
                     </p>
                   ) : null}
                 </div>
@@ -737,18 +741,18 @@ export default function AdminUsersManagementPage() {
                       onChange={(e) => setAllowNegativeBalance(e.target.checked)}
                       className="mt-0.5"
                     />
-                    <span>السماح برصيد سالب (سياسة العمل — مطلوب عند تجاوز الخصم للرصيد المتاح)</span>
+                    <span>{tx("admin.users.allowNegative")}</span>
                   </label>
                 ) : null}
 
                 {balanceAdjustmentBlocked ? (
                   <p className="mt-2 text-xs text-rose-300" role="alert">
-                    لا يمكن خصم أكبر من الرصيد المتاح ما لم يُسمح بالرصيد السالب.
+                    {tx("admin.users.blockedSubtractHint")}
                   </p>
                 ) : null}
                 {!adjustmentParsed.valid && balanceAdjustment.trim() !== "" ? (
                   <p className="mt-2 text-xs text-rose-300" role="alert">
-                    أدخل رقماً موجباً صالحاً للتعديل.
+                    {tx("admin.users.invalidAmountHint")}
                   </p>
                 ) : null}
               </div>
@@ -761,7 +765,7 @@ export default function AdminUsersManagementPage() {
                 onClick={closeEdit}
                 className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
               >
-                إلغاء
+                {tx("admin.users.cancel")}
               </button>
               <PrimaryButton
                 type="button"
@@ -771,16 +775,29 @@ export default function AdminUsersManagementPage() {
                 {saveBusy ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جاري الحفظ...
+                    {tx("admin.users.saving")}
                   </span>
                 ) : (
-                  "حفظ"
+                  tx("admin.users.save")
                 )}
               </PrimaryButton>
             </div>
           </GlassCard>
         </div>
       ) : null}
+
+      <PasswordResetModal
+        open={passwordModalUser != null}
+        onClose={() => setPasswordModalUser(null)}
+        userId={passwordModalUser?.id ?? null}
+        userLabel={
+          passwordModalUser
+            ? String(passwordModalUser.username || passwordModalUser.email || "").trim() ||
+              passwordModalUser.id
+            : ""
+        }
+        tx={tx}
+      />
     </SidebarShell>
   );
 }

@@ -105,7 +105,7 @@ export default function AgentOrderDetailPage() {
       });
       if (res.ok) {
         alert("تم إلغاء الطلب وإرسال السبب للاعب.");
-        router.push("/agent/orders");
+        router.push("/agent/add-requests");
       }
     } finally { setBusy(false); }
   };

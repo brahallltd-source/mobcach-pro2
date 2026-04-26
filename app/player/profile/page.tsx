@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -17,7 +17,8 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
-import { useLanguage } from "@/components/language";
+import { useTranslation } from "@/lib/i18n";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 
@@ -48,33 +49,35 @@ type PublicBranding = {
   showTele: boolean;
 };
 
-const profileSchema = z
-  .object({
-    email: z.string().email("بريد غير صالح"),
-    phone: z.string().min(6, "الهاتف قصير جداً").max(32, "الهاتف طويل جداً"),
-    newPassword: z.string().optional(),
-    newPasswordConfirm: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const p = (data.newPassword || "").trim();
-    const c = (data.newPasswordConfirm || "").trim();
-    if (!p && !c) return;
-    if (p.length > 0 && p.length < 6) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "كلمة المرور 6 أحرف على الأقل", path: ["newPassword"] });
-    }
-    if (p !== c) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "تأكيد كلمة المرور غير متطابق", path: ["newPasswordConfirm"] });
-    }
-  });
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-
-const supportSchema = z.object({
-  subject: z.string().min(1, { message: "يرجى اختيار موضوع المشكلة" }),
-  message: z.string().min(10, { message: "الرسالة يجب أن تتكون من 10 أحرف على الأقل لشرح المشكلة" }),
-});
-
-type SupportFormValues = z.infer<typeof supportSchema>;
+type ProfileFormValues = z.infer<ReturnType<typeof buildProfileSchema>>;
+function buildProfileSchema(tp: (path: string) => string) {
+  return z
+    .object({
+      email: z.string().email(tp("profile.validation.emailInvalid")),
+      phone: z.string().min(6, tp("profile.validation.phoneShort")).max(32, tp("profile.validation.phoneLong")),
+      newPassword: z.string().optional(),
+      newPasswordConfirm: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      const p = (data.newPassword || "").trim();
+      const c = (data.newPasswordConfirm || "").trim();
+      if (!p && !c) return;
+      if (p.length > 0 && p.length < 6) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tp("profile.validation.passwordMin"),
+          path: ["newPassword"],
+        });
+      }
+      if (p !== c) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: tp("profile.validation.passwordMismatch"),
+          path: ["newPasswordConfirm"],
+        });
+      }
+    });
+}
 
 function externalHref(raw: string | null | undefined): string | null {
   const s = String(raw || "").trim();
@@ -91,18 +94,20 @@ function mailHref(raw: string | null | undefined): string | null {
   return `mailto:${s}`;
 }
 
-function siteLabel(raw: string): string {
+function siteLabel(raw: string, websiteFallback: string): string {
   const href = externalHref(raw);
-  if (!href) return "Website";
+  if (!href) return websiteFallback;
   try {
     return new URL(href).hostname.replace(/^www\./, "");
   } catch {
-    return "Website";
+    return websiteFallback;
   }
 }
 
 export default function PlayerProfilePage() {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
+  const tp = usePlayerTx();
+  const profileSchema = useMemo(() => buildProfileSchema(tp), [tp]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -114,11 +119,6 @@ export default function PlayerProfilePage() {
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: { email: "", phone: "", newPassword: "", newPasswordConfirm: "" },
-  });
-
-  const supportForm = useForm<SupportFormValues>({
-    resolver: zodResolver(supportSchema),
-    defaultValues: { subject: "", message: "" },
   });
 
   const loadBranding = async () => {
@@ -144,8 +144,8 @@ export default function PlayerProfilePage() {
         typeof data.message === "string"
           ? data.message
           : res.status === 401
-            ? "انتهت الجلسة. حدّث الصفحة."
-            : "تعذّر تحميل الملف الشخصي."
+            ? tp("profile.sessionExpired")
+            : tp("profile.loadFailed")
       );
       return;
     }
@@ -159,7 +159,7 @@ export default function PlayerProfilePage() {
         newPassword: "",
         newPasswordConfirm: "",
       });
-      if (p.pendingAgentRequest) setAgentStatus("قيد المراجعة");
+      if (p.pendingAgentRequest) setAgentStatus("pending");
     }
   };
 
@@ -210,10 +210,10 @@ export default function PlayerProfilePage() {
       });
       const data = (await res.json().catch(() => ({}))) as { message?: string; user?: CurrentUser & Record<string, unknown> };
       if (!res.ok) {
-        toast.error(data.message || "فشل التحديث");
+        toast.error(data.message || tp("profile.updateFailed"));
         return;
       }
-      toast.success(data.message || "تم التحديث");
+      toast.success(data.message || tp("profile.updateSuccess"));
       if (data.user) {
         try {
           localStorage.setItem("mobcash_user", JSON.stringify(data.user));
@@ -230,7 +230,7 @@ export default function PlayerProfilePage() {
       profileForm.setValue("newPasswordConfirm", "");
       await loadProfile();
     } catch {
-      toast.error("خطأ في الشبكة");
+      toast.error(tp("profile.networkError"));
     }
   });
 
@@ -240,14 +240,14 @@ export default function PlayerProfilePage() {
       const res = await fetch("/api/agent-requests", { method: "POST", credentials: "include" });
       const data = (await res.json().catch(() => ({}))) as { message?: string; status?: string };
       if (!res.ok) {
-        toast.error(data.message || "تعذّر إرسال الطلب");
+        toast.error(data.message || tp("profile.becomeAgentFailed"));
         return;
       }
-      setAgentStatus(data.status || "قيد المراجعة");
-      toast.success(data.message || "تم استلام طلبك");
+      setAgentStatus(data.status || "pending");
+      toast.success(data.message || tp("profile.becomeAgentSuccess"));
       await loadProfile();
     } catch {
-      toast.error("خطأ في الشبكة");
+      toast.error(tp("profile.networkError"));
     } finally {
       setAgentBusy(false);
     }
@@ -264,7 +264,7 @@ export default function PlayerProfilePage() {
     return (
       <SidebarShell role="player">
         <GlassCard className="border-primary/25 bg-white/[0.04] p-12 text-center shadow-xl backdrop-blur-md">
-          <p className="text-white/70">جاري تحميل الملف الشخصي…</p>
+          <p className="text-white/70">{tp("profile.loading")}</p>
         </GlassCard>
       </SidebarShell>
     );
@@ -282,7 +282,7 @@ export default function PlayerProfilePage() {
     return (
       <SidebarShell role="player">
         <GlassCard className="border-primary/25 bg-white/[0.04] p-12 text-center shadow-xl backdrop-blur-md">
-          <p className="text-white/65">لم يتم العثور على الملف الشخصي.</p>
+          <p className="text-white/65">{tp("profile.notFound")}</p>
         </GlassCard>
       </SidebarShell>
     );
@@ -294,68 +294,80 @@ export default function PlayerProfilePage() {
     <SidebarShell role="player">
       <PageHeader
         title={t("myProfile")}
-        subtitle="تحديث البريد والهاتف وكلمة المرور، الدعم الفني، وطلب الانضمام كوكيل."
+        subtitle={tp("profile.subtitle")}
       />
 
       <div className="mx-auto mt-8 flex max-w-5xl flex-col gap-8">
         <AgentStatusCard />
         <div className="grid gap-8 lg:grid-cols-[1fr_1.05fr]">
           <GlassCard className="p-6 md:p-8">
-            <h2 className="text-xl font-semibold text-white">المعلومات الأساسية</h2>
+            <h2 className="text-xl font-semibold text-white">{tp("profile.basicInfo")}</h2>
             <div className="mt-6 grid gap-4 text-sm text-white/75">
               <p>
-                <span className="text-white/45">الاسم:</span> {profile.first_name} {profile.last_name}
+                <span className="text-white/45">{tp("profile.labelFullName")}</span> {profile.first_name}{" "}
+                {profile.last_name}
               </p>
               <p>
-                <span className="text-white/45">اسم المستخدم:</span> {profile.username}
+                <span className="text-white/45">{tp("profile.labelUsername")}</span> {profile.username}
               </p>
               <p>
-                <span className="text-white/45">تاريخ الميلاد:</span> {profile.date_of_birth}
+                <span className="text-white/45">{tp("profile.labelDob")}</span> {profile.date_of_birth}
               </p>
               <p>
-                <span className="text-white/45">المدينة:</span> {profile.city}
+                <span className="text-white/45">{tp("profile.labelCity")}</span> {profile.city}
               </p>
               <p>
-                <span className="text-white/45">البلد:</span> {profile.country}
+                <span className="text-white/45">{tp("profile.labelCountry")}</span> {profile.country}
               </p>
               <p>
-                <span className="text-white/45">الحالة:</span> {profile.status}
+                <span className="text-white/45">{tp("profile.labelStatus")}</span> {profile.status}
               </p>
               <p>
-                <span className="text-white/45">الوكيل:</span> {profile.assigned_agent_id || "—"}
+                <span className="text-white/45">{tp("profile.labelAgent")}</span>{" "}
+                {profile.assigned_agent_id || tp("common.emDash")}
               </p>
             </div>
           </GlassCard>
 
           <GlassCard className="border-primary/25 bg-white/[0.04] p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-xl font-semibold text-white">تعديل البريد والهاتف وكلمة المرور</h2>
+            <h2 className="text-xl font-semibold text-white">{tp("profile.editSectionTitle")}</h2>
             <form className="mt-5 space-y-4" onSubmit={onSaveProfile}>
               <div>
-                <TextField type="email" placeholder="البريد" {...profileForm.register("email")} />
+                <TextField type="email" placeholder={tp("profile.placeholderEmail")} {...profileForm.register("email")} />
                 {profileForm.formState.errors.email ? (
                   <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.email.message}</p>
                 ) : null}
               </div>
               <div>
-                <TextField placeholder="الهاتف" {...profileForm.register("phone")} />
+                <TextField placeholder={tp("profile.placeholderPhone")} {...profileForm.register("phone")} />
                 {profileForm.formState.errors.phone ? (
                   <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.phone.message}</p>
                 ) : null}
               </div>
               <div>
-                <TextField type="password" placeholder="كلمة مرور جديدة (اختياري)" autoComplete="new-password" {...profileForm.register("newPassword")} />
+                <TextField
+                  type="password"
+                  placeholder={tp("profile.placeholderNewPassword")}
+                  autoComplete="new-password"
+                  {...profileForm.register("newPassword")}
+                />
                 {profileForm.formState.errors.newPassword ? (
                   <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.newPassword.message}</p>
                 ) : null}
               </div>
               <div>
-                <TextField type="password" placeholder="تأكيد كلمة المرور" autoComplete="new-password" {...profileForm.register("newPasswordConfirm")} />
+                <TextField
+                  type="password"
+                  placeholder={tp("profile.placeholderConfirmPassword")}
+                  autoComplete="new-password"
+                  {...profileForm.register("newPasswordConfirm")}
+                />
                 {profileForm.formState.errors.newPasswordConfirm ? (
                   <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.newPasswordConfirm.message}</p>
                 ) : null}
               </div>
               <PrimaryButton type="submit" className="w-full" disabled={profileForm.formState.isSubmitting}>
-                {profileForm.formState.isSubmitting ? "جاري الحفظ…" : "حفظ التغييرات"}
+                {profileForm.formState.isSubmitting ? tp("profile.saving") : tp("profile.saveChanges")}
               </PrimaryButton>
             </form>
 
@@ -367,7 +379,7 @@ export default function PlayerProfilePage() {
                 disabled={agentBusy || showAgentPending}
                 onClick={() => void onBecomeAgent()}
               >
-                {showAgentPending ? "قيد المراجعة" : agentBusy ? "جاري الإرسال…" : "كن وكيلاً معنا"}
+                {showAgentPending ? tp("profile.pendingReview") : agentBusy ? tp("profile.sending") : tp("profile.becomeAgentCta")}
               </PrimaryButton>
               <Link href="/player/select-agent" className="block">
                 <PrimaryButton type="button" className="w-full bg-cyan-200 text-slate-950 hover:bg-cyan-100">
@@ -375,7 +387,7 @@ export default function PlayerProfilePage() {
                 </PrimaryButton>
               </Link>
               <DangerButton type="button" onClick={logout} className="w-full">
-                تسجيل الخروج
+                {tp("profile.logout")}
               </DangerButton>
             </div>
           </GlassCard>
@@ -383,8 +395,8 @@ export default function PlayerProfilePage() {
 
         {branding ? (
           <GlassCard className="border-primary/25 p-6 md:p-8">
-            <h2 className="text-lg font-semibold text-white">تواصل معنا</h2>
-            <p className="mt-1 text-sm text-white/50">روابط رسمية وتحديثات المنصة.</p>
+            <h2 className="text-lg font-semibold text-white">{tp("profile.contactTitle")}</h2>
+            <p className="mt-1 text-sm text-white/50">{tp("profile.contactSubtitle")}</p>
             <div className="mt-6 flex flex-wrap items-center gap-4 md:gap-6">
               {branding.showFb && externalHref(branding.facebook) ? (
                 <a
@@ -427,7 +439,7 @@ export default function PlayerProfilePage() {
                   className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:border-cyan-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  {siteLabel(branding.websiteUrl)}
+                  {siteLabel(branding.websiteUrl, tp("common.website"))}
                 </a>
               ) : null}
               {mailHref(branding.gmail) ? (
@@ -436,7 +448,7 @@ export default function PlayerProfilePage() {
                   className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-cyan-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
                 >
                   <Mail className="h-4 w-4" />
-                  Gmail
+                  {tp("common.gmail")}
                 </a>
               ) : null}
             </div>

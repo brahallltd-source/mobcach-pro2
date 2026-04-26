@@ -122,8 +122,6 @@ export async function POST(req: Request) {
     if (playerUser?.id) {
       await createNotification({
         userId: playerUser.id,
-        targetRole: "player",
-        targetId: playerUser.id,
         title:
           nextStatus === "rejected"
             ? "Payout rejected"

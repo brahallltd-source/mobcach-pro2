@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
@@ -78,9 +78,7 @@ export async function POST(req: Request) {
     });
 
     // 2. إشعار الآدمين بوجود شكاية جديدة
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "شكاية جديدة ⚠️",
       message: `قام اللاعب ${playerEmail} بفتح شكاية بخصوص: ${subject}.`,
     });

@@ -83,6 +83,7 @@ model User {
   /// Agent (or future roles) presence — updated on login, heartbeat, logout.
   isOnline          Boolean  @default(false)
   lastSeen          DateTime @default(now())
+  broadcastsCreated Broadcast[] @relation("BroadcastCreatedBy")
 
   @@index([deletedAt])
   @@index([referredById])
@@ -92,13 +93,37 @@ model User {
 model SystemSettings {
   id              String   @id @default("default")
   bonusPercentage Float    @default(10)
+  /// Minimum DH for agent → treasury wallet recharge requests (admin-editable).
+  minRechargeAmount   Float   @default(1000)
+  /// When false, invitation milestone DH cannot be merged into recharge requests (UI + API).
+  affiliateBonusEnabled Boolean @default(true)
+  /// Max DH per player profit-withdrawal request (admin-editable; enforced on submission).
+  maxWithdrawalAmount Float @default(100000)
+  /// Display / treasury hint: 1 USDT ≈ this many MAD (super-admin editable from command center).
+  usdtToMadRate   Float    @default(10.5)
   isMaintenance   Boolean  @default(false)
   announcement    String?
   platformName    String   @default("GS365Cash")
   primaryColor    String   @default("#0f172a")
   logoUrl         String?
   faviconUrl      String?
+  /// PWA install icon (PNG, 192×192). URL or site path (e.g. `/icon-192x192.png`).
+  pwaIcon192      String?
+  /// PWA splash / maskable-friendly icon (PNG, 512×512).
+  pwaIcon512      String?
   updatedAt       DateTime @updatedAt
+}
+
+/// Admin-published global message shown to players and agents (at most one active row).
+model Broadcast {
+  id              String   @id @default(uuid())
+  message         String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  createdByUserId String?
+  createdBy       User?    @relation("BroadcastCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, createdAt(sort: Desc)])
 }
 
 /// Singleton row `id = 1` — public contact / social branding (super-admin editable).

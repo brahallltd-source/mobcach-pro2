@@ -15,7 +15,6 @@ import {
 import { ADMIN_ROUTE_PERMISSION, ALL_PERMISSION_IDS } from "@/lib/permissions";
 import { getOrderStatusTone } from "@/lib/order-utils";
 import {
-  Bell,
   History,
   CircleDollarSign,
   LayoutDashboard,
@@ -27,76 +26,33 @@ import {
   Wallet,
   Menu,
   X,
-  Zap,
   LogOut,
   Sparkles,
   ShoppingCart,
   UserRound,
   ShieldCheck,
   ClipboardList,
-  Archive,
   CreditCard,
   ShieldAlert,
   LifeBuoy,
-  Receipt,
-  UserPlus,
+  Network,
+  Megaphone,
 } from "lucide-react";
 // 🟢 المحرك الجديد ديالنا
-import { useTranslation, LANGS } from "@/lib/i18n";
+import { useTranslation, LANGS, defaultLang } from "@/lib/i18n";
 import { NotificationBell } from "@/components/NotificationBell";
-import {
-  formatArabicChatOverflowBadge,
-  formatArabicUnreadBadge,
-  SIDEBAR_AGENT_AR,
-  SIDEBAR_PLAYER_AR,
-} from "@/lib/constants/i18n";
-import { BRANDING } from "@/lib/branding";
-import { Logo } from "@/components/ui/Logo";
+import { formatArabicChatOverflowBadge, isPlayerNavActive } from "@/lib/constants/i18n";
+import { agentT } from "@/lib/i18n/dictionaries/agent";
+import type { Lang } from "@/lib/i18n";
+import { AGENT_NAV_ITEMS } from "@/components/AgentSidebar";
+import { DynamicLogo } from "@/components/DynamicLogo";
+import { GlobalBroadcastBanner } from "@/components/GlobalBroadcastBanner";
+import { usePublicBrandingSwr } from "@/hooks/usePublicBrandingSwr";
 import { PlayerBottomNav } from "@/components/PlayerBottomNav";
 import { Navbar } from "@/components/Navbar";
 import { cn } from "@/lib/cn";
 
-// --- 1. Branding Logic (Original) ---
-type Branding = {
-  brandName: string;
-  logoUrl: string;
-  heroImages: string[];
-};
-
-const defaultBranding: Branding = {
-  brandName: BRANDING.name,
-  logoUrl: "",
-  heroImages: [],
-};
-
-function useBranding() {
-  const [branding, setBranding] = useState<Branding>(defaultBranding);
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(`/api/admin/branding?v=${Date.now()}`, { 
-          cache: "no-store",
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        });
-        const data = await res.json();
-        if (data?.branding) {
-          setBranding({ ...defaultBranding, ...data.branding });
-          localStorage.setItem("mobcash_branding", JSON.stringify(data.branding));
-        }
-      } catch (err) {
-        console.error("Branding fetch failed:", err);
-      }
-    };
-    void load();
-  }, []);
-  return branding;
-}
-
-// --- 2. Language Switcher (Built-in) ---
+// --- 1. Language Switcher (Built-in) ---
 export function LanguageSwitcher() {
   const { setLang, lang } = useTranslation();
   return (
@@ -149,7 +105,7 @@ export function PageHeader({
   /** Omit logo + product strip (shell already shows the mark). */
   hideBranding?: boolean;
 }) {
-  const branding = useBranding();
+  const { brandName } = usePublicBrandingSwr();
   return (
     <GlassCard
       className={clsx(
@@ -167,11 +123,8 @@ export function PageHeader({
       >
         <div>
           {!hideBranding ? (
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/15 bg-cyan-500/5 px-2.5 py-1.5">
-              <Logo src={branding.logoUrl || undefined} heightClass="h-7" className="opacity-95" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/95">
-                {branding.brandName}
-              </span>
+            <div className="inline-flex items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/5 px-2.5 py-1.5">
+              <DynamicLogo heightClass="h-7" className="opacity-95" alt={brandName} />
             </div>
           ) : null}
           {typeof title === "string" ? (
@@ -205,17 +158,18 @@ export function PageHeader({
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { dir } = useTranslation();
-  const branding = useBranding();
+  const { dir, t } = useTranslation();
+  const { brandName } = usePublicBrandingSwr();
   return (
     <main dir={dir} className="min-h-screen bg-transparent px-6 py-8 text-white md:px-8">
       <Navbar className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4">
         <div className="flex min-w-0 items-center">
-          <Link href="/" className="inline-flex shrink-0 transition hover:opacity-90" aria-label={branding.brandName}>
-            <Logo src={branding.logoUrl || undefined} heightClass="h-10 md:h-12" />
+          <Link href="/" className="inline-flex shrink-0 transition hover:opacity-90" aria-label={brandName}>
+            <DynamicLogo heightClass="h-10 md:h-12" alt={brandName} />
           </Link>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <NotificationBell active />
           <LanguageSwitcher />
           <Link
             href="/login"
@@ -223,7 +177,7 @@ export function Shell({ children }: { children: ReactNode }) {
               "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             )}
           >
-            تسجيل الدخول
+            {t("login")}
           </Link>
         </div>
       </Navbar>
@@ -240,65 +194,44 @@ function getNav(
   role: Role,
   t: (key: string) => string,
   tx: (path: string, vars?: Record<string, string>) => string,
-  adminPermSet: Set<string> | null = null
+  adminPermSet: Set<string> | null = null,
+  lang: Lang = defaultLang
 ) {
   const player: NavItem[] = [
-    { href: "/player/dashboard", label: SIDEBAR_PLAYER_AR.overview, icon: LayoutDashboard, mobileLabel: SIDEBAR_PLAYER_AR.overview },
-    { href: "/player/achat", label: SIDEBAR_PLAYER_AR.newOrder, icon: ShoppingCart, mobileLabel: SIDEBAR_PLAYER_AR.newOrder },
-    { href: "/player/orders", label: SIDEBAR_PLAYER_AR.orders, icon: Package, mobileLabel: SIDEBAR_PLAYER_AR.orders },
-    { href: "/player/chat", label: SIDEBAR_PLAYER_AR.chat, icon: MessageCircle, mobileLabel: SIDEBAR_PLAYER_AR.chat },
-    { href: "/player/winnings", label: SIDEBAR_PLAYER_AR.winnings, icon: CircleDollarSign, mobileLabel: SIDEBAR_PLAYER_AR.winnings },
-    { href: "/player/profile", label: SIDEBAR_PLAYER_AR.profile, icon: UserRound, mobileLabel: SIDEBAR_PLAYER_AR.profile },
+    { href: "/player/dashboard", label: tx("player.menu.dashboard"), icon: LayoutDashboard, mobileLabel: tx("player.menu.dashboard") },
+    { href: "/player/achat", label: tx("player.menu.recharge"), icon: ShoppingCart, mobileLabel: tx("player.menu.recharge") },
+    { href: "/player/orders", label: tx("player.menu.orders"), icon: Package, mobileLabel: tx("player.menu.orders") },
+    { href: "/player/chat", label: tx("player.menu.chat"), icon: MessageCircle, mobileLabel: tx("player.menu.chat") },
+    { href: "/player/winnings", label: tx("player.menu.earnings"), icon: CircleDollarSign, mobileLabel: tx("player.menu.earnings") },
+    { href: "/player/profile", label: tx("player.menu.profile"), icon: UserRound, mobileLabel: tx("player.menu.profile") },
   ];
 
-  const agent: NavItem[] = [
-    { href: "/agent/dashboard", label: SIDEBAR_AGENT_AR.home, icon: LayoutDashboard },
-    { href: "/agent/my-players", label: SIDEBAR_AGENT_AR.myPlayers, icon: Users },
-    { href: "/agent/invite", label: SIDEBAR_AGENT_AR.invites, icon: UserPlus },
-    { href: "/agent/requests", label: SIDEBAR_AGENT_AR.linkRequests, icon: ClipboardList },
-    { href: "/agent/requests-history", label: SIDEBAR_AGENT_AR.requestsHistory, icon: Archive },
-    {
-      href: "/agent/recharge/history",
-      label: SIDEBAR_AGENT_AR.operationsLog,
-      icon: History,
-    },
-    { href: "/agent/settings/payments", label: SIDEBAR_AGENT_AR.paymentSettings, icon: CreditCard },
-    { href: "/agent/transactions", label: SIDEBAR_AGENT_AR.paymentProofs, icon: Receipt },
-    { href: "/agent/orders", label: SIDEBAR_AGENT_AR.orders, icon: Package },
-    { href: "/agent/chat", label: SIDEBAR_AGENT_AR.chat, icon: MessageCircle },
-    { href: "/agent/activations", label: SIDEBAR_AGENT_AR.activations, icon: ShieldCheck },
-    { href: "/agent/invite-agent", label: SIDEBAR_AGENT_AR.inviteAgent, icon: Zap },
-    { href: "/agent/recharge", label: SIDEBAR_AGENT_AR.recharge, icon: Wallet },
-    {
-      href: "/agent/recharge-from-admin",
-      label: SIDEBAR_AGENT_AR.balanceFromAdmin,
-      icon: Wallet,
-    },
-    { href: "/agent/withdrawals", label: SIDEBAR_AGENT_AR.withdrawals, icon: CircleDollarSign },
-    { href: "/agent/winner-requests", label: SIDEBAR_AGENT_AR.winnerRequests, icon: Bell },
-    { href: "/agent/bonus", label: SIDEBAR_AGENT_AR.bonus, icon: Zap },
-    { href: "/agent/settings/general", label: SIDEBAR_AGENT_AR.settings, icon: Settings },
-    { href: "/agent/support", label: SIDEBAR_AGENT_AR.support, icon: LifeBuoy },
-  ];
+  const agent: NavItem[] = AGENT_NAV_ITEMS.map((item) => ({
+    href: item.href,
+    label: agentT(lang, item.labelKey),
+    icon: item.icon,
+  }));
 
   const admin: NavItem[] = [
-    { href: "/admin/dashboard", label: t("overview") || "Overview", icon: LayoutDashboard },
-    { href: "/admin/settings", label: tx("sidebar.systemSettings"), icon: Settings },
-    { href: "/admin/agent-applications", label: tx("sidebar.applications"), icon: Users },
-    { href: "/admin/agents", label: t("agents") || "Agent List", icon: Users },
-    { href: "/admin/users", label: tx("sidebar.users"), icon: UserRound },
-    { href: "/admin/support", label: tx("sidebar.supportInbox"), icon: LifeBuoy },
-    { href: "/admin/payment-methods", label: t("paymentMethods") || "Payment Methods", icon: Wallet },
-    { href: "/admin/recharge-requests", label: t("rechargeRequests") || "Recharge Requests", icon: Wallet },
-    { href: "/admin/history", label: tx("sidebar.historyArchive"), icon: History },
-    { href: "/admin/admins", label: t("admins") || "Admins", icon: Users },
-    { href: "/admin/orders", label: t("orders") || "Orders", icon: Package },
-    { href: "/admin/orders-history", label: "سجل شحن اللاعبين", icon: ClipboardList },
-    { href: "/admin/withdrawals", label: t("withdrawals") || "Payouts", icon: CircleDollarSign },
-    { href: "/admin/branding", label: t("branding") || "Branding", icon: Sparkles },
-    { href: "/admin/launch-check", label: t("launchCheck") || "Launch Check", icon: ShieldCheck },
-    { href: "/admin/analytics", label: t("analytics") || "Analytics", icon: CreditCard },
-    { href: "/admin/fraud", label: t("fraud") || "Fraud", icon: ShieldAlert },
+    { href: "/admin/dashboard", label: tx("admin.sidebar.dashboard"), icon: LayoutDashboard },
+    { href: "/admin/settings", label: tx("admin.sidebar.settings"), icon: Settings },
+    { href: "/admin/broadcast", label: tx("admin.sidebar.broadcast"), icon: Megaphone },
+    { href: "/admin/agent-applications", label: tx("admin.sidebar.applications"), icon: Users },
+    { href: "/admin/agents", label: tx("admin.sidebar.agents"), icon: Users },
+    { href: "/admin/affiliate-network", label: tx("admin.sidebar.affiliateNetwork"), icon: Network },
+    { href: "/admin/users", label: tx("admin.sidebar.users"), icon: UserRound },
+    { href: "/admin/support", label: tx("admin.sidebar.support"), icon: LifeBuoy },
+    { href: "/admin/payment-methods", label: tx("admin.sidebar.paymentMethods"), icon: Wallet },
+    { href: "/admin/recharge-requests", label: tx("admin.sidebar.requests"), icon: Wallet },
+    { href: "/admin/history", label: tx("admin.sidebar.history"), icon: History },
+    { href: "/admin/admins", label: tx("admin.sidebar.admins"), icon: Users },
+    { href: "/admin/orders", label: tx("admin.sidebar.orders"), icon: Package },
+    { href: "/admin/orders-history", label: tx("admin.sidebar.ordersHistory"), icon: ClipboardList },
+    { href: "/admin/withdrawals", label: tx("admin.sidebar.withdrawals"), icon: CircleDollarSign },
+    { href: "/admin/branding", label: tx("admin.sidebar.branding"), icon: Sparkles },
+    { href: "/admin/launch-check", label: tx("admin.sidebar.launchCheck"), icon: ShieldCheck },
+    { href: "/admin/analytics", label: tx("admin.sidebar.analytics"), icon: CreditCard },
+    { href: "/admin/fraud", label: tx("admin.sidebar.fraud"), icon: ShieldAlert },
   ];
 
   if (role === "player") return player;
@@ -315,10 +248,10 @@ function getNav(
 
 export function SidebarShell({ children, role }: { children: ReactNode; role: Role }) {
   const pathname = usePathname();
-  const { t, tx, dir } = useTranslation();
-  const branding = useBranding();
+  const { t, tx, dir, lang } = useTranslation();
+  const { brandName } = usePublicBrandingSwr();
   const [adminPermSet, setAdminPermSet] = useState<Set<string> | null>(null);
-  const nav = useMemo(() => getNav(role, t, tx, adminPermSet), [role, t, tx, adminPermSet]);
+  const nav = useMemo(() => getNav(role, t, tx, adminPermSet, lang), [role, t, tx, adminPermSet, lang]);
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [wideLayout, setWideLayout] = useState(false);
@@ -369,11 +302,16 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
         const saved = localStorage.getItem("mobcash_user");
         if (!saved) return;
         const user = JSON.parse(saved);
-        const role = String(user.role).toLowerCase();
-        const targetId = role === "agent" ? (user.agentId || user.id) : (user.email || user.playerEmail);
-        const res = await fetch(`/api/notifications?role=${role}&targetId=${targetId}`);
+        const res = await fetch("/api/notifications?for=me&limit=1", {
+          credentials: "include",
+          cache: "no-store",
+        });
         const data = await res.json();
-        setUnreadCount((data.notifications || []).filter((n: any) => !n.read).length);
+        if (typeof data.unreadCount === "number") {
+          setUnreadCount(data.unreadCount);
+        } else {
+          setUnreadCount((data.notifications || []).filter((n: { read?: boolean }) => !n.read).length);
+        }
       } catch (err) {}
     };
     checkUpdates();
@@ -416,6 +354,10 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
     });
   };
 
+  const navItemActive = (href: string) =>
+    role === "player" ? isPlayerNavActive(pathname, href) : pathname === href;
+  const highContrastNav = role === "admin" || role === "agent" || role === "player";
+
   return (
     <main dir={dir} className="min-h-screen bg-transparent px-6 py-8 text-white md:px-8">
       <div className="mx-auto flex max-w-7xl gap-8">
@@ -429,19 +371,18 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
               <Link
                 href="/"
                 className="flex flex-col items-start gap-2 transition hover:opacity-90"
-                aria-label={branding.brandName}
+                aria-label={brandName}
               >
-                <Logo src={branding.logoUrl || undefined} heightClass="h-9" />
+                <DynamicLogo heightClass="h-9" alt={brandName} />
                 {role === "player" ? (
-                  <span className="truncate text-sm font-semibold text-white/90">{branding.brandName}</span>
+                  <span className="truncate text-sm font-semibold text-white/90">{brandName}</span>
                 ) : null}
               </Link>
             </div>
             <nav className="flex-1 space-y-2">
               {nav.map((item) => {
-                const active = pathname === item.href;
+                const active = navItemActive(item.href);
                 const Icon = item.icon;
-                const highContrastNav = role === "admin" || role === "agent";
                 return (
                   <Link
                     key={item.href}
@@ -453,7 +394,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                         ? [
                             "border border-transparent",
                             active
-                              ? "border-0 border-l-4 border-l-primary bg-white/10 font-bold text-white"
+                              ? "border-0 border-s-4 border-s-primary bg-white/10 font-bold text-white"
                               : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
                           ]
                         : [
@@ -476,7 +417,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                           : active && "text-primary",
                       )}
                     />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1 text-start">{item.label}</span>
                     {item.href === "/player/chat" && unreadCount > 0 && (
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-bounce">
                         {formatArabicChatOverflowBadge(unreadCount)}
@@ -492,7 +433,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
             >
               <LogOut size={18} strokeWidth={1.5} />
-              {(t as (k: string) => string)("logout")}
+              {role === "player" ? tx("player.menu.logout") : t("logout")}
             </button>
           </GlassCard>
         </aside>
@@ -521,27 +462,23 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                     href="/"
                     onClick={() => setOpen(false)}
                     className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-90"
-                    aria-label={branding.brandName}
+                    aria-label={brandName}
                   >
-                    <Logo src={branding.logoUrl || undefined} heightClass="h-10" />
-                    {role === "player" ? (
-                      <span className="truncate text-lg font-semibold text-white">{branding.brandName}</span>
-                    ) : null}
+                    <DynamicLogo heightClass="h-10" alt={brandName} />
                   </Link>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
                     className="shrink-0 rounded-2xl border border-white/10 bg-white/5 p-2.5 text-white/80 transition hover:bg-white/10"
-                    aria-label="إغلاق"
+                    aria-label={tx("navShell.closeDrawer")}
                   >
                     <X size={18} strokeWidth={1.5} />
                   </button>
                 </div>
                 <div className="space-y-2">
                   {nav.map((item) => {
-                    const active = pathname === item.href;
+                    const active = navItemActive(item.href);
                     const Icon = item.icon;
-                    const highContrastNav = role === "admin" || role === "agent";
                     return (
                       <Link
                         key={item.href}
@@ -554,7 +491,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                             ? [
                                 "border border-transparent",
                                 active
-                                  ? "border-0 border-l-4 border-l-primary bg-white/10 font-bold text-white"
+                                  ? "border-0 border-s-4 border-s-primary bg-white/10 font-bold text-white"
                                   : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
                               ]
                             : [
@@ -577,7 +514,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                               : active && "text-primary",
                           )}
                         />
-                        <span className="flex-1">{item.label}</span>
+                        <span className="flex-1 text-start">{item.label}</span>
                         {item.href === "/player/chat" && unreadCount > 0 && (
                           <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-lg">
                             {formatArabicChatOverflowBadge(unreadCount)}
@@ -593,11 +530,12 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
                   className="mt-6 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-base font-semibold text-white/85 transition hover:bg-white/10"
                 >
                   <LogOut size={20} strokeWidth={1.5} />
-                  {(t as (k: string) => string)("logout")}
+                  {role === "player" ? tx("player.menu.logout") : t("logout")}
                 </button>
               </div>
             </div>
           )}
+          {role === "player" || role === "agent" ? <GlobalBroadcastBanner /> : null}
           {role === "agent" && agentMaintenance ? (
             <div
               className="mb-8 rounded-2xl border border-amber-500/45 bg-amber-500/15 px-5 py-4 text-sm font-semibold text-amber-50 shadow-lg shadow-amber-950/30 md:px-6"
@@ -768,6 +706,7 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export { Logo } from "@/components/ui/Logo";
+export { DynamicLogo } from "@/components/DynamicLogo";
 export { PlayerBottomNav } from "@/components/PlayerBottomNav";
 export { Navbar } from "@/components/Navbar";
 export { FadeIn, StaggerContainer, StaggerItem } from "@/components/animations";

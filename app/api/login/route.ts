@@ -109,6 +109,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         {
           success: false,
           message: "User not found for the given email or username.",
+          error: "USER_NOT_FOUND",
         },
         { status: 401 }
       );
@@ -138,6 +139,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         {
           success: false,
           message: `Account is not active (status: ${String(user.status)}). Only ACTIVE accounts can sign in.`,
+          error: "ACCOUNT_INACTIVE",
         },
         { status: 403 }
       );

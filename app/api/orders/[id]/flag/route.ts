@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 
 export const runtime = "nodejs";
 
@@ -52,10 +52,7 @@ export async function POST(
       });
     });
 
-    // 3. إرسال إشعار للإدارة
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "🚨 طلب مشبوه جديد",
       message: `تم الإبلاغ عن الطلب بقيمة ${order.amount} DH. السبب: ${note}`,
     });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
@@ -58,12 +58,9 @@ export async function POST(req: Request) {
         }
       });
 
-      // تنبيه للأدمن
-      await createNotification({
-        targetRole: "admin",
-        targetId: "SYSTEM",
+      await notifyAllActiveAdmins({
         title: "شحن تلقائي ناجح 💰",
-        message: `تمت تعبئة ${amount} بنجاح للوكيل ${usernameToUse}.`
+        message: `تمت تعبئة ${amount} بنجاح للوكيل ${usernameToUse}.`,
       });
 
       return NextResponse.json({ success: "Webook processed securely" });

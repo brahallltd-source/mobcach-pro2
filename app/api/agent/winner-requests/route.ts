@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,21 +58,23 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. إرسال الإشعارات (للوكيل والآدمين)
-    await Promise.all([
-      createNotification({
-        targetRole: "agent",
-        targetId: String(agentId),
-        title: "طلب تأكيد أرباح 🏆",
-        message: `اللاعب ${playerEmail} أرسل طلب تأكيد ربح بمبلغ ${amount} DH.`,
-      }),
-      createNotification({
-        targetRole: "admin",
-        targetId: "admin", // أو ID الآدمين الخاص بك
+    const agentUserId = await getAgentUserIdByAgentProfileId(String(agentId));
+    const notifs: Promise<unknown>[] = [
+      notifyAllActiveAdmins({
         title: "طلب أرباح قيد الانتظار",
         message: `هناك طلب تأكيد أرباح جديد يحتاج للمراجعة.`,
-      })
-    ]);
+      }),
+    ];
+    if (agentUserId) {
+      notifs.push(
+        createNotification({
+          userId: agentUserId,
+          title: "طلب تأكيد أرباح 🏆",
+          message: `اللاعب ${playerEmail} أرسل طلب تأكيد ربح بمبلغ ${amount} DH.`,
+        })
+      );
+    }
+    await Promise.all(notifs);
 
     return NextResponse.json({ 
       success: true,

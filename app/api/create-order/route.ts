@@ -259,16 +259,20 @@ export async function POST(req: Request) {
       });
     }
 
-    createNotification({
-      targetRole: "agent",
-      targetId: agentId,
-      title: "New order received",
-      message: `${playerEmail} created a new order of ${amount} DH.`,
+    const agentForNotify = await prisma.agent.findUnique({
+      where: { id: agentId },
+      select: { userId: true },
     });
+    if (agentForNotify?.userId) {
+      await createNotification({
+        userId: agentForNotify.userId,
+        title: "New order received",
+        message: `${playerEmail} created a new order of ${amount} DH.`,
+      });
+    }
 
-    createNotification({
-      targetRole: "player",
-      targetId: user.id,
+    await createNotification({
+      userId: user.id,
       title: "Order created",
       message: reviewRequired
         ? "Your order was created and sent for review."

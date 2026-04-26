@@ -11,7 +11,7 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
 import { defaultPermissionsForNewAdmin, isSuperAdminRole } from "@/lib/admin-permissions";
 import { normalizeStoredPermissions, PERMISSIONS, type PermissionId } from "@/lib/permissions";
 import { Switch } from "@/components/ui/switch";
@@ -46,7 +46,6 @@ function siteBaseUrl(): string {
 }
 
 export default function AdminAdminsPage() {
-  const { showToast } = useToast();
   const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [requester, setRequester] = useState<{ id: string; role: string; permissions: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,7 +74,7 @@ export default function AdminAdminsPage() {
     const res = await fetch("/api/admin/users", { cache: "no-store", credentials: "include" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showToast({ type: "error", title: String(data.message || "Failed to load admins") });
+      toast.error(String(data.message || "Failed to load admins"));
       setAdmins([]);
       return;
     }
@@ -90,7 +89,7 @@ export default function AdminAdminsPage() {
     } else {
       setRequester(null);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     load().finally(() => setLoading(false));
@@ -123,10 +122,10 @@ export default function AdminAdminsPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Update failed") });
+        toast.error(String(j.message || "Update failed"));
         return;
       }
-      showToast({ type: "success", title: "Permissions saved" });
+      toast.success("Permissions saved");
       setPermModal(null);
       await load();
     } finally {
@@ -153,7 +152,7 @@ export default function AdminAdminsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(data.message || "Failed to create admin") });
+        toast.error(String(data.message || "Failed to create admin"));
         return;
       }
       await load();
@@ -162,7 +161,7 @@ export default function AdminAdminsPage() {
       if (temp) {
         setSuccessModal({ username: un, password: temp });
       } else {
-        showToast({ type: "success", title: "Admin created" });
+        toast.success("Admin created");
       }
       setForm({
         email: "",
@@ -181,9 +180,9 @@ export default function AdminAdminsPage() {
     const msg = `Hello, here are your admin credentials: User: ${username} | Pass: ${password} | Link: ${link}`;
     try {
       await navigator.clipboard.writeText(msg);
-      showToast({ type: "success", title: "Copied to clipboard" });
+      toast.success("Copied to clipboard");
     } catch {
-      showToast({ type: "error", title: "Could not copy" });
+      toast.error("Could not copy");
     }
   };
 
@@ -198,10 +197,10 @@ export default function AdminAdminsPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Update failed") });
+        toast.error(String(j.message || "Update failed"));
         return;
       }
-      showToast({ type: "success", title: suspended ? "Admin suspended" : "Admin activated" });
+      toast.success(suspended ? "Admin suspended" : "Admin activated");
       await load();
     } finally {
       setBusyId(null);
@@ -218,10 +217,10 @@ export default function AdminAdminsPage() {
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Delete failed") });
+        toast.error(String(j.message || "Delete failed"));
         return;
       }
-      showToast({ type: "success", title: "Admin removed" });
+      toast.success("Admin removed");
       setDeleteTarget(null);
       await load();
     } finally {
@@ -231,7 +230,7 @@ export default function AdminAdminsPage() {
 
   const saveNewPassword = async () => {
     if (!pwdTarget || newPwd.trim().length < 8) {
-      showToast({ type: "error", title: "Password must be at least 8 characters" });
+      toast.error("Password must be at least 8 characters");
       return;
     }
     setPwdBusy(true);
@@ -244,10 +243,10 @@ export default function AdminAdminsPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed") });
+        toast.error(String(j.message || "Failed"));
         return;
       }
-      showToast({ type: "success", title: "Password updated" });
+      toast.success("Password updated");
       setPwdTarget(null);
       setNewPwd("");
     } finally {

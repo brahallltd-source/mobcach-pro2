@@ -11,6 +11,7 @@ import {
 import { getOrCreateSystemSettings } from "@/lib/system-settings";
 import { computeRechargeMonitoringFlags } from "@/lib/flags";
 import { validateTreasuryRechargeInput } from "@/lib/agent-treasury-recharge";
+import { getInvitationAffiliatePendingDh } from "@/lib/agent-invitation-affiliate-pending";
 import { v4 as uuidv4 } from "uuid";
 
 type AgentSession = { id: string; email: string };
@@ -32,6 +33,7 @@ function serializeRechargeRequest(r: {
   agentEmail: string;
   amount: number;
   bonusAmount: number;
+  pendingBonusApplied: number;
   adminMethodId: string;
   adminMethodName: string;
   paymentMethodId: string | null;
@@ -43,12 +45,17 @@ function serializeRechargeRequest(r: {
   createdAt: Date;
   updatedAt: Date;
 }) {
+  const affiliate = Number(r.pendingBonusApplied) || 0;
+  const finalCredit = Number(r.amount) + Number(r.bonusAmount) + affiliate;
   return {
     id: r.id,
     agentId: r.agentId,
     agentEmail: r.agentEmail,
     amount: r.amount,
     bonusAmount: r.bonusAmount,
+    /** Invitation milestone DH folded into this request (admin + agent UI). */
+    pendingBonusApplied: affiliate,
+    finalCreditAmount: finalCredit,
     adminMethodId: r.adminMethodId,
     adminMethodName: r.adminMethodName,
     paymentMethodId: r.paymentMethodId,
@@ -67,9 +74,18 @@ export const dynamic = "force-dynamic";
 
 type Body = Record<string, unknown>;
 
-const RECHARGE_MIN_AMOUNT = 1000;
-/** Max |client − server| for `total_with_bonus` vs `amount + bonusAmount`. */
+const RECHARGE_MIN_FALLBACK = 1000;
+/** Max |client − server| for `total_with_bonus` vs `amount + bonusAmount + invitation affiliate`. */
 const TOTAL_WITH_BONUS_TOLERANCE = 0.02;
+
+/** Explicit opt-in only — keeps legacy clients (no flag) on amount + platform bonus only. */
+function parseApplyInvitationAffiliate(body: Body): boolean {
+  if (body.applyAffiliateRewards === true || body.apply_affiliate_rewards === true) return true;
+  if (body.useInvitationsBonus === true) return true;
+  const s = String(body.applyAffiliateRewards ?? body.apply_affiliate_rewards ?? "").trim();
+  if (s === "1" || s.toLowerCase() === "true") return true;
+  return false;
+}
 
 async function handleAgentTreasuryPost(
   prisma: PrismaClient,
@@ -194,7 +210,9 @@ function parseProofUrl(value: unknown): string | null {
  * POST /api/agent/recharge — create a wallet recharge request for the **authenticated** agent.
  * Auth: `mobcash_user` cookie (parsed JSON), or session JWT + DB user with role AGENT. Otherwise 401.
  * Body: `amount` (&gt;= 1000 DH), `bonusAmount` (must equal configured % of `amount` from SystemSettings),
- * `total_with_bonus` (must equal `amount + bonusAmount` within tolerance),
+ * `total_with_bonus` (must equal `amount + bonusAmount + invitationAffiliateDh` within tolerance when
+ * `applyAffiliateRewards: true`, else `amount + bonusAmount`),
+ * optional `applyAffiliateRewards` (boolean, default false) — when true, server adds pending invitation-milestone DH,
  * `proofUrl` (http(s) URL; optional when treasury method is crypto), `transactionHash` / `txHash` (optional for crypto),
  * `admin_method_id`, optional `note`,
  * `gosportUsername` (or `gosport365_username`) and `confirm_gosport365_username` (trimmed, must match).
@@ -240,6 +258,11 @@ export async function POST(req: Request) {
         ? bonusPctConfigured / 100
         : 0.1;
 
+    const minConfigured = Number(settings.minRechargeAmount);
+    const minRechargeAmount =
+      Number.isFinite(minConfigured) && minConfigured >= 1 ? minConfigured : RECHARGE_MIN_FALLBACK;
+    const affiliateMergeAllowed = Boolean(settings.affiliateBonusEnabled);
+
     const amount = parsePositiveAmount(data.amount);
     if (amount === null) {
       return NextResponse.json(
@@ -247,11 +270,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    if (amount < RECHARGE_MIN_AMOUNT) {
+    if (amount < minRechargeAmount) {
+      const floor = Math.floor(minRechargeAmount);
       return NextResponse.json(
         {
           success: false,
-          message: `Invalid amount: minimum recharge is ${RECHARGE_MIN_AMOUNT} DH`,
+          message: `عذراً، أقل مبلغ مسموح به للشحن هو ${floor} درهم`,
         },
         { status: 400 }
       );
@@ -291,18 +315,38 @@ export async function POST(req: Request) {
         {
           success: false,
           message:
-            "Missing or invalid total_with_bonus: must be a number matching amount + bonusAmount",
+            "Missing or invalid total_with_bonus: must be a number matching amount + bonusAmount (+ affiliate bonus when applied)",
         },
         { status: 400 }
       );
     }
-    const expectedTotal = amount + bonusAmount;
+
+    const applyInvitationAffiliate =
+      affiliateMergeAllowed && parseApplyInvitationAffiliate(data);
+
+    const agentRow = await prisma.user.findUnique({
+      where: { id: agent.id },
+      select: { agentProfile: { select: { id: true } } },
+    });
+    const agentProfileId = agentRow?.agentProfile?.id ?? null;
+
+    let invitationPendingDh = 0;
+    if (agentProfileId) {
+      const inv = await getInvitationAffiliatePendingDh(prisma, {
+        agentUserId: agent.id,
+        agentProfileId,
+      });
+      invitationPendingDh = inv.pendingDh;
+    }
+
+    const pendingBonusApplied = applyInvitationAffiliate ? invitationPendingDh : 0;
+    const expectedTotal = amount + bonusAmount + pendingBonusApplied;
     if (Math.abs(totalWithBonus - expectedTotal) > TOTAL_WITH_BONUS_TOLERANCE) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "total_with_bonus does not match amount plus bonusAmount for this request",
+            "total_with_bonus does not match the server-calculated total (amount + platform bonus + invitation affiliate when enabled)",
         },
         { status: 400 }
       );
@@ -400,6 +444,7 @@ export async function POST(req: Request) {
       agentEmail,
       amount,
       bonusAmount,
+      pendingBonusApplied,
       adminMethodId: methodIdStr,
       adminMethodName,
       /** Links row to `PaymentMethod` for admin UI (same id as `adminMethodId`). */

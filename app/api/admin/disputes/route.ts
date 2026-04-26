@@ -36,8 +36,8 @@ export async function POST(req: Request) {
   try {
     const access = await requirePermission("VIEW_FINANCIALS");
     if (!access.ok) {
-    return respondIfAdminAccessDenied(access);
-  }
+      return respondIfAdminAccessDenied(access);
+    }
 
     const prisma = getPrisma();
     const { disputeId, status, admin_note } = await req.json();
@@ -71,13 +71,21 @@ export async function POST(req: Request) {
       return updatedDispute;
     });
 
-    // 2. إرسال إشعار للاعب
-    await createNotification({
-      targetRole: "player",
-      targetId: result.playerEmail,
-      title: "تحديث بخصوص النزاع",
-      message: `تم تحديث حالة النزاع الخاص بالطلب ${result.orderId} من طرف الإدارة.`,
+    const playerUser = await prisma.user.findFirst({
+      where: {
+        email: result.playerEmail.trim().toLowerCase(),
+        deletedAt: null,
+        role: { equals: "PLAYER", mode: "insensitive" },
+      },
+      select: { id: true },
     });
+    if (playerUser) {
+      await createNotification({
+        userId: playerUser.id,
+        title: "تحديث بخصوص النزاع",
+        message: `تم تحديث حالة النزاع الخاص بالطلب ${result.orderId} من طرف الإدارة.`,
+      });
+    }
 
     return NextResponse.json({
       success: true,

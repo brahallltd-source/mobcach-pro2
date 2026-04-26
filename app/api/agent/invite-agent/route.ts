@@ -161,8 +161,7 @@ export async function POST(req: Request) {
     }
 
     await createNotification({
-      targetRole: "agent",
-      targetId: referrerAgent.id,
+      userId: referrerAgent.userId,
       title: "Bonus awarded",
       message: "You received 500 DH.",
     });

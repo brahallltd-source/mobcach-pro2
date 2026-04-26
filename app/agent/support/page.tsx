@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { Loader2 } from "lucide-react";
+import { Facebook, Globe, Instagram, Loader2, Send } from "lucide-react";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   GlassCard,
@@ -12,7 +12,9 @@ import {
   TextArea,
   TextField,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
+import { ImageUploader } from "@/components/ImageUploader";
+import { useAgentTranslation } from "@/hooks/useTranslation";
 
 type Ticket = {
   id: string;
@@ -30,13 +32,16 @@ function isOpen(t: Ticket) {
   return String(t.status).toUpperCase() === "OPEN";
 }
 
+const GOSPORT = "https://www.gosport365.com";
+
 export default function AgentSupportPage() {
-  const { showToast } = useToast();
+  const { t } = useAgentTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [screenshotUrl, setScreenshotUrl] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -45,7 +50,7 @@ export default function AgentSupportPage() {
       const res = await fetch("/api/agent/support", { credentials: "include", cache: "no-store" });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed to load tickets") });
+        toast.error(String(j.message || "Failed to load tickets"));
         setTickets([]);
         return;
       }
@@ -55,7 +60,7 @@ export default function AgentSupportPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -90,23 +95,28 @@ export default function AgentSupportPage() {
   const submit = async () => {
     setSaving(true);
     try {
+      const bodyMessage =
+        screenshotUrl.trim() !== ""
+          ? `${message.trim()}\n\n[Screenshot](${screenshotUrl.trim()})`
+          : message.trim();
       const res = await fetch("/api/agent/support", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ subject, message }),
+        body: JSON.stringify({ subject, message: bodyMessage }),
       });
       const j = await res.json();
       if (!res.ok) {
-        showToast({ type: "error", title: String(j.message || "Failed to send") });
+        toast.error(String(j.message || "Failed to send"));
         return;
       }
       setSubject("");
       setMessage("");
-      showToast({ type: "success", title: "Ticket submitted" });
+      setScreenshotUrl("");
+      toast.success("Ticket submitted");
       await load();
     } catch {
-      showToast({ type: "error", title: "Network error" });
+      toast.error("Network error");
     } finally {
       setSaving(false);
     }
@@ -115,23 +125,20 @@ export default function AgentSupportPage() {
   if (loading) {
     return (
       <SidebarShell role="agent">
-        <LoadingCard text="Loading support…" />
+        <LoadingCard text={t("requests_loading")} />
       </SidebarShell>
     );
   }
 
   return (
     <SidebarShell role="agent">
-      <PageHeader
-        title="Support"
-        subtitle="Open a ticket for the admin team. When an administrator replies, you will get an in-app notification and can read the reply here."
-      />
+      <PageHeader title={t("support_page_title")} subtitle={t("support_page_subtitle")} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <GlassCard className="space-y-4 p-6">
-          <h2 className="text-lg font-semibold text-white">New ticket</h2>
+          <h2 className="text-lg font-semibold text-white">{t("support_new_ticket")}</h2>
           <div>
-            <label className="mb-1 block text-xs text-white/55">Subject</label>
+            <label className="mb-1 block text-xs text-white/55">{t("support_subject")}</label>
             <TextField
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -139,13 +146,17 @@ export default function AgentSupportPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/55">Message</label>
+            <label className="mb-1 block text-xs text-white/55">{t("support_message")}</label>
             <TextArea
               rows={6}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="صف المشكلة بالتفصيل…"
             />
+          </div>
+          <div>
+            <label className="mb-2 block text-xs text-white/55">{t("support_attach_screenshot")}</label>
+            <ImageUploader value={screenshotUrl} onChange={setScreenshotUrl} selectButtonLabel={t("form_upload_proof")} />
           </div>
           <PrimaryButton
             type="button"
@@ -155,52 +166,52 @@ export default function AgentSupportPage() {
             {saving ? (
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Sending…
+                {t("support_submitting")}
               </span>
             ) : (
-              "Submit ticket"
+              t("support_submit")
             )}
           </PrimaryButton>
         </GlassCard>
 
         <GlassCard className="overflow-hidden p-0">
           <div className="border-b border-white/10 px-6 py-4">
-            <h2 className="text-lg font-semibold text-white">Your tickets</h2>
-            <p className="mt-1 text-xs text-white/45">اضغط على صف لعرض الرسالة ورد الإدارة.</p>
+            <h2 className="text-lg font-semibold text-white">{t("support_tickets_title")}</h2>
+            <p className="mt-1 text-xs text-white/45">{t("support_tickets_hint")}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.03] text-xs uppercase tracking-wide text-white/50">
-                  <th className="px-4 py-3">Subject</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Admin reply</th>
-                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">{t("support_subject")}</th>
+                  <th className="px-4 py-3">{t("table_status")}</th>
+                  <th className="px-4 py-3">{t("support_admin_reply")}</th>
+                  <th className="px-4 py-3">{t("table_date")}</th>
                 </tr>
               </thead>
               <tbody>
                 {tickets.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-10 text-center text-white/45">
-                      No tickets yet.
+                      {t("support_no_tickets")}
                     </td>
                   </tr>
                 ) : (
-                  tickets.map((t) => {
-                    const expanded = expandedId === t.id;
-                    const unreadReply = Boolean(t.adminReply) && !t.isReadByAgent;
+                  tickets.map((row) => {
+                    const expanded = expandedId === row.id;
+                    const unreadReply = Boolean(row.adminReply) && !row.isReadByAgent;
                     return (
-                      <Fragment key={t.id}>
+                      <Fragment key={row.id}>
                         <tr
                           className={clsx(
                             "cursor-pointer border-b border-white/5 transition hover:bg-white/[0.03]",
                             expanded && "bg-white/[0.04]"
                           )}
-                          onClick={() => toggleExpand(t)}
+                          onClick={() => toggleExpand(row)}
                         >
                           <td className="px-4 py-3 font-medium text-white">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="line-clamp-2">{t.subject}</span>
+                              <span className="line-clamp-2">{row.subject}</span>
                               {unreadReply ? (
                                 <span className="shrink-0 rounded-md bg-sky-500/25 px-1.5 py-0.5 text-[10px] font-bold text-sky-100">
                                   رد جديد
@@ -211,39 +222,41 @@ export default function AgentSupportPage() {
                           <td className="px-4 py-3">
                             <span
                               className={
-                                isOpen(t)
+                                isOpen(row)
                                   ? "rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-200"
                                   : "rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white/60"
                               }
                             >
-                              {t.status}
+                              {row.status}
                             </span>
                           </td>
                           <td className="max-w-[200px] px-4 py-3 text-white/55">
-                            {t.adminReply ? (
-                              <span className="line-clamp-2">{t.adminReply}</span>
+                            {row.adminReply ? (
+                              <span className="line-clamp-2">{row.adminReply}</span>
                             ) : (
                               <span className="text-white/35">—</span>
                             )}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-xs text-white/40" dir="ltr">
-                            {new Date(t.createdAt).toLocaleString()}
+                            {new Date(row.createdAt).toLocaleString()}
                           </td>
                         </tr>
                         {expanded ? (
-                          <tr key={`${t.id}-detail`} className="border-b border-white/10 bg-black/25">
+                          <tr key={`${row.id}-detail`} className="border-b border-white/10 bg-black/25">
                             <td colSpan={4} className="px-4 py-4">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Message</p>
-                              <p className="mt-2 whitespace-pre-wrap text-white/75">{t.message}</p>
-                              {t.adminReply ? (
+                              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
+                                {t("support_message_label")}
+                              </p>
+                              <p className="mt-2 whitespace-pre-wrap text-white/75">{row.message}</p>
+                              {row.adminReply ? (
                                 <div className="mt-4 rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-3 text-cyan-50">
                                   <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200/80">
-                                    Admin reply
+                                    {t("support_admin_reply")}
                                   </p>
-                                  <p className="mt-1 whitespace-pre-wrap text-sm">{t.adminReply}</p>
+                                  <p className="mt-1 whitespace-pre-wrap text-sm">{row.adminReply}</p>
                                 </div>
                               ) : (
-                                <p className="mt-4 text-xs text-white/40">No admin reply yet.</p>
+                                <p className="mt-4 text-xs text-white/40">{t("support_no_reply")}</p>
                               )}
                             </td>
                           </tr>
@@ -257,6 +270,48 @@ export default function AgentSupportPage() {
           </div>
         </GlassCard>
       </div>
+
+      <footer className="mt-10 border-t border-white/10 pt-8">
+        <p className="mb-4 text-center text-sm font-medium text-white/55">{t("support_follow_us")}</p>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <a
+            href={GOSPORT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-100"
+            aria-label="Facebook"
+          >
+            <Facebook className="h-5 w-5" />
+          </a>
+          <a
+            href={GOSPORT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-100"
+            aria-label="Instagram"
+          >
+            <Instagram className="h-5 w-5" />
+          </a>
+          <a
+            href={GOSPORT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-100"
+            aria-label="Telegram"
+          >
+            <Send className="h-5 w-5" />
+          </a>
+          <a
+            href={GOSPORT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-100"
+            aria-label="Website"
+          >
+            <Globe className="h-5 w-5" />
+          </a>
+        </div>
+      </footer>
     </SidebarShell>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
+import { getOrCreateSystemSettings } from "@/lib/system-settings";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
@@ -61,8 +63,14 @@ export async function GET(_req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
+    const settings = await getOrCreateSystemSettings(prisma);
+    const maxRaw = Number(settings.maxWithdrawalAmount);
+    const maxWithdrawalAmount =
+      Number.isFinite(maxRaw) && maxRaw >= 100 ? maxRaw : 100000;
+
     // 3. نرسلو معلومات التنبيه (Rules) باش الـ Frontend يعرضهم للاعب
     const info = {
+      maxWithdrawalAmount,
       rules: [
         { 
           min: 100, 
@@ -146,8 +154,20 @@ export async function POST(req: Request) {
     if (!player) return NextResponse.json({ message: "اللاعب غير موجود" }, { status: 404 });
 
     // 2. التحقق من مبلغ السحب وتطبيق القواعد
-    let finalStatus = "pending";
     if (amount < 100) return NextResponse.json({ message: "أقل مبلغ للتصريح هو 100 درهم" }, { status: 400 });
+
+    const settings = await getOrCreateSystemSettings(prisma);
+    const maxRaw = Number(settings.maxWithdrawalAmount);
+    const maxWithdrawalAmount =
+      Number.isFinite(maxRaw) && maxRaw >= 100 ? maxRaw : 100000;
+    if (Number(amount) > maxWithdrawalAmount) {
+      return NextResponse.json(
+        {
+          message: `الحد الأقصى المسموح به لكل طلب هو ${maxWithdrawalAmount} درهم. راجع الإعدادات أو قسّم المبلغ.`,
+        },
+        { status: 400 },
+      );
+    }
 
     // 3. إنشاء طلب السحب (التصريح بالربح)
     const withdrawal = await prisma.withdrawal.create({
@@ -171,23 +191,20 @@ export async function POST(req: Request) {
       }
     });
 
-    // 4. إشعارات للآدمين وللوكيل
-    // إشعار للوكيل باش يتفقد الحساب
     if (player.assignedAgentId) {
-      await createNotification({
-        targetRole: "agent",
-        targetId: player.assignedAgentId,
-        title: "تأكيد ربح لاعب 🏆",
-        message: `اللاعب ${player.username} صرح بربح ${amount} DH. المرجو التفقد.`
-      });
+      const agentUserId = await getAgentUserIdByAgentProfileId(player.assignedAgentId);
+      if (agentUserId) {
+        await createNotification({
+          userId: agentUserId,
+          title: "تأكيد ربح لاعب 🏆",
+          message: `اللاعب ${player.username} صرح بربح ${amount} DH. المرجو التفقد.`,
+        });
+      }
     }
 
-    // إشعار للآدمين
-    await createNotification({
-      targetRole: "admin",
-      targetId: "admin",
+    await notifyAllActiveAdmins({
       title: "طلب سحب أرباح جديد",
-      message: `لاعب صرح بربح ${amount} DH. الطريقة: ${method}.`
+      message: `لاعب صرح بربح ${amount} DH. الطريقة: ${method}.`,
     });
 
     return NextResponse.json({

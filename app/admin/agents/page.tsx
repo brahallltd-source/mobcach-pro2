@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "@/lib/i18n";
+import { useEffect, useState, useCallback } from "react";
+import { localeForLang, useTranslation } from "@/lib/i18n";
 import { SidebarShell, PageHeader, GlassCard, LoadingCard, TextField } from "@/components/ui";
 import { Key, ShieldAlert, Edit2, Save, X, Trash2 } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import { clsx } from "clsx";
 
 type Agent = {
@@ -18,30 +18,40 @@ type Agent = {
 };
 
 export default function AgentListPage() {
-  const { t } = useTranslation();
+  const { t, tx, lang } = useTranslation();
+  const locale = localeForLang(lang);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [newBalance, setNewBalance] = useState<number>(0);
 
-  useEffect(() => {
-    fetchAgents();
-  }, []);
+  const statusLabel = useCallback(
+    (status: string) => {
+      const u = String(status ?? "").trim().toUpperCase();
+      if (u === "ACTIVE") return tx("admin.agentsPage.statusActive");
+      if (u === "SUSPENDED") return tx("admin.agentsPage.statusSuspended");
+      return status;
+    },
+    [tx],
+  );
 
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/agents", { cache: "no-store" }); 
+      const res = await fetch("/api/admin/agents", { cache: "no-store" });
       const data = await res.json();
       setAgents(data.agents || []);
-    } catch (error) {
-      toast.error("Failed to load agents");
+    } catch {
+      toast.error(tx("admin.agentsPage.loadError"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [tx]);
 
-  // 💰 تعديل الرصيد
+  useEffect(() => {
+    void fetchAgents();
+  }, [fetchAgents]);
+
   const handleUpdateWallet = async (agentId: string) => {
     try {
       const res = await fetch(`/api/admin/agents/${agentId}`, {
@@ -50,18 +60,19 @@ export default function AgentListPage() {
         body: JSON.stringify({ action: "update_balance", amount: newBalance }),
       });
       if (res.ok) {
-        toast.success(t("confirm") || "Balance updated! ✅");
+        toast.success(tx("admin.agentsPage.balanceUpdated"));
         setEditingWalletId(null);
-        fetchAgents();
+        void fetchAgents();
       } else {
-        toast.error("Failed to update balance");
+        toast.error(tx("admin.agentsPage.balanceFailed"));
       }
-    } catch (e) { toast.error("Network Error"); }
+    } catch {
+      toast.error(tx("admin.agentsPage.networkError"));
+    }
   };
 
-  // 🔑 تغيير المودباس
   const handleResetPassword = async (agentId: string) => {
-    const newPass = prompt("Enter new password (min 6 chars):");
+    const newPass = window.prompt(tx("admin.agentsPage.resetPasswordPrompt"));
     if (newPass && newPass.length >= 6) {
       try {
         const res = await fetch(`/api/admin/agents/${agentId}`, {
@@ -69,88 +80,157 @@ export default function AgentListPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "reset_password", newPassword: newPass }),
         });
-        if (res.ok) toast.success("Password updated successfully");
-      } catch (e) { toast.error("Error updating password"); }
+        if (res.ok) toast.success(tx("admin.agentsPage.passwordUpdated"));
+        else toast.error(tx("admin.agentsPage.passwordError"));
+      } catch {
+        toast.error(tx("admin.agentsPage.passwordError"));
+      }
     } else if (newPass) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(tx("admin.agentsPage.passwordTooShort"));
     }
   };
 
-  // 🛑 تجميد/تفعيل الحساب
   const toggleStatus = async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    if (confirm(`Change status to ${newStatus}?`)) {
+    const label = statusLabel(newStatus);
+    if (window.confirm(tx("admin.agentsPage.confirmStatus", { status: label }))) {
       await fetch(`/api/admin/agents/${agentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_status", status: newStatus }),
       });
-      fetchAgents();
+      void fetchAgents();
     }
   };
 
-  // 🗑️ حذف الحساب
   const handleDelete = async (agentId: string) => {
-    if (confirm("Are you SURE you want to delete this agent? This action cannot be undone!")) {
+    if (window.confirm(tx("admin.agentsPage.confirmDelete"))) {
       const res = await fetch(`/api/admin/agents/${agentId}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("Agent deleted");
-        fetchAgents();
+        toast.success(tx("admin.agentsPage.deleted"));
+        void fetchAgents();
       } else {
-        toast.error("Failed to delete agent");
+        toast.error(tx("admin.agentsPage.deleteFailed"));
       }
     }
   };
 
-  if (loading) return <SidebarShell role="admin"><LoadingCard text={t("processing")} /></SidebarShell>;
+  if (loading)
+    return (
+      <SidebarShell role="admin">
+        <LoadingCard text={t("processing")} />
+      </SidebarShell>
+    );
 
   return (
     <SidebarShell role="admin">
-      <PageHeader title={t("agents")} subtitle="Manage agent accounts, balances, and permissions." />
+      <PageHeader title={t("agents")} subtitle={tx("admin.agentsPage.subtitle")} />
 
-      <div className="grid gap-4 mt-6">
+      <div className="mt-6 grid gap-4">
         {agents.length === 0 ? (
           <GlassCard className="p-8 text-center text-white/50">{t("noOffers")}</GlassCard>
         ) : (
           agents.map((agent) => (
-            <GlassCard key={agent.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <GlassCard
+              key={agent.id}
+              className="flex flex-col justify-between gap-4 p-5 md:flex-row md:items-center"
+            >
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h3 className="text-xl font-semibold">{agent.fullName || agent.username}</h3>
-                  <span className={clsx(
-                    "px-3 py-0.5 text-[10px] font-bold rounded-full border uppercase tracking-widest",
-                    agent.status === "ACTIVE" ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-red-500/20 text-red-400 bg-red-500/5"
-                  )}>
-                    {agent.status}
+                  <span
+                    className={clsx(
+                      "rounded-full border px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest",
+                      agent.status === "ACTIVE"
+                        ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+                        : "border-red-500/20 bg-red-500/5 text-red-400",
+                    )}
+                  >
+                    {statusLabel(agent.status)}
                   </span>
                 </div>
-                <p className="text-sm text-white/40 mt-1">{agent.email} • {agent.country}</p>
-                
+                <p className="mt-1 text-sm text-white/40">
+                  {agent.email} • {agent.country}
+                </p>
+
                 <div className="mt-3 flex items-center gap-3">
                   {editingWalletId === agent.id ? (
-                    <div className="flex items-center gap-2 bg-black/20 p-1 rounded-xl border border-white/5">
-                      <TextField type="number" className="w-24 h-8 text-xs px-2" value={newBalance} onChange={(e) => setNewBalance(Number(e.target.value))} />
-                      <button onClick={() => handleUpdateWallet(agent.id)} className="p-1.5 text-green-400 hover:bg-green-400/10 rounded-lg"><Save size={16}/></button>
-                      <button onClick={() => setEditingWalletId(null)} className="p-1.5 text-white/30 hover:bg-white/10 rounded-lg"><X size={16}/></button>
+                    <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 p-1">
+                      <TextField
+                        type="number"
+                        className="h-8 w-24 px-2 text-xs"
+                        value={newBalance}
+                        onChange={(e) => setNewBalance(Number(e.target.value))}
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleUpdateWallet(agent.id)}
+                        className="rounded-lg p-1.5 text-green-400 hover:bg-green-400/10"
+                      >
+                        <Save size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingWalletId(null)}
+                        className="rounded-lg p-1.5 text-white/30 hover:bg-white/10"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 group">
-                      <p className="text-sm font-bold text-cyan-300">{t("available")}: <span className="text-lg">{agent.availableBalance} DH</span></p>
-                      <button onClick={() => { setEditingWalletId(agent.id); setNewBalance(agent.availableBalance); }} className="p-1.5 opacity-0 group-hover:opacity-100 text-white/30 hover:text-white transition"><Edit2 size={14}/></button>
+                    <div className="group flex items-center gap-2">
+                      <p className="text-sm font-bold text-cyan-300">
+                        {t("available")}:{" "}
+                        <span className="text-lg" dir="ltr">
+                          {new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+                            agent.availableBalance,
+                          )}{" "}
+                          DH
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingWalletId(agent.id);
+                          setNewBalance(agent.availableBalance);
+                        }}
+                        className="p-1.5 text-white/30 opacity-0 transition hover:text-white group-hover:opacity-100"
+                      >
+                        <Edit2 size={14} />
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => handleResetPassword(agent.id)} className="flex items-center gap-2 px-4 py-2 bg-white/5 text-white/70 hover:bg-white/10 rounded-xl text-xs font-semibold transition">
-                  <Key size={14} /> Password
+                <button
+                  type="button"
+                  onClick={() => void handleResetPassword(agent.id)}
+                  className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/10"
+                >
+                  <Key size={14} /> {tx("admin.agentsPage.password")}
                 </button>
-                <button onClick={() => toggleStatus(agent.id, agent.status)} className={clsx("flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition border border-white/5", agent.status === "ACTIVE" ? "text-amber-400 hover:bg-amber-400/10" : "text-emerald-400 hover:bg-emerald-400/10")}>
-                  <ShieldAlert size={14} /> {agent.status === "ACTIVE" ? "Suspend" : "Activate"}
+                <button
+                  type="button"
+                  onClick={() => void toggleStatus(agent.id, agent.status)}
+                  className={clsx(
+                    "flex items-center gap-2 rounded-xl border border-white/5 px-4 py-2 text-xs font-semibold transition",
+                    agent.status === "ACTIVE"
+                      ? "text-amber-400 hover:bg-amber-400/10"
+                      : "text-emerald-400 hover:bg-emerald-400/10",
+                  )}
+                >
+                  <ShieldAlert size={14} />{" "}
+                  {agent.status === "ACTIVE" ? tx("admin.agentsPage.suspend") : tx("admin.agentsPage.activate")}
                 </button>
-                <button onClick={() => handleDelete(agent.id)} className="flex items-center gap-2 px-4 py-2 text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs font-semibold transition border border-rose-500/20">
-                  <Trash2 size={14} /> Delete
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(agent.id)}
+                  className="flex items-center gap-2 rounded-xl border border-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/10"
+                >
+                  <Trash2 size={14} /> {tx("admin.agentsPage.delete")}
                 </button>
               </div>
             </GlassCard>

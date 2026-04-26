@@ -50,6 +50,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const approvalMessage =
+      action === "approve" && "message" in result && result.message
+        ? result.message
+        : undefined;
+
     const reqRow = await prisma.rechargeRequest.findUnique({
       where: { id: requestId },
       select: { agentId: true, amount: true },
@@ -61,17 +66,25 @@ export async function POST(req: Request) {
           agentUserId: reqRow.agentId,
           title: "تحديث طلب الشحن",
           message: approved
-            ? `تمت الموافقة على طلب الشحن الخاص بك بقيمة ${reqRow.amount} DH.`
+            ? (approvalMessage ??
+              "تمت الموافقة على طلب الشحن، الرصيد المضاف يشمل مكافآت الترويج المستحقة.")
             : `تم رفض طلب الشحن الخاص بك بقيمة ${reqRow.amount} DH.`,
           type: approved ? "SUCCESS" : "ALERT",
-          link: "/agent/recharge/history",
+          link: "/agent/gosport365-topup",
         });
       } catch (e) {
         console.error("Recharge decision agent notification:", e);
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      message:
+        action === "approve"
+          ? (approvalMessage ??
+            "تمت الموافقة على طلب الشحن، الرصيد المضاف يشمل مكافآت الترويج المستحقة.")
+          : undefined,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("POST /api/admin/recharge/approve:", error);

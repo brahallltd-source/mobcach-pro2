@@ -20,6 +20,8 @@ const PUBLIC_API_PATHS = new Set<string>([
   "/api/agent/public-profile",
   "/api/admin/payment-methods-public",
   "/api/admin/setup-first-admin",
+  /** Read-only platform logo / name; no auth (see `app/api/public/branding/route.ts`). */
+  "/api/public/branding",
 ]);
 
 function dashboardPath(role: JwtRole): string {
@@ -283,6 +285,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
       return NextResponse.next();
     }
     if (isApi) {
+      if (pathname.startsWith("/api/public/")) {
+        return NextResponse.next();
+      }
       return jsonForbidden("Application pending review");
     }
     return NextResponse.redirect(new URL("/pending", req.url));
@@ -364,5 +369,7 @@ export const config = {
     "/api/player/:path*",
     "/api/recharge",
     "/api/recharge/:path*",
+    "/api/public",
+    "/api/public/:path*",
   ],
 };

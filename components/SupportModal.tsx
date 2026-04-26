@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { X } from "lucide-react";
 import { GlassCard, PrimaryButton, SelectField, TextArea } from "@/components/ui";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 
-const SUBJECT_OPTIONS = [
+/** Canonical values accepted by `POST /api/support` (Arabic labels stored in DB). */
+const SUBJECT_VALUES = [
   "تأخر الشحن",
   "مشكلة في السحب",
   "شكوى ضد وكيل",
@@ -16,20 +18,45 @@ const SUBJECT_OPTIONS = [
   "أخرى",
 ] as const;
 
-const supportTicketSchema = z.object({
-  subject: z.enum(SUBJECT_OPTIONS),
-  message: z.string().trim().min(10, "الرسالة يجب أن تكون 10 أحرف على الأقل").max(8000, "الرسالة طويلة جداً"),
-});
+type SubjectValue = (typeof SUBJECT_VALUES)[number];
 
-type SupportTicketForm = z.infer<typeof supportTicketSchema>;
+const DEFAULT_SUBJECT: SubjectValue = "استفسار عام";
 
-/** Dialog-style support form (Radix-free). Posts to `POST /api/support`. */
 export function SupportModal() {
+  const tp = usePlayerTx();
   const [open, setOpen] = useState(false);
+
+  const subjectEntries = useMemo(
+    () =>
+      [
+        { value: "تأخر الشحن" as const, labelKey: "support.subjectDelay" },
+        { value: "مشكلة في السحب" as const, labelKey: "support.subjectWithdraw" },
+        { value: "شكوى ضد وكيل" as const, labelKey: "support.subjectAgentComplaint" },
+        { value: "استفسار عام" as const, labelKey: "support.subjectGeneral" },
+        { value: "أخرى" as const, labelKey: "support.subjectOther" },
+      ] as const,
+    []
+  );
+
+  const ticketSchema = useMemo(
+    () =>
+      z.object({
+        subject: z.enum(SUBJECT_VALUES),
+        message: z
+          .string()
+          .trim()
+          .min(10, tp("support.messageMin"))
+          .max(8000, tp("support.messageMax")),
+      }),
+    [tp]
+  );
+
+  type SupportTicketForm = z.infer<typeof ticketSchema>;
+
   const form = useForm<SupportTicketForm>({
-    resolver: zodResolver(supportTicketSchema),
+    resolver: zodResolver(ticketSchema),
     defaultValues: {
-      subject: "استفسار عام",
+      subject: DEFAULT_SUBJECT,
       message: "",
     },
   });
@@ -47,14 +74,14 @@ export function SupportModal() {
       });
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       if (!res.ok) {
-        toast.error(data.message || "فشل الإرسال");
+        toast.error(data.message || tp("support.sendFailed"));
         return;
       }
-      toast.success("تم إرسال رسالتك بنجاح. سيقوم فريقنا بالرد عليك قريباً.");
-      form.reset({ subject: "استفسار عام", message: "" });
+      toast.success(tp("support.sendSuccess"));
+      form.reset({ subject: DEFAULT_SUBJECT, message: "" });
       setOpen(false);
     } catch {
-      toast.error("خطأ في الشبكة");
+      toast.error(tp("profile.networkError"));
     }
   });
 
@@ -65,7 +92,7 @@ export function SupportModal() {
         className="w-full bg-white/10 text-white shadow-none hover:brightness-100 hover:bg-white/15"
         onClick={() => setOpen(true)}
       >
-        الدعم الفني 🎧
+        <span className="min-w-0 text-balance">{tp("support.openCta")}</span>
       </PrimaryButton>
 
       {open ? (
@@ -81,59 +108,70 @@ export function SupportModal() {
         >
           <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <GlassCard className="relative w-full max-w-md p-6 shadow-glass">
-            <button
-              type="button"
-              className="absolute end-3 top-3 rounded-full border border-white/15 p-1.5 text-white/70 hover:bg-white/10"
-              onClick={() => setOpen(false)}
-              aria-label="إغلاق"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <h2 id="player-support-dialog-title" className="text-lg font-semibold text-white">
-              الدعم الفني
-            </h2>
-            <p className="mt-1 text-sm text-white/55">اختر نوع الطلب ثم اشرح المشكلة. سنرد عليك من فريق الدعم.</p>
+              <button
+                type="button"
+                className="absolute end-3 top-3 rounded-full border border-white/15 p-1.5 text-white/70 hover:bg-white/10"
+                onClick={() => setOpen(false)}
+                aria-label={tp("support.close")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <h2 id="player-support-dialog-title" className="pe-10 text-lg font-semibold text-white">
+                {tp("support.title")}
+              </h2>
+              <p className="mt-1 text-sm text-white/55">{tp("support.subtitle")}</p>
 
-            <form className="mt-5 space-y-4" onSubmit={onSubmit}>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-white/50" htmlFor="support-subject">
-                  الموضوع
-                </label>
-                <Controller
-                  name="subject"
-                  control={form.control}
-                  render={({ field }) => (
-                    <SelectField id="support-subject" {...field}>
-                      {SUBJECT_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </SelectField>
-                  )}
-                />
-                {form.formState.errors.subject ? (
-                  <p className="mt-1 text-xs text-rose-300">{form.formState.errors.subject.message}</p>
-                ) : null}
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-white/50" htmlFor="support-message">
-                  الرسالة
-                </label>
-                <TextArea id="support-message" rows={6} placeholder="صف المشكلة…" {...form.register("message")} />
-                {form.formState.errors.message ? (
-                  <p className="mt-1 text-xs text-rose-300">{form.formState.errors.message.message}</p>
-                ) : null}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <PrimaryButton type="button" className="flex-1 bg-white/10 hover:bg-white/15" onClick={() => setOpen(false)}>
-                  إلغاء
-                </PrimaryButton>
-                <PrimaryButton type="submit" className="flex-1" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "جاري الإرسال…" : "إرسال"}
-                </PrimaryButton>
-              </div>
-            </form>
+              <form className="mt-5 space-y-4" onSubmit={onSubmit}>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-white/50" htmlFor="support-subject">
+                    {tp("support.subjectLabel")}
+                  </label>
+                  <Controller
+                    name="subject"
+                    control={form.control}
+                    render={({ field }) => (
+                      <SelectField id="support-subject" {...field}>
+                        {subjectEntries.map((entry) => (
+                          <option key={entry.value} value={entry.value}>
+                            {tp(entry.labelKey)}
+                          </option>
+                        ))}
+                      </SelectField>
+                    )}
+                  />
+                  {form.formState.errors.subject ? (
+                    <p className="mt-1 text-xs text-rose-300">{form.formState.errors.subject.message}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-white/50" htmlFor="support-message">
+                    {tp("support.messageLabel")}
+                  </label>
+                  <TextArea
+                    id="support-message"
+                    rows={6}
+                    placeholder={tp("support.messagePlaceholder")}
+                    {...form.register("message")}
+                  />
+                  {form.formState.errors.message ? (
+                    <p className="mt-1 text-xs text-rose-300">{form.formState.errors.message.message}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <PrimaryButton
+                    type="button"
+                    className="min-h-[2.75rem] flex-1 bg-white/10 hover:bg-white/15"
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="text-balance">{tp("support.cancel")}</span>
+                  </PrimaryButton>
+                  <PrimaryButton type="submit" className="min-h-[2.75rem] flex-1" disabled={form.formState.isSubmitting}>
+                    <span className="text-balance">
+                      {form.formState.isSubmitting ? tp("support.sending") : tp("support.submit")}
+                    </span>
+                  </PrimaryButton>
+                </div>
+              </form>
             </GlassCard>
           </div>
         </div>

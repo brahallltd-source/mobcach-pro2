@@ -1,7 +1,7 @@
-
 # V17 Localhost Test Plan
 
 ## 1) Install and run
+
 ```bash
 npm install
 npm run security:rehash
@@ -9,6 +9,7 @@ npm run dev
 ```
 
 ## 2) Optional Prisma path
+
 ```bash
 npx prisma generate
 npx prisma migrate dev
@@ -16,6 +17,7 @@ npm run db:import
 ```
 
 ## 3) Core localhost tests
+
 - Login as admin
 - Open `/admin/analytics`
 - Add admin treasury crypto wallet
@@ -33,6 +35,7 @@ npm run db:import
   - pending bonus applied if any
 
 ## 4) Player flow
+
 - Register a player
 - Select an agent
 - Check `/agent/activations`
@@ -42,6 +45,8 @@ npm run db:import
 - Confirm order lifecycle
 
 ## 5) Fraud check
+
 - Upload same proof twice
 - Confirm duplicate flag behavior
 - Confirm admin notification entry
+

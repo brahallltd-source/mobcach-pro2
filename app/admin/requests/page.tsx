@@ -10,10 +10,5 @@ import { RechargeRequestsManagement } from "@/components/admin/RechargeRequestsM
  * `request.paymentMethod?.accountName`.
  */
 export default function AdminRequestsPage() {
-  return (
-    <RechargeRequestsManagement
-      pageTitle="Recharge requests"
-      pageSubtitle="Agent wallet top-ups: proof, bank method, approve or reject."
-    />
-  );
+  return <RechargeRequestsManagement />;
 }

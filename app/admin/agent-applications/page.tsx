@@ -12,7 +12,7 @@ import {
   TextArea,
   TextField,
 } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { toast } from "sonner";
 
 type FilterType = "all" | "pending" | "approved" | "rejected";
 
@@ -95,19 +95,9 @@ export default function AdminAgentsPage() {
   const copyMessage = async (messageText: string) => {
     await navigator.clipboard.writeText(messageText);
     setSelectedMessage(messageText);
-    const { showToast } = useToast();
-
-showToast({
-  type: "success",
-  title: "Copied successfully",
-  message: "The message is ready to paste and send.",
-});
-
-showToast({
-  type: "success",
-  title: "Copied successfully",
-  message: "The message is ready to paste and send.",
-});
+    toast.success("Copied successfully", {
+      description: "The message is ready to paste and send.",
+    });
   };
 
   const handleAction = async (agentId: string, action: "approve" | "reject") => {

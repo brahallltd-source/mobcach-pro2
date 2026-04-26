@@ -2,9 +2,11 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
-  useState,
   useLayoutEffect,
+  useMemo,
+  useState,
 } from "react";
 import adminAr from "@/messages/ar.json";
 import adminEn from "@/messages/en.json";
@@ -13,6 +15,13 @@ import { BRANDING } from "@/lib/branding";
 
 // --- 1. الإعدادات ---
 export type Lang = "fr" | "ar" | "en";
+
+/** BCP 47 locale for dates and numbers in admin/agent dashboards. */
+export function localeForLang(lang: Lang): string {
+  if (lang === "ar") return "ar-MA";
+  if (lang === "fr") return "fr-FR";
+  return "en-US";
+}
 
 export const LANGS: { value: Lang; label: string; dir: "ltr" | "rtl" }[] = [
   { value: "fr", label: "FR", dir: "ltr" },
@@ -27,6 +36,8 @@ const dictionaries = {
   en: {
     brand: BRANDING.name,
     overview: "Overview",
+    globalBroadcast: "Global broadcast",
+    globalAnnouncement: "Global announcement",
     newOrder: "New Order",
     orders: "Orders",
     chat: "Chat",
@@ -133,6 +144,14 @@ recharge_amount_hint:
       "Minimum 1,000 DH. Upload proof only after you have transferred to the selected account.",
 recharge_bonus_10_label: "Extra balance (10%):",
 recharge_amount_total_label: "Total:",
+recharge_summary_title: "Credit summary",
+recharge_summary_requested: "Requested amount",
+recharge_summary_standard_bonus: "Standard bonus",
+recharge_summary_affiliate_bonus: "Affiliate bonus (available)",
+recharge_summary_affiliate_none: "None pending",
+recharge_summary_total_receive: "Total to receive",
+recharge_apply_invitations_bonus:
+      "Use available promotion rewards on this top-up (counts toward invitation milestones).",
 recharge_submit_disabled_hint:
       "Enter at least 1,000 DH, choose a method, enter matching GoSport365 usernames, and upload an https proof link to submit.",
 recharge_gosport365_username_label: "GoSport365 username",
@@ -172,6 +191,8 @@ sending: "Sending...",
   fr: {
     brand: BRANDING.name,
     overview: "Tableau de bord",
+    globalBroadcast: "Annonce globale",
+    globalAnnouncement: "Annonce globale",
     newOrder: "Nouvelle commande",
     orders: "Commandes",
     chat: "Chat",
@@ -278,6 +299,14 @@ recharge_amount_hint:
       "Minimum 1 000 DH. Téléversez la preuve après le virement vers le compte indiqué.",
 recharge_bonus_10_label: "Solde supplémentaire (10 %) :",
 recharge_amount_total_label: "Total :",
+recharge_summary_title: "Récapitulatif du crédit",
+recharge_summary_requested: "Montant demandé",
+recharge_summary_standard_bonus: "Bonus standard",
+recharge_summary_affiliate_bonus: "Bonus affiliation (disponible)",
+recharge_summary_affiliate_none: "Aucun en attente",
+recharge_summary_total_receive: "Total à recevoir",
+recharge_apply_invitations_bonus:
+      "Utiliser les récompenses de promotion disponibles pour cette recharge.",
 recharge_submit_disabled_hint:
       "Saisissez au moins 1 000 DH, choisissez une méthode, deux noms GoSport365 identiques et une preuve https pour envoyer.",
 recharge_gosport365_username_label: "Nom d'utilisateur GoSport365",
@@ -319,6 +348,8 @@ sending: "Envoi en cours...",
   ar: {
     brand: BRANDING.name,
     overview: "نظرة عامة",
+    globalBroadcast: "بث عام",
+    globalAnnouncement: "إعلان عام",
     newOrder: "طلب جديد",
     orders: "الطلبات",
     chat: "الدردشة",
@@ -442,6 +473,13 @@ recharge_method_placeholder: "— اختر طريقة الدفع —",
 recharge_amount_hint: "الحد الأدنى 1000 درهم. ارفع الوصل بعد إتمام التحويل إلى الحساب المعروض.",
 recharge_bonus_10_label: "الرصيد الإضافي (10%):",
 recharge_amount_total_label: "الإجمالي:",
+recharge_summary_title: "ملخص الرصيد",
+recharge_summary_requested: "المبلغ المطلوب",
+recharge_summary_standard_bonus: "البونص القياسي",
+recharge_summary_affiliate_bonus: "مكافأة الترويج (المتاحة)",
+recharge_summary_affiliate_none: "لا يوجد رصيد ترويجي معلّق",
+recharge_summary_total_receive: "الإجمالي المستلم",
+recharge_apply_invitations_bonus: "استخدام مكافآت الترويج المتاحة في هذه الشحنة",
 recharge_submit_disabled_hint:
       "أدخل 1000 درهم على الأقل، اختر طريقة الدفع، أدخل اسمي GoSport365 المتطابقين، وارفع رابط وصل https لإرسال الطلب.",
 recharge_gosport365_username_label: "اسم مستخدم GoSport365",
@@ -530,22 +568,22 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  const setLang = (l: Lang) => {
+  const setLang = useCallback((l: Lang) => {
     setLangState(l);
     syncHtmlAttributes(l);
     localStorage.setItem("app_lang", l);
     document.cookie = `lang=${l}; path=/; max-age=31536000`;
-  };
+  }, []);
 
-  const t = (key: TranslationKey) => {
+  const t = useCallback((key: TranslationKey) => {
     return (
       dictionaries[lang][key as keyof typeof dictionaries["en"]] ||
       dictionaries.en[key as keyof typeof dictionaries["en"]] ||
       key
     );
-  };
+  }, [lang]);
 
-  const tx = (path: string, vars?: Record<string, string>) => {
+  const tx = useCallback((path: string, vars?: Record<string, string>) => {
     let raw =
       resolveAdminPath(adminMessages[lang], path) ??
       resolveAdminPath(adminMessages.en, path) ??
@@ -556,9 +594,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return raw;
-  };
+  }, [lang]);
 
   const dir = LANGS.find((l) => l.value === lang)?.dir || "ltr";
+
+  const contextValue = useMemo(
+    () => ({ lang, setLang, t, tx, dir }),
+    [lang, setLang, t, tx, dir],
+  );
 
   // لمنع الـ Hydration Mismatch والـ Flicker
   if (!mounted) {
@@ -566,11 +609,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, tx, dir }}>
+    <LanguageContext.Provider value={contextValue}>
       {/* 🟢 الـ Wrapper دابا كياخد حتى الـ font-arabic */}
       <div 
         dir={dir} 
-        className={`${lang === "ar" ? "font-arabic" : ""} min-h-screen`}
+        className={`${lang === "ar" ? "font-arabic antialiased" : ""} min-h-screen`}
       >
         {children}
       </div>

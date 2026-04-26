@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * In-app notification bell: polls `GET /api/notifications?for=me&limit=5` every 30s,
- * unread badge, dropdown of last 5, mark-all / per-row read via `PATCH`.
- * New unread items since the previous poll surface a live **sonner** toast.
+ * In-app notification bell: SWR on `GET /api/notifications?for=me`, unread badge,
+ * dropdown, mark-all / per-row read. New unread items toast via sonner.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,62 +11,27 @@ import { BellRing } from "lucide-react";
 import { clsx } from "clsx";
 import { toast } from "sonner";
 import { formatArabicUnreadBadge } from "@/lib/constants/i18n";
-
-type InAppNotification = {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  link: string | null;
-  isRead: boolean;
-  createdAt: string;
-};
+import { useAgentNotificationsSwr, type InAppNotificationRow } from "@/hooks/useAgentNotificationsSwr";
+import { useTranslation } from "@/lib/i18n";
+import { agentT } from "@/lib/i18n/dictionaries/agent";
 
 export function NotificationBell({ active = true }: { active?: boolean }) {
   const router = useRouter();
+  const { lang } = useTranslation();
+  const { notifications, unreadCount, error, isLoading, mutate } = useAgentNotificationsSwr();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<InAppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const lastUnreadRef = useRef<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = useCallback(async () => {
-    const res = await fetch("/api/notifications?for=me&limit=5", {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (res.status === 401) {
-      setAuthorized(false);
-      return;
-    }
-    if (!res.ok) return;
-    setAuthorized(true);
-    const data = (await res.json()) as {
-      notifications?: InAppNotification[];
-      unreadCount?: number;
-    };
-    const list = data.notifications ?? [];
-    const count = Number(data.unreadCount ?? 0);
-
-    if (lastUnreadRef.current !== null && count > lastUnreadRef.current) {
-      const newest = list.find((n) => !n.isRead) ?? list[0];
+  useEffect(() => {
+    if (lastUnreadRef.current !== null && unreadCount > lastUnreadRef.current) {
+      const newest = notifications.find((n) => !n.isRead) ?? notifications[0];
       if (newest) {
         toast.message(newest.title, { description: newest.message });
       }
     }
-    lastUnreadRef.current = count;
-
-    setItems(list);
-    setUnreadCount(count);
-  }, []);
-
-  useEffect(() => {
-    if (!active) return;
-    void fetchNotifications();
-    const id = window.setInterval(() => void fetchNotifications(), 30_000);
-    return () => window.clearInterval(id);
-  }, [active, fetchNotifications]);
+    lastUnreadRef.current = unreadCount;
+  }, [notifications, unreadCount]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +43,7 @@ export function NotificationBell({ active = true }: { active?: boolean }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const markAllRead = async () => {
+  const markAllRead = useCallback(async () => {
     await fetch("/api/notifications", {
       method: "PATCH",
       credentials: "include",
@@ -87,27 +51,32 @@ export function NotificationBell({ active = true }: { active?: boolean }) {
       body: JSON.stringify({ markAll: true }),
     });
     lastUnreadRef.current = 0;
-    setUnreadCount(0);
-    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
+    await mutate();
+  }, [mutate]);
 
-  const markOneRead = async (id: string) => {
-    await fetch("/api/notifications", {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    void fetchNotifications();
-  };
+  const markOneRead = useCallback(
+    async (id: string) => {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await mutate();
+    },
+    [mutate]
+  );
 
-  const onRowClick = async (n: InAppNotification) => {
+  const onRowClick = async (n: InAppNotificationRow) => {
     if (!n.isRead) await markOneRead(n.id);
     setOpen(false);
     if (n.link) router.push(n.link);
   };
 
-  if (!active || authorized === false) return null;
+  if (!active) return null;
+  if (error && (error as Error & { status?: number }).status === 401) return null;
+
+  const tN = (k: Parameters<typeof agentT>[1]) => agentT(lang, k);
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -115,7 +84,7 @@ export function NotificationBell({ active = true }: { active?: boolean }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-2xl border border-white/10 bg-white/5 p-2.5 text-white/85 transition hover:bg-white/10"
-        aria-label="الإشعارات"
+        aria-label={tN("notifications_aria")}
       >
         <BellRing size={18} />
         {unreadCount > 0 && (
@@ -133,22 +102,24 @@ export function NotificationBell({ active = true }: { active?: boolean }) {
           )}
         >
           <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/10 pb-2">
-            <span className="text-xs font-semibold tracking-wider text-white/50">الإشعارات</span>
+            <span className="text-xs font-semibold tracking-wider text-white/50">{tN("notifications_title")}</span>
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={() => void markAllRead()}
                 className="text-xs font-semibold text-cyan-300 hover:text-cyan-200"
               >
-                تعليم الكل كمقروء
+                {tN("notifications_mark_all")}
               </button>
             )}
           </div>
           <ul className="max-h-72 space-y-1 overflow-y-auto">
-            {items.length === 0 ? (
-              <li className="py-6 text-center text-sm text-white/45">لا توجد إشعارات بعد.</li>
+            {isLoading && notifications.length === 0 ? (
+              <li className="py-6 text-center text-sm text-white/45">…</li>
+            ) : notifications.length === 0 ? (
+              <li className="py-6 text-center text-sm text-white/45">{tN("notifications_empty")}</li>
             ) : (
-              items.map((n) => (
+              notifications.map((n) => (
                 <li key={n.id}>
                   <button
                     type="button"

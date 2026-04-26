@@ -4,6 +4,18 @@ const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        /** Used when `lang === "ar"` (see `LanguageProvider` in `lib/i18n.tsx`). */
+        arabic: [
+          "var(--font-tajawal)",
+          "Tajawal",
+          "Amiri",
+          "Segoe UI",
+          "Tahoma",
+          "Arial",
+          "sans-serif",
+        ],
+      },
       colors: {
         /** App shell (aligns with `body` gradient base) — use with `bg-background`. */
         background: "#050816",

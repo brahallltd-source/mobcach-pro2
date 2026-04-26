@@ -16,7 +16,8 @@ import {
   TextField,
 } from "@/components/ui";
 import { ImageUploader } from "@/components/ImageUploader";
-import { toast } from "react-hot-toast";
+import { Gs365TopupSummaryCard } from "@/components/agent/Gs365TopupSummaryCard";
+import { toast } from "sonner";
 import type { Lang } from "@/lib/i18n";
 import { useTranslation } from "@/lib/i18n";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
@@ -32,9 +33,29 @@ export type RechargeFormProps = {
   pageSubtitle?: string;
   /** When true, omits the GS365 branding strip above the title (e.g. recharge-from-admin). */
   hidePageHeaderBranding?: boolean;
+  /** When true, render without `SidebarShell` (e.g. nested inside another agent page). */
+  embedded?: boolean;
+  /**
+   * When true, loads invitation-rewards pending DH and allows folding it into this treasury request
+   * (`POST /api/agent/recharge` with `applyAffiliateRewards`). Default false (e.g. recharge-from-admin).
+   */
+  enableInvitationAffiliateBonus?: boolean;
+  /** When set with {@link invitationAffiliateAvailableDh}, skip in-form stats fetch (parent owns refresh). */
+  affiliateBonusControlledByParent?: boolean;
+  invitationAffiliateAvailableDh?: number;
+  /** Called after a successful request so the parent can refetch invitation stats. */
+  onInvitationAffiliateRefetch?: () => void | Promise<void>;
+  /**
+   * When set (e.g. GS365 page), min recharge + affiliate merge flag come from this object
+   * instead of waiting on the in-form `system-context` parse for those two fields.
+   */
+  rechargePolicy?: {
+    minRechargeAmount: number;
+    affiliateBonusEnabled: boolean;
+  } | null;
 };
 
-const RECHARGE_MIN_AMOUNT = 1000;
+const MIN_RECHARGE_FALLBACK = 1000;
 /** Display-only hint for crypto treasury top-up (1 USDT → MAD). */
 const USDT_TO_MAD_RATE = 10.5;
 
@@ -47,9 +68,9 @@ function formatRechargeDh(value: number, lang: Lang): string {
   return `${n} DH`;
 }
 
-function rechargeAmountMeetsMinimum(raw: string): boolean {
+function rechargeAmountMeetsMinimum(raw: string, min: number): boolean {
   const n = parseFloat(String(raw).trim());
-  return Number.isFinite(n) && n >= RECHARGE_MIN_AMOUNT;
+  return Number.isFinite(n) && n >= min;
 }
 
 type FieldErrors = {
@@ -74,9 +95,20 @@ function isTreasuryCryptoMethod(m: {
 }
 
 export function RechargeForm(_props: RechargeFormProps = {}) {
-  const { pageTitle, pageSubtitle, hidePageHeaderBranding } = _props;
+  const {
+    pageTitle,
+    pageSubtitle,
+    hidePageHeaderBranding,
+    embedded: embeddedProp,
+    enableInvitationAffiliateBonus = false,
+    affiliateBonusControlledByParent = false,
+    invitationAffiliateAvailableDh = 0,
+    onInvitationAffiliateRefetch,
+    rechargePolicy: rechargePolicyProp = null,
+  } = _props;
+  const embedded = Boolean(embeddedProp);
   const router = useRouter();
-  const { t, lang } = useTranslation();
+  const { t, lang, dir } = useTranslation();
   const [methods, setMethods] = useState<any[]>([]);
   /** Platform recharge bonus % from SystemSettings (default 10). */
   const [rechargeBonusPct, setRechargeBonusPct] = useState(10);
@@ -93,6 +125,38 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
     gosport365_username: "",
     confirm_gosport365_username: "",
   });
+  /** DH from invitation milestones (server is source of truth on submit). */
+  const [invitationPendingDh, setInvitationPendingDh] = useState(0);
+  const [applyInvitationBonus, setApplyInvitationBonus] = useState(false);
+  const [settingsMinRecharge, setSettingsMinRecharge] = useState(MIN_RECHARGE_FALLBACK);
+  const [settingsAffiliateEnabled, setSettingsAffiliateEnabled] = useState(true);
+
+  const minRechargeAmount = useMemo(() => {
+    if (rechargePolicyProp != null) {
+      const m = Number(rechargePolicyProp.minRechargeAmount);
+      return Number.isFinite(m) && m >= 1 ? m : MIN_RECHARGE_FALLBACK;
+    }
+    return settingsMinRecharge;
+  }, [rechargePolicyProp, settingsMinRecharge]);
+
+  const affiliateBonusEnabledGlobal = useMemo(() => {
+    if (rechargePolicyProp != null) {
+      return Boolean(rechargePolicyProp.affiliateBonusEnabled);
+    }
+    return settingsAffiliateEnabled;
+  }, [rechargePolicyProp, settingsAffiliateEnabled]);
+
+  useEffect(() => {
+    if (!enableInvitationAffiliateBonus || !affiliateBonusControlledByParent) return;
+    const v = Number(invitationAffiliateAvailableDh);
+    const safe = Number.isFinite(v) && v >= 0 ? v : 0;
+    setInvitationPendingDh(safe);
+    setApplyInvitationBonus(safe > 0);
+  }, [
+    enableInvitationAffiliateBonus,
+    affiliateBonusControlledByParent,
+    invitationAffiliateAvailableDh,
+  ]);
 
   const clearField = useCallback((key: keyof FieldErrors) => {
     setErrors((prev) => {
@@ -118,7 +182,8 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
       /** Prefer `Agent.id` (FK on `PaymentMethod.agentId`); fall back to legacy `agentId` or `User.id`. */
       const agentId =
         u.agentProfile?.id ?? u.agentId ?? u.id;
-      const [mRes, rRes, ctxRes] = await Promise.all([
+      const statsUrl = "/api/agent/invitations-rewards/stats";
+      const results = await Promise.all([
         fetch(
           `/api/agent/payment-methods?agentId=${encodeURIComponent(agentId)}&includeTreasury=1`,
           { credentials: "include", cache: "no-store" }
@@ -129,12 +194,62 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
         fetch("/api/agent/system-context", { credentials: "include", cache: "no-store" }),
       ]);
 
+      const mRes = results[0];
+      const rRes = results[1];
+      const ctxRes = results[2];
+
       const mData = await mRes.json();
       await rRes.json();
+
+      let affiliateFromCtx = true;
       if (ctxRes.ok) {
-        const ctx = await ctxRes.json();
+        const ctx = (await ctxRes.json()) as Record<string, unknown>;
         const p = Number(ctx.bonusPercentage);
         if (Number.isFinite(p) && p >= 0) setRechargeBonusPct(p);
+
+        const minC = Number(ctx.minRechargeAmount);
+        const minOk =
+          Number.isFinite(minC) && minC >= 1 ? minC : MIN_RECHARGE_FALLBACK;
+        affiliateFromCtx = ctx.affiliateBonusEnabled !== false;
+
+        if (rechargePolicyProp == null) {
+          setSettingsMinRecharge(minOk);
+          setSettingsAffiliateEnabled(affiliateFromCtx);
+        }
+      }
+
+      const affGate =
+        rechargePolicyProp != null
+          ? Boolean(rechargePolicyProp.affiliateBonusEnabled)
+          : affiliateFromCtx;
+
+      if (enableInvitationAffiliateBonus && affiliateBonusControlledByParent) {
+        /* invitation DH + apply flag synced from parent */
+      } else if (enableInvitationAffiliateBonus && affGate) {
+        const statsRes = await fetch(statsUrl, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (statsRes.ok) {
+          const stats = (await statsRes.json()) as {
+            totalEarnedBonuses?: number;
+            bonusesClaimed?: number;
+            bonusBlockDh?: number;
+          };
+          const earned = Number(stats.totalEarnedBonuses) || 0;
+          const claimed = Number(stats.bonusesClaimed) || 0;
+          const blockDh = Number(stats.bonusBlockDh) || 1000;
+          const pendingBlocks = Math.max(0, Math.floor(earned) - Math.floor(claimed));
+          const pendingDh = pendingBlocks * blockDh;
+          setInvitationPendingDh(Number.isFinite(pendingDh) && pendingDh > 0 ? pendingDh : 0);
+          setApplyInvitationBonus(pendingDh > 0);
+        } else {
+          setInvitationPendingDh(0);
+          setApplyInvitationBonus(false);
+        }
+      } else {
+        setInvitationPendingDh(0);
+        setApplyInvitationBonus(false);
       }
 
       const raw = Array.isArray(mData.methods) ? mData.methods : [];
@@ -155,9 +270,12 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
 
   useEffect(() => {
     void loadData();
-    // Intentionally once on mount; `t` is stable for this load toast.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when feature flag changes; `t` stable for toast
+  }, [
+    enableInvitationAffiliateBonus,
+    affiliateBonusControlledByParent,
+    rechargePolicyProp,
+  ]);
 
   const selectedMethod = useMemo(
     () => methods.find((m) => m.id === form.admin_method_id),
@@ -175,7 +293,13 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
         gosport365_username: form.gosport365_username,
         confirm_gosport365_username: form.confirm_gosport365_username,
       },
-      { isCrypto, minAmount: RECHARGE_MIN_AMOUNT },
+      {
+        isCrypto,
+        minAmount: minRechargeAmount,
+        amountTooLowMessage: enableInvitationAffiliateBonus
+          ? `عذراً، أقل مبلغ مسموح به للشحن هو ${Math.floor(minRechargeAmount)} درهم`
+          : undefined,
+      },
     );
     if (parsed.success) {
       setErrors({});
@@ -202,6 +326,8 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
     form.gosport365_username,
     form.confirm_gosport365_username,
     isCrypto,
+    minRechargeAmount,
+    enableInvitationAffiliateBonus,
   ]);
 
   const canSubmit = useMemo(() => {
@@ -215,7 +341,13 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
           gosport365_username: form.gosport365_username,
           confirm_gosport365_username: form.confirm_gosport365_username,
         },
-        { isCrypto, minAmount: RECHARGE_MIN_AMOUNT },
+        {
+          isCrypto,
+          minAmount: minRechargeAmount,
+          amountTooLowMessage: enableInvitationAffiliateBonus
+            ? `عذراً، أقل مبلغ مسموح به للشحن هو ${Math.floor(minRechargeAmount)} درهم`
+            : undefined,
+        },
       ).success && !saving
     );
   }, [
@@ -227,18 +359,38 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
     form.confirm_gosport365_username,
     isCrypto,
     saving,
+    minRechargeAmount,
+    enableInvitationAffiliateBonus,
   ]);
 
   const rechargeBonusRate =
     Number.isFinite(rechargeBonusPct) && rechargeBonusPct >= 0 ? rechargeBonusPct / 100 : 0.1;
 
+  const invitationAffiliateForTotals = useMemo(() => {
+    if (
+      !enableInvitationAffiliateBonus ||
+      !affiliateBonusEnabledGlobal ||
+      !applyInvitationBonus ||
+      invitationPendingDh <= 0
+    ) {
+      return 0;
+    }
+    return invitationPendingDh;
+  }, [
+    enableInvitationAffiliateBonus,
+    affiliateBonusEnabledGlobal,
+    applyInvitationBonus,
+    invitationPendingDh,
+  ]);
+
   const rechargeAmountBreakdown = useMemo(() => {
     const base = parseFloat(String(form.amount).trim());
     if (!Number.isFinite(base) || base <= 0) return null;
     const bonus = base * rechargeBonusRate;
-    const total = base + bonus;
-    return { base, bonus, total };
-  }, [form.amount, rechargeBonusRate]);
+    const affiliate = invitationAffiliateForTotals;
+    const total = base + bonus + affiliate;
+    return { base, bonus, affiliate, total };
+  }, [form.amount, rechargeBonusRate, invitationAffiliateForTotals]);
 
   const submit = async () => {
     if (!validate()) {
@@ -256,13 +408,20 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
       const crypto = isTreasuryCryptoMethod(methodRow ?? null);
       const baseAmount = parseFloat(String(form.amount).trim());
       const bonusAmount = baseAmount * rechargeBonusRate;
-      const totalWithBonus = baseAmount + bonusAmount;
+      const useAffiliate =
+        enableInvitationAffiliateBonus &&
+        affiliateBonusEnabledGlobal &&
+        applyInvitationBonus &&
+        invitationPendingDh > 0;
+      const affiliateDh = useAffiliate ? invitationPendingDh : 0;
+      const totalWithBonus = baseAmount + bonusAmount + affiliateDh;
       const proofTrim = String(form.proof_url || "").trim();
       const txTrim = String(form.transaction_hash || "").trim();
       const payload: Record<string, unknown> = {
         amount: baseAmount,
         bonusAmount,
         total_with_bonus: totalWithBonus,
+        applyAffiliateRewards: useAffiliate,
         proofUrl: proofTrim || null,
         transactionHash: crypto ? (txTrim || undefined) : undefined,
         admin_method_id: form.admin_method_id,
@@ -291,6 +450,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
           console.log("Recharge request created:", data.request.id, data.request);
         }
         toast.success(data.message || t("recharge_request_sent") || "Request sent successfully");
+        await onInvitationAffiliateRefetch?.();
         setForm((prev) => ({
           ...prev,
           amount: "1000",
@@ -302,7 +462,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
           confirm_gosport365_username: "",
         }));
         void loadData();
-        router.push("/agent/recharge/history");
+        router.push("/agent/gosport365-topup?tab=history");
       } else {
         const msg = String(data.message || t("error_failed_to_send") || "");
         const low = msg.toLowerCase();
@@ -338,20 +498,24 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
 
   if (loading) return <LoadingCard text={t("loading") || "Loading..."} />;
 
+  /** USDT to cover is the paid treasury amount (base + platform %), not invitation credit. */
   const requiredUsdt =
     isCrypto && rechargeAmountBreakdown
-      ? (rechargeAmountBreakdown.total / USDT_TO_MAD_RATE).toFixed(2)
+      ? (
+          (rechargeAmountBreakdown.base + rechargeAmountBreakdown.bonus) /
+          USDT_TO_MAD_RATE
+        ).toFixed(2)
       : null;
 
-  return (
-    <SidebarShell role="agent">
+  const inner = (
+    <>
       <PageHeader
         hideBranding={Boolean(hidePageHeaderBranding)}
         title={pageTitle || t("recharge_title") || "Recharge Account"}
         subtitle={pageSubtitle || t("recharge_subtitle") || "Add balance"}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3" dir="rtl">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3" dir={dir}>
         <GlassCard className="p-6 lg:col-span-2">
           <div className="space-y-6">
             <div className="space-y-2">
@@ -361,7 +525,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
               <TextField
                 type="number"
                 inputMode="decimal"
-                min={RECHARGE_MIN_AMOUNT}
+                min={Math.floor(minRechargeAmount)}
                 step="any"
                 value={form.amount}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -371,7 +535,19 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
                 className={errors.amount ? "ring-1 ring-rose-500/60" : undefined}
               />
               <p className="text-xs text-white/45">{t("recharge_amount_hint")}</p>
-              {rechargeAmountBreakdown ? (
+              {enableInvitationAffiliateBonus ? (
+                <Gs365TopupSummaryCard
+                  amountRaw={form.amount}
+                  standardBonusRate={rechargeBonusRate}
+                  standardBonusPctLabel={rechargeBonusPct}
+                  availablePromotionDh={invitationPendingDh}
+                  applyRewards={applyInvitationBonus}
+                  onApplyRewardsChange={setApplyInvitationBonus}
+                  isCrypto={isCrypto}
+                  requiredUsdt={requiredUsdt}
+                  affiliateFeatureEnabled={affiliateBonusEnabledGlobal}
+                />
+              ) : rechargeAmountBreakdown ? (
                 <div className="mt-2 space-y-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-3 text-sm">
                   <p className="text-white/85">
                     <span className="text-white/55">Requested: </span>
@@ -623,6 +799,8 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
           )}
         </div>
       </div>
-    </SidebarShell>
+    </>
   );
+
+  return embedded ? inner : <SidebarShell role="agent">{inner}</SidebarShell>;
 }

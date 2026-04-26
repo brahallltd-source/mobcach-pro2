@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Banknote, Gift, RefreshCw, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { FadeIn, StaggerContainer, StaggerItem } from "@/components/animations";
 import { RevenueAreaChart } from "@/components/charts";
 import { AnimatedStatCard } from "@/components/admin/AnimatedStatCard";
 import { LedgerActivityFeed, type LedgerFeedEntry } from "@/components/admin/LedgerActivityFeed";
-import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell, StatCard } from "@/components/ui";
+import { Card, CardContent } from "@/components/ui/card";
+import { GlassCard, LoadingCard, PageHeader, PrimaryButton, SidebarShell } from "@/components/ui";
 import { isSuperAdminRole } from "@/lib/admin-permissions";
-import { useTranslation } from "@/lib/i18n";
-import { formatCurrencyDhEn } from "@/lib/format-dh";
+import { localeForLang, useTranslation } from "@/lib/i18n";
+import { formatCurrencyDhFintech, formatNumberEn } from "@/lib/format-dh";
 
 async function safeFetchJson<T>(url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
@@ -39,6 +42,20 @@ type BonusTracking = {
   activeAgents: number;
   totalAgentWalletBalancesDh: number;
 };
+
+type PendingRechargeRow = {
+  id: string;
+  agentEmail: string;
+  amount: number;
+  methodDisplayName: string;
+  createdAt: string;
+};
+
+function canApproveRechargesFromSession(user: { role?: string; adminPermissions?: string[] } | null): boolean {
+  if (!user) return false;
+  if (isSuperAdminRole(user.role)) return true;
+  return Array.isArray(user.adminPermissions) && user.adminPermissions.includes("APPROVE_RECHARGES");
+}
 
 type DashboardStats = {
   realSalesTodayDh: number;
@@ -98,7 +115,8 @@ function parseDashboardStats(raw: unknown): DashboardStats | null {
 }
 
 export default function AdminDashboardPage() {
-  const { tx } = useTranslation();
+  const { tx, lang } = useTranslation();
+  const locale = useMemo(() => localeForLang(lang), [lang]);
   const [counts, setCounts] = useState({
     orders: 0,
     complaints: 0,
@@ -118,6 +136,10 @@ export default function AdminDashboardPage() {
   const [exportingLedger, setExportingLedger] = useState(false);
   const [permsReady, setPermsReady] = useState(false);
   const [canViewFinancials, setCanViewFinancials] = useState(false);
+  const [canApproveRecharges, setCanApproveRecharges] = useState(false);
+  const [pendingRecharges, setPendingRecharges] = useState<PendingRechargeRow[]>([]);
+  const [pendingRechargesLoading, setPendingRechargesLoading] = useState(false);
+  const [rowActionKey, setRowActionKey] = useState<string | null>(null);
 
   const exportRangeInvalid = useMemo(() => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(exportStart) || !/^\d{4}-\d{2}-\d{2}$/.test(exportEnd)) return true;
@@ -186,6 +208,71 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  const fetchPendingRecharges = useCallback(async () => {
+    if (!canApproveRecharges) {
+      setPendingRecharges([]);
+      return;
+    }
+    setPendingRechargesLoading(true);
+    try {
+      const j = await safeFetchJson<{ requests?: unknown[] }>(
+        "/api/admin/recharge-requests",
+        { requests: [] },
+        ADMIN_FETCH
+      );
+      const raw = Array.isArray(j.requests) ? j.requests : [];
+      const next: PendingRechargeRow[] = raw
+        .filter((r): r is Record<string, unknown> => r != null && typeof r === "object")
+        .map((r) => ({
+          id: String(r.id ?? ""),
+          agentEmail: String(r.agentEmail ?? ""),
+          amount: Number(r.amount) || 0,
+          methodDisplayName: String(r.methodDisplayName ?? "—"),
+          createdAt: String(r.createdAt ?? ""),
+        }))
+        .filter((r) => r.id);
+      setPendingRecharges(next);
+    } finally {
+      setPendingRechargesLoading(false);
+    }
+  }, [canApproveRecharges]);
+
+  const runQuickRechargeAction = useCallback(
+    async (id: string, action: "approve" | "reject") => {
+      if (action === "reject") {
+        const ok = window.confirm(tx("admin.dashboardPage.quickRejectConfirm"));
+        if (!ok) return;
+      }
+      const k = `${id}-${action}`;
+      setRowActionKey(k);
+      try {
+        const res = await fetch("/api/admin/recharge/approve", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId: id, action }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { message?: string; success?: boolean };
+        if (!res.ok) {
+          toast.error(data.message || tx("admin.dashboardPage.toastActionFailed"));
+          return;
+        }
+        toast.success(
+          action === "approve"
+            ? tx("admin.dashboardPage.toastApproved")
+            : tx("admin.dashboardPage.toastRejected"),
+        );
+        setPendingRecharges((prev) => prev.filter((p) => p.id !== id));
+        void fetchDashboardStats();
+      } catch {
+        toast.error(tx("admin.dashboardPage.toastNetworkError"));
+      } finally {
+        setRowActionKey(null);
+      }
+    },
+    [fetchDashboardStats, tx],
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -198,15 +285,26 @@ export default function AdminDashboardPage() {
         if (cancelled) return;
         if (!j.success || !j.user) {
           setCanViewFinancials(false);
-        } else if (isSuperAdminRole(j.user.role)) {
-          setCanViewFinancials(true);
+          setCanApproveRecharges(false);
         } else {
-          setCanViewFinancials(
-            Array.isArray(j.user.adminPermissions) && j.user.adminPermissions.includes("VIEW_FINANCIALS")
+          if (isSuperAdminRole(j.user.role)) {
+            setCanViewFinancials(true);
+          } else {
+            setCanViewFinancials(
+              Array.isArray(j.user.adminPermissions) && j.user.adminPermissions.includes("VIEW_FINANCIALS")
+            );
+          }
+          setCanApproveRecharges(
+            canApproveRechargesFromSession(
+              j.user as { role?: string; adminPermissions?: string[] }
+            )
           );
         }
       } catch {
-        if (!cancelled) setCanViewFinancials(false);
+        if (!cancelled) {
+          setCanViewFinancials(false);
+          setCanApproveRecharges(false);
+        }
       } finally {
         if (!cancelled) setPermsReady(true);
       }
@@ -260,9 +358,9 @@ export default function AdminDashboardPage() {
             { withdrawals: [] },
             ADMIN_FETCH
           ),
-          safeFetchJson<{ notifications?: { read?: boolean }[] }>(
-            "/api/notifications?targetRole=admin&targetId=admin-1",
-            { notifications: [] },
+          safeFetchJson<{ notifications?: { read?: boolean }[]; unreadCount?: number }>(
+            "/api/notifications?for=me&limit=50",
+            { notifications: [], unreadCount: 0 },
             ADMIN_FETCH
           ),
           safeFetchJson<{ bonusTracking?: unknown }>("/api/admin/analytics", {}, ADMIN_FETCH),
@@ -279,8 +377,10 @@ export default function AdminDashboardPage() {
           withdrawals: (withdrawals.withdrawals || []).filter(
             (item: { status?: string }) => item.status === "agent_approved"
           ).length,
-          notifications: (notifications.notifications || []).filter((item: { read?: boolean }) => !item.read)
-            .length,
+          notifications:
+            typeof notifications.unreadCount === "number"
+              ? notifications.unreadCount
+              : (notifications.notifications || []).filter((item: { read?: boolean }) => !item.read).length,
         });
 
         const bt = analytics?.bonusTracking;
@@ -315,6 +415,11 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     void fetchDashboardStats();
   }, [fetchDashboardStats]);
+
+  useEffect(() => {
+    if (!permsReady) return;
+    void fetchPendingRecharges();
+  }, [permsReady, fetchPendingRecharges]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -357,7 +462,10 @@ export default function AdminDashboardPage() {
             <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
               <button
                 type="button"
-                onClick={() => void fetchDashboardStats()}
+                onClick={() => {
+                  void fetchDashboardStats();
+                  void fetchPendingRecharges();
+                }}
                 disabled={statsRefreshing}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -366,110 +474,212 @@ export default function AdminDashboardPage() {
               </button>
               {statsUpdatedAt ? (
                 <p className="text-center text-[11px] text-white/40 sm:text-end" dir="ltr">
-                  Last metrics fetch: {statsUpdatedAt.toLocaleString()}
+                  {tx("admin.dashboardPage.lastMetricsFetch", {
+                    time: statsUpdatedAt.toLocaleString(locale),
+                  })}
                 </p>
               ) : null}
             </div>
           </div>
 
           {canViewFinancials ? (
-            <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <AnimatedStatCard
-                label={tx("dashboard.totalSalesToday")}
-                value={formatCurrencyDhEn(dashStats?.realSalesTodayDh ?? 0)}
-                hint={metricsDayHint}
-                variant="cyan"
-                delayMs={0}
-                icon={Banknote}
-              />
-              <AnimatedStatCard
-                label={tx("dashboard.bonusDistributed")}
-                value={formatCurrencyDhEn(dashStats?.totalBonusTodayDh ?? 0)}
-                hint={tx("dashboard.bonusDistributedHint")}
-                variant="violet"
-                delayMs={80}
-                icon={Gift}
-              />
-              <AnimatedStatCard
-                label={tx("dashboard.agentLiquidity")}
-                value={formatCurrencyDhEn(dashStats?.agentLiquidityDh ?? bonusTracking?.totalAgentWalletBalancesDh ?? 0)}
-                hint={tx("dashboard.agentLiquidityHint")}
-                variant="emerald"
-                delayMs={160}
-                icon={Wallet}
-              />
-              <AnimatedStatCard
-                label={tx("dashboard.pendingRechargeReviews")}
-                value={String(dashStats?.pendingRechargeCount ?? 0)}
-                hint={tx("dashboard.pendingRechargeHint")}
-                variant="rose"
-                delayMs={240}
-                icon={AlertCircle}
-              />
-            </div>
+            <StaggerContainer className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StaggerItem>
+                <AnimatedStatCard
+                  label={tx("dashboard.totalSalesToday")}
+                  value={formatCurrencyDhFintech(dashStats?.realSalesTodayDh ?? 0)}
+                  hint={metricsDayHint}
+                  variant="cyan"
+                  delayMs={0}
+                  icon={Banknote}
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <AnimatedStatCard
+                  label={tx("dashboard.bonusDistributed")}
+                  value={formatCurrencyDhFintech(dashStats?.totalBonusTodayDh ?? 0)}
+                  hint={tx("dashboard.bonusDistributedHint")}
+                  variant="violet"
+                  delayMs={0}
+                  icon={Gift}
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <AnimatedStatCard
+                  label={tx("dashboard.agentLiquidity")}
+                  value={formatCurrencyDhFintech(
+                    dashStats?.agentLiquidityDh ?? bonusTracking?.totalAgentWalletBalancesDh ?? 0
+                  )}
+                  hint={tx("dashboard.agentLiquidityHint")}
+                  variant="emerald"
+                  delayMs={0}
+                  icon={Wallet}
+                  primaryMetric
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <AnimatedStatCard
+                  label={tx("dashboard.pendingRechargeReviews")}
+                  value={String(dashStats?.pendingRechargeCount ?? 0)}
+                  hint={tx("dashboard.pendingRechargeHint")}
+                  variant="rose"
+                  delayMs={0}
+                  icon={AlertCircle}
+                />
+              </StaggerItem>
+            </StaggerContainer>
           ) : (
             <GlassCard className="mb-8 p-5 text-sm text-white/70">{tx("dashboard.noFinancialPermission")}</GlassCard>
           )}
 
-          {canViewFinancials ? (
-          <div className="mb-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-black/40 p-6 shadow-lg ring-1 ring-white/5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/45">
-                {tx("dashboard.approvedDepositsLifetime")}
-              </p>
-              <h3 className="mt-2 text-3xl font-bold tabular-nums text-white" dir="ltr">
-                {formatCurrencyDhEn(bonusTracking?.totalRealDepositsDh ?? 0)}
-              </h3>
-              <p className="mt-2 text-xs text-white/50">
-                {tx("dashboard.approvedRechargeCountLabel")}{" "}
-                <span className="font-semibold text-white/70 tabular-nums" dir="ltr">
-                  {bonusTracking?.approvedRechargeRequests ?? 0}
-                </span>
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-violet-500/25 bg-gradient-to-br from-violet-950/50 via-slate-950/80 to-amber-950/30 p-6 shadow-lg ring-1 ring-violet-400/20">
-              <p className="text-xs font-semibold uppercase tracking-wider text-violet-200/80">
-                {tx("dashboard.bonusGiftedLifetime")}
-              </p>
-              <h3
-                className="mt-2 bg-gradient-to-r from-violet-300 via-fuchsia-200 to-amber-200 bg-clip-text text-3xl font-bold tabular-nums text-transparent"
-                dir="ltr"
-              >
-                {formatCurrencyDhEn(bonusTracking?.totalBonusGiftedDh ?? 0)}
-              </h3>
-              <p className="mt-2 text-xs text-violet-200/55">{tx("dashboard.bonusGiftedLifetimeSub")}</p>
-            </div>
-
-            <div className="rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/35 to-black/40 p-6 shadow-lg ring-1 ring-white/5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/45">{tx("dashboard.activeAgents")}</p>
-              <h3 className="mt-2 text-3xl font-bold tabular-nums text-emerald-200" dir="ltr">
-                {bonusTracking?.activeAgents ?? 0}
-              </h3>
-              <p className="mt-2 text-xs text-white/50">{tx("dashboard.activeAgentsSub")}</p>
-            </div>
-          </div>
+          {canViewFinancials && canApproveRecharges ? (
+            <Card className="mb-8 border border-white/10 bg-[#0B0F19]/80 shadow-lg backdrop-blur-xl">
+              <CardContent className="p-0">
+                <div className="border-b border-white/10 px-5 py-4 md:px-6">
+                  <h2 className="text-lg font-semibold text-white">{tx("dashboard.actionCenterTitle")}</h2>
+                  <p className="mt-1 text-xs text-white/45">{tx("dashboard.pendingRechargeQueueSub")}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  {pendingRechargesLoading ? (
+                    <p className="px-5 py-8 text-center text-sm text-white/45 md:px-6">
+                      {tx("dashboard.pendingQueueLoading")}
+                    </p>
+                  ) : pendingRecharges.length === 0 ? (
+                    <p className="px-5 py-8 text-center text-sm text-white/40 md:px-6">
+                      {tx("dashboard.noPendingRecharges")}
+                    </p>
+                  ) : (
+                    <table className="w-full min-w-[640px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wide text-white/40">
+                          <th className="px-4 py-3 md:px-5">{tx("dashboard.tableAgent")}</th>
+                          <th className="px-4 py-3">{tx("dashboard.tableMethod")}</th>
+                          <th className="px-4 py-3">{tx("dashboard.tableAmount")}</th>
+                          <th className="px-4 py-3">{tx("dashboard.tableDate")}</th>
+                          <th className="px-4 py-3 text-end"> </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingRecharges.map((r) => (
+                          <tr
+                            key={r.id}
+                            className="border-b border-white/5 transition hover:bg-white/[0.03]"
+                          >
+                            <td className="px-4 py-3.5 text-white/90 md:px-5" dir="ltr">
+                              {r.agentEmail}
+                            </td>
+                            <td className="max-w-[200px] truncate text-white/70" title={r.methodDisplayName}>
+                              {r.methodDisplayName}
+                            </td>
+                            <td
+                              className="font-semibold tabular-nums text-primary [text-shadow:0_0_12px_hsl(var(--primary)/0.25)]"
+                              dir="ltr"
+                            >
+                              {formatCurrencyDhFintech(r.amount)}
+                            </td>
+                            <td className="whitespace-nowrap text-xs text-white/45" dir="ltr">
+                              {new Date(r.createdAt).toLocaleString(locale)}
+                            </td>
+                            <td className="px-4 py-2 text-end">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  disabled={rowActionKey != null}
+                                  onClick={() => void runQuickRechargeAction(r.id, "approve")}
+                                  className="rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_0_16px_hsl(var(--primary)/0.45)] transition hover:brightness-110 disabled:opacity-50"
+                                >
+                                  {rowActionKey === `${r.id}-approve` ? "…" : tx("dashboard.quickApprove")}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={rowActionKey != null}
+                                  onClick={() => void runQuickRechargeAction(r.id, "reject")}
+                                  className="rounded-xl border border-rose-500/50 bg-transparent px-3 py-1.5 text-xs font-semibold text-rose-200/90 transition hover:border-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
+                                >
+                                  {rowActionKey === `${r.id}-reject` ? "…" : tx("dashboard.quickReject")}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div className="border-t border-white/10 px-5 py-3 md:px-6">
+                  <Link
+                    href="/admin/recharge-requests"
+                    className="text-sm font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+                  >
+                    {tx("dashboard.viewFullQueue")}
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ) : canViewFinancials && !canApproveRecharges ? (
+            <p className="mb-6 text-sm text-amber-200/70">{tx("dashboard.rechargeNoPermission")}</p>
           ) : null}
 
           {canViewFinancials ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <StatCard label="Orders today" value={String(counts.orders)} hint="Across all statuses" />
-            <StatCard label="Complaints" value={String(counts.complaints)} hint="Player support queue" />
-            <StatCard label="Pending agents" value={String(counts.pendingAgents)} hint="Applications awaiting decision" />
-            <StatCard label="Fraud alerts" value={String(counts.disputes)} hint="Review queue requiring resolution" />
-            <StatCard label="Payouts pending" value={String(counts.withdrawals)} hint="Waiting for admin transfer" />
-            <StatCard label="Unread notifications" value={String(counts.notifications)} hint="Latest admin alerts" />
-          </div>
+            <StaggerContainer className="mb-8 grid gap-4 md:grid-cols-3">
+              <StaggerItem>
+                <Card className="h-full border border-white/10 bg-[#0B0F19]/80 shadow-lg backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-white/45">
+                      {tx("dashboard.approvedDepositsLifetime")}
+                    </p>
+                    <h3 className="mt-2 text-3xl font-extrabold tabular-nums text-white" dir="ltr">
+                      {formatCurrencyDhFintech(bonusTracking?.totalRealDepositsDh ?? 0)}
+                    </h3>
+                    <p className="mt-2 text-xs text-white/50">
+                      {tx("dashboard.approvedRechargeCountLabel")}{" "}
+                      <span className="font-semibold text-white/70 tabular-nums" dir="ltr">
+                        {bonusTracking?.approvedRechargeRequests ?? 0}
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
+              </StaggerItem>
+              <StaggerItem>
+                <Card className="h-full border border-violet-500/20 bg-[#0B0F19]/80 shadow-lg ring-1 ring-violet-500/15 backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-violet-200/80">
+                      {tx("dashboard.bonusGiftedLifetime")}
+                    </p>
+                    <h3
+                      className="mt-2 bg-gradient-to-r from-violet-300 via-fuchsia-200 to-amber-200 bg-clip-text text-3xl font-extrabold tabular-nums text-transparent"
+                      dir="ltr"
+                    >
+                      {formatCurrencyDhFintech(bonusTracking?.totalBonusGiftedDh ?? 0)}
+                    </h3>
+                    <p className="mt-2 text-xs text-violet-200/55">{tx("dashboard.bonusGiftedLifetimeSub")}</p>
+                  </CardContent>
+                </Card>
+              </StaggerItem>
+              <StaggerItem>
+                <Card className="h-full border border-emerald-500/20 bg-[#0B0F19]/80 shadow-lg backdrop-blur-xl">
+                  <CardContent className="p-6">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-white/45">
+                      {tx("dashboard.activeAgents")}
+                    </p>
+                    <h3 className="mt-2 text-3xl font-extrabold tabular-nums text-emerald-200" dir="ltr">
+                      {formatNumberEn(bonusTracking?.activeAgents ?? 0, 0)}
+                    </h3>
+                    <p className="mt-2 text-xs text-white/50">{tx("dashboard.activeAgentsSub")}</p>
+                  </CardContent>
+                </Card>
+              </StaggerItem>
+            </StaggerContainer>
           ) : null}
 
           {canViewFinancials ? (
-          <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <GlassCard className="p-6 md:p-8">
-              <RevenueAreaChart title="Operational overview" data={chartData} />
+          <FadeIn className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <GlassCard className="border border-white/10 bg-[#0B0F19]/80 p-6 shadow-lg backdrop-blur-xl md:p-8">
+              <RevenueAreaChart title={tx("admin.dashboardPage.operationalOverview")} data={chartData} />
             </GlassCard>
 
             <div className="space-y-6">
-              <GlassCard className="p-6 md:p-8">
+              <GlassCard className="border border-white/10 bg-[#0B0F19]/80 p-6 shadow-lg backdrop-blur-xl md:p-8">
                 <h2 className="text-xl font-semibold text-white">{tx("dashboard.liveLedgerTitle")}</h2>
                 <p className="mt-1 text-xs text-white/45">{tx("dashboard.liveLedgerSub")}</p>
                 <div className="mt-4">
@@ -477,13 +687,13 @@ export default function AdminDashboardPage() {
                 </div>
               </GlassCard>
 
-              <GlassCard className="p-6 md:p-8">
+              <GlassCard className="border border-white/10 bg-[#0B0F19]/80 p-6 shadow-lg backdrop-blur-xl md:p-8">
                 <h2 className="text-xl font-semibold text-white">{tx("dashboard.exportLedgerTitle")}</h2>
                 <p className="mt-1 text-xs text-white/45">{tx("dashboard.exportLedgerSub")}</p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-white/55" htmlFor="ledger-export-start">
-                      Start Date
+                      {tx("dashboard.exportStartLabel")}
                     </label>
                     <input
                       id="ledger-export-start"
@@ -495,7 +705,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-white/55" htmlFor="ledger-export-end">
-                      End Date
+                      {tx("dashboard.exportEndLabel")}
                     </label>
                     <input
                       id="ledger-export-end"
@@ -528,45 +738,45 @@ export default function AdminDashboardPage() {
                 <p className="mt-3 text-[11px] text-white/35">{tx("dashboard.exportFooterHint")}</p>
               </GlassCard>
 
-              <GlassCard className="p-6 md:p-8">
-                <h2 className="text-2xl font-semibold">Quick launch checkpoints</h2>
+              <GlassCard className="border border-white/10 bg-[#0B0F19]/80 p-6 shadow-lg backdrop-blur-xl md:p-8">
+                <h2 className="text-2xl font-semibold">{tx("dashboard.quickLaunchTitle")}</h2>
                 <div className="mt-5 grid gap-3 text-sm text-white/65">
-                  <p>• Review pending agents and send official onboarding messages</p>
-                  <p>• Monitor winner payout queue before official launch</p>
-                  <p>• Keep branding, homepage and promotions aligned</p>
+                  <p>• {tx("dashboard.quickLaunch1")}</p>
+                  <p>• {tx("dashboard.quickLaunch2")}</p>
+                  <p>• {tx("dashboard.quickLaunch3")}</p>
                 </div>
               </GlassCard>
 
-              <GlassCard className="p-6 md:p-8">
+              <GlassCard className="border border-white/10 bg-[#0B0F19]/80 p-6 shadow-lg backdrop-blur-xl md:p-8">
                 <div className="grid gap-3 text-sm">
                   <Link
                     href="/admin/agents"
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/80 hover:bg-white/10"
                   >
-                    Open agent applications
+                    {tx("dashboard.shortcutApplications")}
                   </Link>
                   <Link
                     href="/admin/support"
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/80 hover:bg-white/10"
                   >
-                    Support inbox
+                    {tx("dashboard.shortcutSupport")}
                   </Link>
                   <Link
                     href="/admin/branding"
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/80 hover:bg-white/10"
                   >
-                    Open branding panel
+                    {tx("dashboard.shortcutBranding")}
                   </Link>
                   <Link
                     href="/admin/withdrawals"
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/80 hover:bg-white/10"
                   >
-                    Open payout control
+                    {tx("dashboard.shortcutWithdrawals")}
                   </Link>
                 </div>
               </GlassCard>
             </div>
-          </div>
+          </FadeIn>
           ) : null}
         </>
       )}

@@ -294,25 +294,36 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. 🚀 إرسال إشعار للطرف الآخر مع وضع الإيميل في العنوان لسهولة الفلترة
+    // 2. إشعار للطرف الآخر (دائماً `userId` المستلم)
     try {
       if (senderRole === "player" && finalAgentId) {
-        // اللاعب أرسل -> نُعلم الوكيل (نضع إيميل اللاعب في العنوان)
-        await createNotification({
-          targetRole: "agent",
-          targetId: finalAgentId,
-          title: `رسالة جديدة من اللاعب (${finalPlayerEmail})`,
-          message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+        const agentRow = await prisma.agent.findUnique({
+          where: { id: String(finalAgentId) },
+          select: { userId: true },
         });
-      } 
-      else if (senderRole === "agent" && finalPlayerEmail) {
-        // الوكيل أرسل -> نُعلم اللاعب
-        await createNotification({
-          targetRole: "player",
-          targetId: finalPlayerEmail,
-          title: "رسالة جديدة من الوكيل",
-          message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+        if (agentRow?.userId) {
+          await createNotification({
+            userId: agentRow.userId,
+            title: `رسالة جديدة من اللاعب (${finalPlayerEmail})`,
+            message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+          });
+        }
+      } else if (senderRole === "agent" && finalPlayerEmail) {
+        const playerUser = await prisma.user.findFirst({
+          where: {
+            email: String(finalPlayerEmail).trim().toLowerCase(),
+            deletedAt: null,
+            role: { equals: "PLAYER", mode: "insensitive" },
+          },
+          select: { id: true },
         });
+        if (playerUser) {
+          await createNotification({
+            userId: playerUser.id,
+            title: "رسالة جديدة من الوكيل",
+            message: message.length > 60 ? message.substring(0, 60) + "..." : message,
+          });
+        }
       }
     } catch (notifErr) {
       console.error("Notification creation failed:", notifErr);

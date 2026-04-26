@@ -28,6 +28,9 @@ import {
   type AgentPendingLinkRow,
 } from "@/components/agent/AgentLinkRequestApprovalRow";
 import { formatShortPlayerId } from "@/lib/format-player-id";
+import { useAgentTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/i18n";
+import { agentT } from "@/lib/i18n/dictionaries/agent";
 
 type AgentUser = MobcashUser & {
   agentId?: string;
@@ -65,6 +68,9 @@ function ratingTone(p: number, hasVotes: boolean): string {
 }
 
 export default function AgentDashboardPage() {
+  const { lang } = useTranslation();
+  const { t, ta } = useAgentTranslation();
+  const dateLocale = lang === "ar" ? "ar-MA" : lang === "fr" ? "fr-FR" : "en-US";
   const [user, setUser] = useState<AgentUser | null>(null);
   const [home, setHome] = useState<DashboardHome | null>(null);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -123,13 +129,13 @@ export default function AgentDashboardPage() {
           { cache: "no-store", credentials: "include" }
         );
         if (!profileRes.ok) {
-          if (profileRes.status === 404) throw new Error("الحساب غير موجود فـ الداتابيز");
+          if (profileRes.status === 404) throw new Error(agentT(lang, "dashboard_error_profile_missing"));
           const errorData = await profileRes.json().catch(() => ({} as Record<string, unknown>));
           const msg =
             (typeof errorData.error === "string" && errorData.error) ||
             (typeof errorData.message === "string" && errorData.message) ||
             "";
-          throw new Error(msg || "خطأ فـ الاتصال بالسيرفر");
+          throw new Error(msg || agentT(lang, "dashboard_error_server"));
         }
         const profileData = await profileRes.json();
         const agentKey = String(profileData.realAgentId || idToSearch);
@@ -159,14 +165,14 @@ export default function AgentDashboardPage() {
         }
       } catch (err: unknown) {
         console.error("Dashboard Error:", err);
-        setError(err instanceof Error ? err.message : "خطأ غير متوقع");
+        setError(err instanceof Error ? err.message : agentT(lang, "dashboard_error_unexpected"));
       } finally {
         setLoading(false);
       }
     };
 
     void loadData();
-  }, [loadCustomers]);
+  }, [loadCustomers, lang]);
 
   const searchHit = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -200,10 +206,10 @@ export default function AgentDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.message || "فشل الشحن");
+        alert(data.message || t("dashboard_alert_recharge_failed"));
         return;
       }
-      alert(data.message || "تم");
+      alert(data.message || t("dashboard_alert_recharge_ok"));
       setRechargeOpen(false);
       const homeRes = await fetch("/api/agent/dashboard-home", { credentials: "include", cache: "no-store" });
       const h = await homeRes.json();
@@ -217,7 +223,7 @@ export default function AgentDashboardPage() {
   if (loading) {
     return (
       <SidebarShell role="agent">
-        <LoadingCard text="جاري تحديث البيانات..." />
+        <LoadingCard text={t("dashboard_loading_refresh")} />
       </SidebarShell>
     );
   }
@@ -227,10 +233,10 @@ export default function AgentDashboardPage() {
       <SidebarShell role="agent">
         <GlassCard className="mx-auto mt-10 max-w-2xl border-red-500/20 p-10 text-center">
           <AlertTriangle size={64} className="mx-auto mb-6 text-red-500" />
-          <h2 className="text-2xl font-bold">عذراً، وقع خطأ</h2>
+          <h2 className="text-2xl font-bold">{t("dashboard_error_title")}</h2>
           <p className="mt-4 text-white/70">{error}</p>
           <PrimaryButton onClick={() => window.location.reload()} className="mt-6">
-            إعادة المحاولة
+            {t("dashboard_error_retry")}
           </PrimaryButton>
         </GlassCard>
       </SidebarShell>
@@ -245,14 +251,14 @@ export default function AgentDashboardPage() {
       <SidebarShell role="agent">
         <GlassCard className="mx-auto mt-10 max-w-2xl border-red-500/30 bg-red-500/5 p-10 text-center">
           <XCircle size={64} className="mx-auto mb-6 text-red-500" />
-          <h2 className="text-3xl font-bold text-red-400">نأسف، تم رفض طلبك</h2>
+          <h2 className="text-3xl font-bold text-red-400">{t("dashboard_rejected_title")}</h2>
           <p className="mt-4 text-lg text-white/70">
             {user.rejectionReason?.trim()
               ? user.rejectionReason
-              : "لم يتم قبول طلب انضمامك كوكيل حالياً."}
+              : t("dashboard_rejected_default_reason")}
           </p>
           <Link href="/registre/player" className="mt-8 block">
-            <PrimaryButton className="w-full">سجل كلاعب الآن</PrimaryButton>
+            <PrimaryButton className="w-full">{t("dashboard_rejected_cta")}</PrimaryButton>
           </Link>
         </GlassCard>
       </SidebarShell>
@@ -265,11 +271,8 @@ export default function AgentDashboardPage() {
       <SidebarShell role="agent">
         <GlassCard className="mx-auto mt-10 max-w-2xl border-amber-500/20 p-10 text-center">
           <Clock size={64} className="mx-auto mb-6 animate-pulse text-amber-500" />
-          <h2 className="text-3xl font-bold text-amber-400">طلبك قيد المراجعة</h2>
-          <p className="mt-4 text-lg text-white/70">
-            يتم الآن مراجعة حسابك من طرف الإدارة. ستتمكن من الوصول للوحة التحكم كاملة فور تفعيل
-            حسابك.
-          </p>
+          <h2 className="text-3xl font-bold text-amber-400">{t("dashboard_pending_status_title")}</h2>
+          <p className="mt-4 text-lg text-white/70">{t("dashboard_pending_status_body")}</p>
         </GlassCard>
       </SidebarShell>
     );
@@ -283,8 +286,10 @@ export default function AgentDashboardPage() {
     <SidebarShell role="agent">
       <GlobalBanner />
       <PageHeader
-        title={`مرحباً، ${user.username || "أيها الوكيل"} 👋`}
-        subtitle="لوحة التحكم الرئيسية — الرصيد، اللاعبون، والشحن السريع."
+        title={ta("dashboard_welcome", {
+          name: user.username || t("dashboard_welcome_fallback"),
+        })}
+        subtitle={t("dashboard_subtitle")}
       />
 
       <div className="mt-8 space-y-10">
@@ -297,15 +302,15 @@ export default function AgentDashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-                  رصيد المحفظة
+                  {t("dashboard_wallet_balance")}
                 </p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-white md:text-3xl">
                   {Math.round(home?.walletBalance ?? 0)}{" "}
                   <span className="text-base font-semibold text-white/55">MAD</span>
                 </p>
-                <Link href="/agent/recharge-from-admin" className="mt-4 block">
+                <Link href="/agent/balance-topup-requests" className="mt-4 block">
                   <PrimaryButton type="button" className="w-full">
-                    طلب رصيد
+                    {t("dashboard_request_balance")}
                   </PrimaryButton>
                 </Link>
               </div>
@@ -313,19 +318,19 @@ export default function AgentDashboardPage() {
           </GlassCard>
           <div className="grid gap-6 sm:grid-cols-3 lg:col-span-3">
             <StatCard
-              label="إجمالي اللاعبين"
+              label={t("dashboard_stat_total_players")}
               value={String(home?.stats.totalPlayers ?? 0)}
-              hint="في قائمة لاعبيني"
+              hint={t("dashboard_stat_total_players_hint")}
             />
             <StatCard
-              label="طلبات الارتباط المعلقة"
+              label={t("dashboard_stat_pending_links")}
               value={String(home?.stats.pendingLinkRequests ?? 0)}
-              hint="بانتظار الموافقة"
+              hint={t("dashboard_stat_pending_links_hint")}
             />
             <StatCard
-              label="إجمالي مبيعات اليوم"
+              label={t("dashboard_stat_today_sales")}
               value={`${Math.round(home?.stats.todaySalesDh ?? 0)} MAD`}
-              hint="طلبات مكتملة اليوم"
+              hint={t("dashboard_stat_today_sales_hint")}
             />
           </div>
         </div>
@@ -338,18 +343,15 @@ export default function AgentDashboardPage() {
                 <Link2 className="h-5 w-5" aria-hidden />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">طلبات ربط جديدة</h2>
-                <p className="mt-1 text-sm text-white/50">
-                  آخر 5 لاعبين بانتظار موافقتك (حالة PENDING). اضغط «مراجعة والموافقة» لإظهار نموذج GS365
-                  المنزلق كما في صفحة طلبات الارتباط.
-                </p>
+                <h2 className="text-lg font-semibold text-white">{t("dashboard_new_links_title")}</h2>
+                <p className="mt-1 text-sm text-white/50">{t("dashboard_new_links_body")}</p>
               </div>
             </div>
             <Link
-              href="/agent/requests"
+              href="/agent/add-requests"
               className="shrink-0 text-sm font-medium text-cyan-300 underline-offset-2 hover:text-cyan-200 hover:underline"
             >
-              كل الطلبات ←
+              {t("dashboard_all_requests")}
             </Link>
           </div>
           <div className="mt-8 space-y-5">
@@ -373,7 +375,7 @@ export default function AgentDashboardPage() {
             })}
             {home?.pendingPreview?.length === 0 ? (
               <p className="rounded-xl border border-white/10 bg-white/[0.03] py-8 text-center text-sm text-white/45">
-                لا توجد طلبات معلّقة حالياً.
+                {t("dashboard_no_pending")}
               </p>
             ) : null}
           </div>
@@ -381,15 +383,13 @@ export default function AgentDashboardPage() {
 
         {/* Section 2 */}
         <GlassCard className="p-6 md:p-8">
-          <h2 className="text-lg font-semibold text-cyan-100">بحث سريع وشحن</h2>
-          <p className="mt-1 text-sm text-white/50">
-            ابحث برقم اللاعب (Player ID) أو جزء من اسم المستخدم ضمن قائمتك.
-          </p>
+          <h2 className="text-lg font-semibold text-cyan-100">{t("dashboard_quick_search_title")}</h2>
+          <p className="mt-1 text-sm text-white/50">{t("dashboard_quick_search_body")}</p>
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
             <TextField
               className="pl-10"
-              placeholder="ابحث عن لاعب للشحن السريع..."
+              placeholder={t("dashboard_quick_search_placeholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -397,14 +397,14 @@ export default function AgentDashboardPage() {
           {searchHit &&
           ["APPROVED", "CONNECTED"].includes(String(searchHit.status ?? "").toUpperCase()) ? (
             <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4">
-              <p className="text-xs text-white/50">لاعب مطابق</p>
+              <p className="text-xs text-white/50">{t("dashboard_matched_player")}</p>
               <p className="font-mono text-sm text-cyan-200" dir="ltr">
                 {formatShortPlayerId(searchHit.playerId)}
               </p>
               <p className="mt-1 text-sm text-white/70">
-                GS365:{" "}
+                {t("dashboard_gs365_label")}{" "}
                 <span className="font-medium text-white">
-                  {searchHit.gs365Username || "— (أكمل الموافقة من طلبات الارتباط)"}
+                  {searchHit.gs365Username || t("dashboard_gs365_missing")}
                 </span>
               </p>
               <PrimaryButton
@@ -413,11 +413,11 @@ export default function AgentDashboardPage() {
                 onClick={() => openRecharge(searchHit.playerId)}
                 disabled={!searchHit.gs365Username}
               >
-                شحن
+                {t("dashboard_recharge")}
               </PrimaryButton>
             </div>
           ) : search.trim() ? (
-            <p className="mt-3 text-sm text-amber-200/90">لا يوجد لاعب مطابق في قائمتك أو الرابط غير مكتمل الموافقة.</p>
+            <p className="mt-3 text-sm text-amber-200/90">{t("dashboard_no_match")}</p>
           ) : null}
         </GlassCard>
 
@@ -426,10 +426,8 @@ export default function AgentDashboardPage() {
           <GlassCard className="p-6 md:p-8">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-white">كما يظهر لك في سوق اللاعبين</h2>
-                <p className="mt-1 text-sm text-white/50">
-                  مقتطف من بطاقة «اختر وكيلك» — التقييم بالإعجاب/عدم الإعجاب وسرعة التنفيذ والوسائل.
-                </p>
+                <h2 className="text-lg font-semibold text-white">{t("dashboard_marketplace_title")}</h2>
+                <p className="mt-1 text-sm text-white/50">{t("dashboard_marketplace_body")}</p>
               </div>
               <Link
                 href="/player/select-agent"
@@ -437,7 +435,7 @@ export default function AgentDashboardPage() {
                 rel="noreferrer"
                 className="text-sm font-medium text-cyan-300 underline-offset-2 hover:text-cyan-200 hover:underline"
               >
-                فتح صفحة اختيار الوكيل (تبويب جديد)
+                {t("dashboard_marketplace_open")}
               </Link>
             </div>
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6">
@@ -462,7 +460,7 @@ export default function AgentDashboardPage() {
               </div>
               <div className="mt-5 flex flex-wrap gap-3 md:gap-4">
                 {mp.paymentPills.length === 0 ? (
-                  <span className="text-xs text-white/40">لا توجد وسائل دفع مفعّلة في الإعدادات</span>
+                  <span className="text-xs text-white/40">{t("dashboard_no_payment_methods")}</span>
                 ) : (
                   mp.paymentPills.slice(0, 8).map((p) => (
                     <span
@@ -481,29 +479,29 @@ export default function AgentDashboardPage() {
         {/* Section 3 — شحن سريع */}
         <GlassCard className="overflow-hidden border border-white/[0.06] p-0 shadow-lg shadow-black/25">
           <div className="border-b border-white/10 px-5 py-4 md:px-6">
-            <h2 className="font-semibold text-white">آخر عمليات الشحن السريع</h2>
-            <p className="text-xs text-white/45">آخر 5 عمليات مسجّلة</p>
+            <h2 className="font-semibold text-white">{t("dashboard_recent_recharges_title")}</h2>
+            <p className="text-xs text-white/45">{t("dashboard_recent_recharges_subtitle")}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-[11px] uppercase tracking-wide text-white/40">
-                  <th className="px-4 py-3">التاريخ</th>
-                  <th className="px-4 py-3">المبلغ</th>
-                  <th className="px-4 py-3">معرّف اللاعب</th>
+                  <th className="px-4 py-3">{t("table_date")}</th>
+                  <th className="px-4 py-3">{t("table_amount")}</th>
+                  <th className="px-4 py-3">{t("table_player_id")}</th>
                 </tr>
               </thead>
               <tbody>
                 {(home?.recentRecharges?.length ? home.recentRecharges : []).map((r) => (
                   <tr key={r.id} className="border-b border-white/5 hover:bg-white/[0.03]">
-                    <td className="px-4 py-3 text-white/75">
-                      {new Date(r.createdAt).toLocaleString("ar-MA", {
+                    <td className="px-4 py-3 text-white/75" dir="ltr">
+                      {new Date(r.createdAt).toLocaleString(dateLocale, {
                         dateStyle: "short",
                         timeStyle: "short",
                       })}
                     </td>
-                    <td className="px-4 py-3 font-semibold tabular-nums text-emerald-200">
-                      {Math.round(r.amount)} MAD
+                    <td className="px-4 py-3 font-semibold tabular-nums text-emerald-200" dir="ltr">
+                      {Math.round(r.amount).toLocaleString(dateLocale)} MAD
                     </td>
                     <td className="px-4 py-2 font-mono text-xs text-cyan-200/90" dir="ltr">
                       {r.playerId || "—"}
@@ -513,7 +511,7 @@ export default function AgentDashboardPage() {
                 {home?.recentRecharges?.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="px-4 py-8 text-center text-white/45">
-                      لا توجد عمليات بعد.
+                      {t("dashboard_no_operations")}
                     </td>
                   </tr>
                 ) : null}
@@ -530,11 +528,11 @@ export default function AgentDashboardPage() {
           aria-modal="true"
         >
           <GlassCard className="w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-white">شحن سريع</h3>
+            <h3 className="text-lg font-bold text-white">{t("dashboard_modal_quick_title")}</h3>
             <p className="mt-1 font-mono text-sm text-cyan-200/90" dir="ltr">
               {rechargePlayerId}
             </p>
-            <label className="mt-4 block text-xs text-white/50">المبلغ (MAD)</label>
+            <label className="mt-4 block text-xs text-white/50">{t("dashboard_modal_amount_label")}</label>
             <TextField
               type="number"
               className="mt-1"
@@ -548,14 +546,14 @@ export default function AgentDashboardPage() {
                 disabled={rechargeBusy}
                 onClick={() => void submitRecharge()}
               >
-                {rechargeBusy ? "..." : "تأكيد"}
+                {rechargeBusy ? t("dashboard_modal_busy") : t("dashboard_modal_confirm")}
               </PrimaryButton>
               <button
                 type="button"
                 className="rounded-2xl border border-white/15 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
                 onClick={() => setRechargeOpen(false)}
               >
-                إلغاء
+                {t("dashboard_modal_cancel")}
               </button>
             </div>
           </GlassCard>

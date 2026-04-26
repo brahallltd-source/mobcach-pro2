@@ -117,8 +117,7 @@ export async function POST(req: Request) {
       });
 
       await createNotification({
-        targetRole: "agent",
-        targetId: updated.id,
+        userId: agent.userId,
         title: "Application rejected",
         message: "Your agent application has been rejected.",
       });
@@ -204,8 +203,7 @@ export async function POST(req: Request) {
     });
 
     await createNotification({
-      targetRole: "agent",
-      targetId: result.agent.id,
+      userId: result.user.id,
       title: "Application approved",
       message: "Your agent account is now approved and created.",
     });

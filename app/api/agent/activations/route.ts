@@ -78,11 +78,10 @@ export async function POST(req: Request) {
     const { playerUserId, action } = await req.json();
 
     if (action === "done") {
-      await createNotification({ 
-        targetRole: "player", 
-        targetId: playerUserId, 
-        title: "تم إرسال البيانات", 
-        message: "لقد قام الوكيل بإرسال بيانات دخولك الرسمية." 
+      await createNotification({
+        userId: playerUserId,
+        title: "تم إرسال البيانات",
+        message: "لقد قام الوكيل بإرسال بيانات دخولك الرسمية.",
       });
       return NextResponse.json({ message: "Marked as sent successfully ✅" });
     }
@@ -99,11 +98,10 @@ export async function POST(req: Request) {
       })
     ]);
 
-    await createNotification({ 
-      targetRole: "player", 
-      targetId: playerUserId, 
-      title: "تم تفعيل الحساب", 
-      message: "حسابك الآن نشط ويمكنك البدء في إرسال طلبات الشحن." 
+    await createNotification({
+      userId: playerUserId,
+      title: "تم تفعيل الحساب",
+      message: "حسابك الآن نشط ويمكنك البدء في إرسال طلبات الشحن.",
     });
 
     return NextResponse.json({ 

@@ -13,9 +13,7 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
-    const user = JSON.parse(saved);
-    const target = user.role === "agent" ? (user.agentId || "") : user.id;
-    fetch(`/api/notifications?targetRole=${encodeURIComponent(user.role)}&targetId=${encodeURIComponent(target)}`, { cache: "no-store" })
+    fetch("/api/notifications?for=me&limit=50", { credentials: "include", cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setItems(data.notifications || []))
       .finally(() => setLoading(false));

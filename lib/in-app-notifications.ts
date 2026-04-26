@@ -4,6 +4,55 @@ import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/co
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
+async function activeAdminUserIds(): Promise<string[]> {
+  const prisma = getPrisma();
+  if (!prisma) return [];
+  const admins = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      accountStatus: UserAccountStatus.ACTIVE,
+      frozen: false,
+      OR: [
+        { role: { equals: "ADMIN", mode: "insensitive" } },
+        { role: { equals: "SUPER_ADMIN", mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+  return admins.map((a) => a.id);
+}
+
+/** One in-app row per active admin (replaces legacy `targetRole: admin` + fake `targetId`). */
+export async function notifyAllActiveAdmins(opts: {
+  title: string;
+  message: string;
+  type?: AppNotificationType;
+  link?: string | null;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+
+  const ids = await activeAdminUserIds();
+  const title = localizeNotificationTitle(opts.title);
+  const message = localizeNotificationMessage(opts.message);
+  const type = opts.type ?? "INFO";
+
+  for (const id of ids) {
+    await prisma.notification.create({
+      data: {
+        userId: id,
+        targetRole: "ADMIN",
+        targetId: id,
+        title,
+        message,
+        type,
+        link: opts.link ?? null,
+        read: false,
+      },
+    });
+  }
+}
+
 /** One in-app row per admin user (recipient `userId`) for recharge review. */
 export async function notifyAllAdminsOfNewRechargeRequest(opts: {
   title: string;

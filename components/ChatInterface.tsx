@@ -134,40 +134,38 @@ export function ChatInterface({
     }
   }, [narrow, initialContactId, selectedId]);
 
-  const notifTargetId = role === "player" ? playerEmail ?? "" : agentId ?? "";
-
   const markAllAsRead = useCallback(async () => {
     try {
-      if (!notifTargetId) return;
-      const res = await fetch(
-        `/api/notifications?role=${encodeURIComponent(role)}&targetId=${encodeURIComponent(notifTargetId)}`
-      );
-      const data = await res.json();
-      const unread = (data.notifications || []).filter((n: { read?: boolean }) => !n.read);
-      for (const n of unread) {
-        await fetch("/api/notifications", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: n.id }),
-        });
-      }
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
     } catch {
       /* ignore */
     }
-  }, [notifTargetId, role]);
+  }, []);
 
   const fetchNotifs = useCallback(async () => {
     try {
-      if (!notifTargetId) return;
-      const res = await fetch(
-        `/api/notifications?role=${encodeURIComponent(role)}&targetId=${encodeURIComponent(notifTargetId)}`
-      );
+      const res = await fetch("/api/notifications?for=me&limit=50", {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = await res.json();
-      setNotifications(data.notifications || []);
+      const raw = (data.notifications || []) as Array<{ id: string; read?: boolean; isRead?: boolean; title: string }>;
+      setNotifications(
+        raw.map((n) => ({
+          id: n.id,
+          read: Boolean(n.read ?? n.isRead),
+          title: n.title,
+        }))
+      );
     } catch {
       /* ignore */
     }
-  }, [notifTargetId, role]);
+  }, []);
 
   const loadContacts = useCallback(async () => {
     const listEmail = role === "player" ? playerEmail : agentId;

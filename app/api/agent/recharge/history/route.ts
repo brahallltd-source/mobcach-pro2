@@ -45,6 +45,7 @@ export async function GET() {
         Number.isFinite(stored) && stored > 0
           ? stored
           : Math.floor(Number(r.amount) * 0.1);
+      const affiliate = Number(r.pendingBonusApplied) || 0;
       const methodLabel =
         r.paymentMethod?.methodName?.trim() ||
         r.adminMethodName?.trim() ||
@@ -54,7 +55,8 @@ export async function GET() {
         id: r.id,
         amount: r.amount,
         bonus10: bonus,
-        totalApprox: Number(r.amount) + bonus,
+        invitationAffiliateDh: affiliate,
+        totalApprox: Number(r.amount) + bonus + affiliate,
         methodLabel,
         adminMethodName: r.adminMethodName,
         status: r.status,

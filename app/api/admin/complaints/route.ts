@@ -52,14 +52,21 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. إرسال إشعار للاعب
-    // ملاحظة: كنستعملو الإيميل كـ targetId كيف كان عندك فـ الكود القديم
-    await createNotification({
-      targetRole: "player",
-      targetId: updatedComplaint.playerEmail,
-      title: "تم الرد على شكواك",
-      message: `قام الإدارة بالرد على موضوع: ${updatedComplaint.subject}.`,
+    const playerUser = await prisma.user.findFirst({
+      where: {
+        email: updatedComplaint.playerEmail.trim().toLowerCase(),
+        deletedAt: null,
+        role: { equals: "PLAYER", mode: "insensitive" },
+      },
+      select: { id: true },
     });
+    if (playerUser) {
+      await createNotification({
+        userId: playerUser.id,
+        title: "تم الرد على شكواك",
+        message: `قام الإدارة بالرد على موضوع: ${updatedComplaint.subject}.`,
+      });
+    }
 
     return NextResponse.json({
       success: true,

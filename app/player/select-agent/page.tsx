@@ -5,6 +5,7 @@ import { Clock3, ShieldCheck, WalletCards } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentProfileCard, type AgentProfilePaymentMethod } from "@/components/AgentProfileCard";
 import { GlassCard, LoadingCard, PageHeader, SelectField, SidebarShell, StatCard } from "@/components/ui";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 
 type DiscoveryAgent = {
   agentId: string;
@@ -25,6 +26,7 @@ type DiscoveryAgent = {
 };
 
 export default function PlayerSelectAgentPage() {
+  const tp = usePlayerTx();
   const [user, setUser] = useState<{ email: string; role: string; assignedAgentId?: string } | null>(
     null
   );
@@ -92,7 +94,7 @@ export default function PlayerSelectAgentPage() {
           body: JSON.stringify({ playerEmail: email, agentId }),
         });
         const data = (await res.json()) as { message?: string; user?: unknown };
-        if (!res.ok) throw new Error(data.message || "تعذر الربط بالوكيل");
+        if (!res.ok) throw new Error(data.message || tp("selectAgent.joinFailed"));
         const me = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" }).then((r) => r.json());
         if (me.success && me.user) {
           localStorage.setItem("mobcash_user", JSON.stringify(me.user));
@@ -101,37 +103,38 @@ export default function PlayerSelectAgentPage() {
         }
         window.location.href = "/player/dashboard";
       } catch (e) {
-        alert(e instanceof Error ? e.message : "خطأ غير متوقع");
+        alert(e instanceof Error ? e.message : tp("selectAgent.unexpectedError"));
       } finally {
         setJoiningId(null);
       }
     },
-    [user?.email]
+    [user?.email, tp]
   );
 
   if (loading && !user) {
     return (
       <SidebarShell role="player">
-        <LoadingCard text="جاري التحميل..." />
+        <LoadingCard text={tp("selectAgent.loading")} />
       </SidebarShell>
     );
   }
 
   return (
     <SidebarShell role="player">
-      <PageHeader
-        title="اختر وكيلك"
-        subtitle="قارن التقييم ووسائل الدفع، ثم اضغط «انضم الآن» لربط حسابك بالوكيل."
-      />
+      <PageHeader title={tp("selectAgent.pageTitle")} subtitle={tp("selectAgent.pageSubtitle")} />
 
       <div className="mb-6 grid gap-3 md:grid-cols-3">
-        <StatCard label="متاح" value={String(agents.length)} icon={<ShieldCheck className="text-cyan-400" />} />
+        <StatCard label={tp("selectAgent.statAvailable")} value={String(agents.length)} icon={<ShieldCheck className="text-cyan-400" />} />
         <StatCard
-          label="طرق الدفع"
+          label={tp("selectAgent.statMethods")}
           value={String(Math.max(0, availableMethods.length - 1))}
           icon={<WalletCards className="text-emerald-400" />}
         />
-        <StatCard label="تصفية" value="نشطة" icon={<Clock3 className="text-amber-400" />} />
+        <StatCard
+          label={tp("selectAgent.statFilter")}
+          value={tp("selectAgent.statFilterActive")}
+          icon={<Clock3 className="text-amber-400" />}
+        />
       </div>
 
       <GlassCard className="mb-6 p-4">
@@ -142,20 +145,20 @@ export default function PlayerSelectAgentPage() {
           <SelectField value={method} onChange={(e) => setMethod(e.target.value)}>
             {availableMethods.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {m === "All" ? tp("selectAgent.filterAll") : m}
               </option>
             ))}
           </SelectField>
           <input
             type="number"
-            placeholder="Min amount"
+            placeholder={tp("selectAgent.placeholderMinAmount")}
             className="rounded-2xl border border-white/10 bg-background px-4 py-3 text-sm text-white"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
           <input
             type="number"
-            placeholder="Max response (min)"
+            placeholder={tp("selectAgent.placeholderMaxResponse")}
             className="rounded-2xl border border-white/10 bg-background px-4 py-3 text-sm text-white"
             value={time}
             onChange={(e) => setTime(e.target.value)}
@@ -164,12 +167,12 @@ export default function PlayerSelectAgentPage() {
       </GlassCard>
 
       {loading ? (
-        <LoadingCard text="جاري البحث عن أفضل الوكلاء..." />
+        <LoadingCard text={tp("selectAgent.searching")} />
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {agents.length === 0 ? (
             <GlassCard className="p-10 text-center text-white/50 md:col-span-2 xl:col-span-3">
-              لا يوجد وكلاء متاحون حالياً بهذه الفلاتر.
+              {tp("selectAgent.empty")}
             </GlassCard>
           ) : (
             agents.map((agent) => (
@@ -186,7 +189,7 @@ export default function PlayerSelectAgentPage() {
                     rating: agent.rating_percent,
                     paymentMethods: agent.paymentMethods,
                   }}
-                  headerLabel="وكيل متاح"
+                  headerLabel={tp("selectAgent.availableAgentCard")}
                   actionType="join"
                   onAction={() => void handleJoin(agent.agentId)}
                 />

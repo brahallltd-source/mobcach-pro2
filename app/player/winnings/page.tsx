@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { useEffect, useMemo, useState } from "react";
 // 🟢 المسمار: استعملنا المحرك الجديد والترجمة
 import { useTranslation } from "@/lib/i18n";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 import {
   GlassCard,
   LoadingCard,
@@ -24,7 +25,8 @@ type WinningOrder = { id: string; amount: number; gosport365_username?: string; 
 type WithdrawalItem = { id: string; amount: number; method: string; status: string; created_at?: string; cashProvider?: string; gosportUsername?: string };
 
 export default function PlayerWinningsPage() {
-  const { t } = useTranslation(); // 🟢 تفعيل الترجمة
+  const { t } = useTranslation();
+  const tp = usePlayerTx();
   const [user, setUser] = useState<User | null>(null);
   const [winning, setWinning] = useState<WinningOrder | null>(null);
   const [history, setHistory] = useState<WithdrawalItem[]>([]);
@@ -60,7 +62,7 @@ export default function PlayerWinningsPage() {
       };
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-          toast.error("تعذّر التحقق من الجلسة. حدّث الصفحة.");
+          toast.error(tp("winnings.sessionError"));
         }
         setWinning(null);
         setHistory([]);
@@ -115,12 +117,14 @@ export default function PlayerWinningsPage() {
     // التحققات (Validation)
     if (!amount || amount <= 0) return toast.error(t("enterAmount"));
     if (!form.gosportUsername.trim() || form.gosportUsername !== form.gosportUsernameConfirm) return toast.error(t("confirmGosportUsername"));
-    if (!form.gosportPassword.trim() || form.gosportPassword !== form.gosportPasswordConfirm) return toast.error("Check GoSport password");
+    if (!form.gosportPassword.trim() || form.gosportPassword !== form.gosportPasswordConfirm) {
+      return toast.error(tp("winnings.checkPassword"));
+    }
 
     if (method === "bank") {
-      if (!form.rib.trim() || form.rib !== form.ribConfirm) return toast.error("Check RIB confirmation");
+      if (!form.rib.trim() || form.rib !== form.ribConfirm) return toast.error(tp("winnings.checkRib"));
     } else {
-      if (!form.fullName.trim() || !form.phone.trim()) return toast.error("Receiver details required");
+      if (!form.fullName.trim() || !form.phone.trim()) return toast.error(tp("winnings.receiverRequired"));
     }
 
     try {
@@ -150,7 +154,7 @@ export default function PlayerWinningsPage() {
       await load();
       setForm(prev => ({ ...prev, amount: "", gosportPassword: "", gosportPasswordConfirm: "" }));
     } catch (err: any) {
-      toast.error(err.message || "Failed to submit");
+      toast.error(err.message || tp("winnings.submitFailed"));
     } finally {
       setSaving(false);
     }
@@ -168,7 +172,9 @@ export default function PlayerWinningsPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Card className="border-primary/25 bg-white/[0.04] shadow-xl backdrop-blur-md">
           <CardContent className="space-y-2 py-6">
-            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">الرصيد المتاح</p>
+            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45 text-balance">
+              {tp("winnings.availableBalance")}
+            </p>
             <p className="text-center text-4xl font-black tabular-nums text-white">
               {winning?.amount || 0}
               <span className="ms-2 text-xl font-semibold text-white/50">DH</span>
@@ -178,12 +184,14 @@ export default function PlayerWinningsPage() {
         </Card>
         <Card className="border-primary/25 bg-white/[0.04] shadow-xl backdrop-blur-md">
           <CardContent className="flex flex-col justify-center gap-2 py-6">
-            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">حالة الطلب</p>
-            <p className="text-center text-2xl font-bold text-white">
-              {pendingRequest ? t("processing") : "جاهز للإرسال"}
+            <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45 text-balance">
+              {tp("winnings.requestStatus")}
             </p>
-            <p className="text-center text-xs text-white/40">
-              {pendingRequest ? "طلبك قيد المراجعة لدى الإدارة" : "يمكنك تقديم طلب جديد"}
+            <p className="text-center text-2xl font-bold text-white">
+              {pendingRequest ? t("processing") : tp("winnings.readyToSend")}
+            </p>
+            <p className="text-center text-xs text-white/40 text-balance">
+              {pendingRequest ? tp("winnings.pendingCaption") : tp("winnings.canSubmitNew")}
             </p>
           </CardContent>
         </Card>
@@ -191,7 +199,7 @@ export default function PlayerWinningsPage() {
           <CardContent className="flex flex-col justify-center gap-2 py-6">
             <p className="text-center text-xs font-semibold uppercase tracking-wider text-white/45">تاريخ العمليات</p>
             <p className="text-center text-3xl font-black tabular-nums text-white">{String(history.length)}</p>
-            <p className="text-center text-xs text-white/40">عدد طلبات السحب السابقة</p>
+            <p className="text-center text-xs text-white/40 text-balance">{tp("winnings.historyCountCaption")}</p>
           </CardContent>
         </Card>
       </div>
@@ -207,7 +215,7 @@ export default function PlayerWinningsPage() {
                 type="number"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                placeholder="أدخل مبلغ الربح الذي تريد سحبه"
+                placeholder={tp("winnings.amountPlaceholder")}
               />
             </div>
 
@@ -229,7 +237,7 @@ export default function PlayerWinningsPage() {
                 type="password"
                 value={form.gosportPassword}
                 onChange={(e) => setForm({ ...form, gosportPassword: e.target.value })}
-                placeholder="GoSport365 Password"
+                placeholder={tp("winnings.gosportPassword")}
               />
               <TextField
                 type="password"
@@ -249,8 +257,8 @@ export default function PlayerWinningsPage() {
                   method === "bank" && "border-cyan-400/55 bg-cyan-500/15 shadow-lg ring-2 ring-cyan-400/35"
                 )}
               >
-                <span className="text-base font-bold text-white">تحويل بنكي</span>
-                <span className="text-xs font-normal text-white/50">RIB / SWIFT</span>
+                <span className="text-base font-bold text-white">{tp("winnings.bankTransfer")}</span>
+                <span className="text-xs font-normal text-white/50">{tp("winnings.bankTransferHint")}</span>
               </Button>
               <Button
                 type="button"
@@ -261,8 +269,8 @@ export default function PlayerWinningsPage() {
                   method === "cash" && "border-cyan-400/55 bg-cyan-500/15 shadow-lg ring-2 ring-cyan-400/35"
                 )}
               >
-                <span className="text-base font-bold text-white">سحب نقدي (Cash)</span>
-                <span className="text-xs font-normal text-white/50">وكالات تحويل الأموال</span>
+                <span className="text-base font-bold text-white">{tp("winnings.cashWithdraw")}</span>
+                <span className="text-xs font-normal text-white/50">{tp("winnings.cashWithdrawHint")}</span>
               </Button>
             </div>
 
@@ -278,14 +286,26 @@ export default function PlayerWinningsPage() {
                   <option>Cash Plus</option>
                   <option>Wafacash</option>
                 </SelectField>
-                <TextField value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Full Name" />
-                <TextField value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" />
-                <TextField value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" />
+                <TextField
+                  value={form.fullName}
+                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  placeholder={tp("winnings.fullName")}
+                />
+                <TextField
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder={tp("winnings.phone")}
+                />
+                <TextField
+                  value={form.city}
+                  onChange={(e) => setForm({ ...form, city: e.target.value })}
+                  placeholder={tp("winnings.city")}
+                />
               </div>
             )}
 
             <PrimaryButton onClick={submit} disabled={saving} className="w-full">
-              {saving ? t("processing") : "إرسال تصريح بالربح للآدمين"}
+              {saving ? t("processing") : tp("winnings.submitCta")}
             </PrimaryButton>
           </div>
         </GlassCard>

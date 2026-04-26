@@ -22,8 +22,7 @@ export default function AgentNotificationsPage() {
     void (async () => {
       const u = await requireMobcashUserOnClient("agent");
       if (!u) return void redirectToLogin();
-      const target = String((u as { agentId?: string }).agentId || u.id);
-      fetch(`/api/notifications?targetRole=agent&targetId=${encodeURIComponent(target)}`, { cache: "no-store" })
+      fetch("/api/notifications?for=me&limit=50", { credentials: "include", cache: "no-store" })
         .then((res) => res.json())
         .then((data) => setItems(data.notifications || []))
         .finally(() => setLoading(false));

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -70,15 +70,16 @@ export async function POST(req: Request) {
       return order;
     });
 
-    // 3. إشعار الوكيل (ضروري تستعمل await باش تضمن الوصول)
-    await createNotification({
-      targetRole: "agent",
-      targetId: result.agentId,
-      title: isDuplicate ? "🚩 Duplicate Proof Detected" : "Proof Uploaded",
-      message: isDuplicate 
-        ? `Order ${orderId.split('-')[0]} flagged for duplicate proof!`
-        : `Player uploaded proof for order ${orderId.split('-')[0]}.`,
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(result.agentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: isDuplicate ? "🚩 Duplicate Proof Detected" : "Proof Uploaded",
+        message: isDuplicate
+          ? `Order ${orderId.split("-")[0]} flagged for duplicate proof!`
+          : `Player uploaded proof for order ${orderId.split("-")[0]}.`,
+      });
+    }
 
     return NextResponse.json({
       success: true,

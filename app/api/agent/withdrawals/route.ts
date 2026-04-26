@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 import { createNotification } from "@/lib/notifications";
+import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,25 +79,19 @@ export async function POST(req: Request) {
     // ج. نظام الإشعارات
     if (action === "approve") {
       // إشعار للآدمين باش يدير الفيرمان
-      await createNotification({
-        targetRole: "admin",
-        targetId: "admin",
+      await notifyAllActiveAdmins({
         title: "طلب سحب مؤكد من وكيل ✅",
         message: `الوكيل أكد طلب السحب الخاص بـ ${withdrawal.playerEmail}. المبلغ: ${withdrawal.amount} DH.`,
       });
 
-      // إشعار للاعب
       await createNotification({
-        targetRole: "player",
-        targetId: withdrawal.player.userId,
+        userId: withdrawal.player.userId,
         title: "تم تأكيد طلبك من الوكيل",
         message: "تمت الموافقة على طلبك، الإدارة الآن بصدد تحويل المبلغ إليك.",
       });
     } else {
-      // إشعار للاعب فـ حالة الرفض
       await createNotification({
-        targetRole: "player",
-        targetId: withdrawal.player.userId,
+        userId: withdrawal.player.userId,
         title: "تم رفض طلب السحب ❌",
         message: "نعتذر، تم رفض طلبك من طرف الوكيل. يرجى مراجعة التفاصيل والمحاولة مرة أخرى.",
       });

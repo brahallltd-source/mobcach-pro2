@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileText, MessageCircle, Search, UserCheck, UserPlus, Users } from "lucide-react";
-import { SidebarShell, GlassCard, PageHeader, LoadingCard, StatCard } from "@/components/ui";
+import { SidebarShell, GlassCard, PageHeader, LoadingCard, StatCard, DangerButton } from "@/components/ui";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
+import { useAgentTranslation } from "@/hooks/useTranslation";
 
 type PlayerRow = {
   id: string;
@@ -26,9 +27,11 @@ function waMeUrlForPhone(phone: string | undefined) {
 }
 
 export default function MyPlayersPage() {
+  const { t, am } = useAgentTranslation();
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPlayers = async () => {
@@ -58,6 +61,25 @@ export default function MyPlayersPage() {
     void loadPlayers();
   }, []);
 
+  const removePlayer = async (playerId: string) => {
+    if (!window.confirm(t("my_players_remove_confirm"))) return;
+    setRemovingId(playerId);
+    try {
+      const res = await fetch(`/api/agent/my-players/${encodeURIComponent(playerId)}/unlink`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        window.alert(data.message || t("my_players_remove_error"));
+        return;
+      }
+      setPlayers((prev) => prev.filter((p) => p.id !== playerId));
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   const filtered = players.filter(
     (p) =>
       p.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -67,36 +89,36 @@ export default function MyPlayersPage() {
   if (loading) {
     return (
       <SidebarShell role="agent">
-        <LoadingCard text="جاري جلب قائمة لاعبيك..." />
+        <LoadingCard text={t("my_players_loading")} />
       </SidebarShell>
     );
   }
 
   return (
     <SidebarShell role="agent">
-      <PageHeader title="قائمة لاعبيّ" subtitle="هنا تجد جميع اللاعبين المرتبطين بحسابك." />
+      <PageHeader title={t("my_players_title")} subtitle={t("my_players_subtitle")} />
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <StatCard label="إجمالي اللاعبين" value={String(players.length)} icon={<Users className="text-cyan-400" />} />
+        <StatCard label={t("my_players_stat_total")} value={String(players.length)} icon={<Users className="text-cyan-400" />} />
         <StatCard
-          label="النشطون"
+          label={am("stats.active_players")}
           value={String(players.filter((p) => p.status === "active").length)}
           icon={<UserCheck className="text-emerald-400" />}
         />
         <StatCard
-          label="آخر الانضمامات"
-          value={players.length > 0 ? "اليوم" : "لا يوجد"}
+          label={t("my_players_stat_recent")}
+          value={players.length > 0 ? t("my_players_stat_today") : t("my_players_stat_none")}
           icon={<UserPlus className="text-amber-400" />}
         />
       </div>
 
       <GlassCard className="mb-6 p-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-white/30" />
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-[18px] -translate-y-1/2 text-white/30" />
           <input
             type="text"
-            placeholder="بحث بالإيميل أو اسم المستخدم..."
-            className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-white outline-none transition-all placeholder:text-white/35 focus:border-cyan-500/50"
+            placeholder={t("my_players_search_placeholder")}
+            className="w-full rounded-xl border border-white/10 bg-white/5 py-3 ps-10 pe-4 text-white outline-none transition-all placeholder:text-white/35 focus:border-cyan-500/50"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -122,27 +144,35 @@ export default function MyPlayersPage() {
 
               <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <div className="hidden text-right md:block">
-                  <p className="text-[10px] uppercase text-white/30">الحالة</p>
+                  <p className="text-[10px] uppercase text-white/30">{t("my_players_status")}</p>
                   <span
                     className={`text-[11px] font-bold ${
                       player.status === "active" ? "text-emerald-400" : "text-amber-400"
                     }`}
                   >
-                    {player.status === "active" ? "نشط" : "معلق"}
+                    {player.status === "active" ? t("my_players_status_active") : t("my_players_status_pending")}
                   </span>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <DangerButton
+                    type="button"
+                    className="border-rose-500/50 bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.35)] hover:bg-rose-500/25"
+                    disabled={removingId === player.id}
+                    onClick={() => void removePlayer(player.id)}
+                  >
+                    {removingId === player.id ? t("my_players_remove_busy") : t("my_players_remove")}
+                  </DangerButton>
                   <Link
                     href={`/agent/my-players/${player.id}/orders`}
-                    title="الفواتير والطلبات"
+                    title={t("my_players_link_orders")}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-white/10 hover:text-cyan-200"
                   >
                     <FileText className="size-[18px]" />
                   </Link>
                   <Link
                     href={`/agent/chat?playerEmail=${encodeURIComponent(player.email)}`}
-                    title="محادثة داخلية"
+                    title={t("my_players_link_chat")}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-white/10 hover:text-cyan-200"
                   >
                     <MessageCircle className="size-[18px]" />
@@ -151,7 +181,7 @@ export default function MyPlayersPage() {
                     href={waMeUrlForPhone(player.phone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="واتساب"
+                    title={t("my_players_link_whatsapp")}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-200 transition hover:bg-emerald-500/20"
                   >
                     <svg className="size-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -163,7 +193,7 @@ export default function MyPlayersPage() {
             </GlassCard>
           ))
         ) : (
-          <div className="py-20 text-center italic opacity-40">لا يوجد لاعبون حالياً.</div>
+          <div className="py-20 text-center italic opacity-40">{t("my_players_empty")}</div>
         )}
       </div>
     </SidebarShell>

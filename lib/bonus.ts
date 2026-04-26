@@ -1,5 +1,6 @@
+import type { Prisma } from "@prisma/client";
 import { getPrisma } from "./db";
-import { createNotification } from "./notifications";
+import { createNotification, getAgentUserIdByAgentProfileId } from "./notifications";
 
 export const BONUS_LEVELS = [
   { level: 1, target: 5000, reward: 100 },
@@ -54,12 +55,14 @@ export async function recordOrderActivity(agentId: string, amount: number, order
 
   // إشعار إذا وصلت الطاقة للحد الأقصى
   if (profile.energy >= ENERGY_TARGET) {
-    await createNotification({
-      targetRole: "agent",
-      targetId: agentId,
-      title: "Energy reward ready",
-      message: `وصلت طاقتك إلى ${ENERGY_TARGET}. يمكنك الآن تفعيل مكافأتك!`,
-    });
+    const agentUserId = await getAgentUserIdByAgentProfileId(agentId);
+    if (agentUserId) {
+      await createNotification({
+        userId: agentUserId,
+        title: "Energy reward ready",
+        message: `وصلت طاقتك إلى ${ENERGY_TARGET}. يمكنك الآن تفعيل مكافأتك!`,
+      });
+    }
   }
 
   return profile;
@@ -124,33 +127,48 @@ export async function unlockEnergyReward(agentId: string) {
 }
 
 /**
- * 5. تطبيق المكافآت المعلقة عند الشحن
+ * Apply energy/level `PendingBonus` rows inside an existing Prisma transaction (wallet recharge approval).
+ */
+export async function applyPendingBonusesToRechargeInTransaction(
+  tx: Prisma.TransactionClient,
+  agentId: string,
+  adminEmail: string
+): Promise<{ totalApplied: number; count: number }> {
+  const pendingRewards = await tx.pendingBonus.findMany({
+    where: { agentId, status: "pending" },
+  });
+
+  if (pendingRewards.length === 0) return { totalApplied: 0, count: 0 };
+
+  const totalApplied = pendingRewards.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+  await tx.pendingBonus.updateMany({
+    where: { id: { in: pendingRewards.map((r) => r.id) } },
+    data: {
+      status: "applied",
+      appliedAt: new Date(),
+      meta: { adminEmail } as object,
+    },
+  });
+
+  await tx.agentBonusProfile.update({
+    where: { agentId },
+    data: { pendingBonus: 0 },
+  });
+
+  return { totalApplied, count: pendingRewards.length };
+}
+
+/**
+ * 5. تطبيق المكافآت المعلقة عند الشحن (standalone transaction).
  */
 export async function applyPendingBonusesToRecharge(agentId: string, adminEmail: string) {
   const prisma = getPrisma();
-  
-  const pendingRewards = await prisma.pendingBonus.findMany({
-    where: { agentId, status: "pending" }
-  });
+  if (!prisma) return { totalApplied: 0, count: 0 };
 
-  if (pendingRewards.length === 0) return { totalApplied: 0 };
-
-  const totalApplied = pendingRewards.reduce((sum, r) => sum + r.amount, 0);
-
-  await prisma.$transaction([
-    // تحديث حالة المكافآت
-    prisma.pendingBonus.updateMany({
-      where: { id: { in: pendingRewards.map(r => r.id) } },
-      data: { status: "applied", appliedAt: new Date(), meta: { adminEmail } }
-    }),
-    // تصفير عداد البونيس المعلق في البروفايل
-    prisma.agentBonusProfile.update({
-      where: { agentId },
-      data: { pendingBonus: 0 }
-    })
-  ]);
-
-  return { totalApplied, count: pendingRewards.length };
+  return prisma.$transaction((tx) =>
+    applyPendingBonusesToRechargeInTransaction(tx, agentId, adminEmail)
+  );
 }
 
 

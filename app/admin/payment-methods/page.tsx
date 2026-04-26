@@ -15,7 +15,7 @@ import {
 } from "@/components/ui";
 import { formatApiError } from "@/lib/format-api-error";
 import { ADMIN_BANK_METHOD_OPTIONS, ADMIN_CASH_METHOD_OPTIONS } from "@/lib/constants/payment-methods";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 type Method = {
   id: string;

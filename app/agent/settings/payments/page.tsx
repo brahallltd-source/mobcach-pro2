@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useForm, useWatch, type FieldErrors } from "react-hook-form";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import {
   GlassCard,
   LoadingCard,

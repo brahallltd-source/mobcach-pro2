@@ -1,8 +1,15 @@
 import "./globals.css";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
+import { Tajawal } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
-import { ToastProvider } from "@/components/toast";
+
+const tajawal = Tajawal({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "700", "800"],
+  variable: "--font-tajawal",
+  display: "swap",
+});
 import { Toaster } from "sonner";
 import { BrandingStyleVars } from "@/components/BrandingStyleVars";
 import { getRootBranding } from "@/lib/root-branding";
@@ -12,6 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: b.platformName,
     description: "Modern recharge workflow for players, agents and admins",
+    manifest: "/manifest.json",
     ...(b.faviconUrl
       ? {
           icons: {
@@ -29,7 +37,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   } as CSSProperties;
 
   return (
-    <html lang="fr" suppressHydrationWarning className="min-h-screen bg-[#0B0F19]" style={htmlStyle}>
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`min-h-screen bg-[#0B0F19] ${tajawal.variable}`}
+      style={htmlStyle}
+    >
       <body className="relative min-h-screen overflow-x-hidden bg-[#0B0F19] text-white">
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
           <div className="absolute -left-[20%] top-[-15%] h-[min(70vh,640px)] w-[min(95vw,920px)] rounded-full bg-primary/10 blur-[120px]" />
@@ -39,10 +52,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <BrandingStyleVars primaryColor={b.primaryColor} />
         <div className="relative z-0">
           <LanguageProvider>
-            <ToastProvider>
-              <Toaster richColors position="top-center" closeButton />
-              {children}
-            </ToastProvider>
+            <Toaster richColors position="top-center" closeButton />
+            {children}
           </LanguageProvider>
         </div>
       </body>

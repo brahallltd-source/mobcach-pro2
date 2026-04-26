@@ -78,9 +78,8 @@ export async function POST(req: Request) {
       return updatedUser;
     });
 
-    createNotification({
-      targetRole: "player",
-      targetId: updated.id,
+    await createNotification({
+      userId: updated.id,
       title: "Agent unlinked",
       message: "You can now choose another agent.",
     });
