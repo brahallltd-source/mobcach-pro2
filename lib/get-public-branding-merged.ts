@@ -50,6 +50,8 @@ export type BrandingSysSlice = {
   /** Optional until DB row is migrated; manifest falls back to empty icons. */
   pwaIcon192?: string | null;
   pwaIcon512?: string | null;
+  pwaThemeColor?: string | null;
+  pwaBgColor?: string | null;
 };
 
 function parseMarketingFromMeta(meta: unknown): Record<string, unknown> | null {
@@ -102,6 +104,8 @@ export function mergePublicBranding(sys: BrandingSysSlice, marketing: Normalized
     faviconUrl: String(sys.faviconUrl ?? "").trim(),
     pwaIcon192: String(sys.pwaIcon192 ?? "").trim(),
     pwaIcon512: String(sys.pwaIcon512 ?? "").trim(),
+    pwaThemeColor: normalizeHexColor(String(sys.pwaThemeColor ?? ""), DEFAULT_PRIMARY),
+    pwaBgColor: normalizeHexColor(String(sys.pwaBgColor ?? ""), DEFAULT_PRIMARY),
     brandName: sys.platformName || marketing.brandName,
     logoUrl: logoFromSys || logoFromMarketing,
   };
@@ -119,6 +123,8 @@ export async function getPublicBrandingMerged() {
         faviconUrl: null,
         pwaIcon192: null,
         pwaIcon512: null,
+        pwaThemeColor: DEFAULT_PRIMARY,
+        pwaBgColor: DEFAULT_PRIMARY,
       },
       { ...defaultMarketingBranding } as NormalizedMarketing
     );
@@ -137,6 +143,8 @@ export async function getPublicBrandingMerged() {
         faviconUrl: null,
         pwaIcon192: null,
         pwaIcon512: null,
+        pwaThemeColor: DEFAULT_PRIMARY,
+        pwaBgColor: DEFAULT_PRIMARY,
       },
       { ...defaultMarketingBranding } as NormalizedMarketing
     );

@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/db";
 import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/constants/i18n";
+import { sendPushNotification } from "@/lib/web-push";
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
@@ -45,7 +46,7 @@ export async function createNotification(payload: {
   const message = localizeNotificationMessage(payload.message);
   const targetRole = normalizeTargetRole(String(user.role));
 
-  return prisma.notification.create({
+  const created = await prisma.notification.create({
     data: {
       title,
       message,
@@ -57,4 +58,13 @@ export async function createNotification(payload: {
       link: payload.link ?? null,
     },
   });
+
+  const link = payload.link ?? undefined;
+  void sendPushNotification(user.id, {
+    title,
+    message,
+    ...(link ? { url: link } : {}),
+  });
+
+  return created;
 }

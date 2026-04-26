@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 
@@ -196,6 +197,28 @@ export async function POST(req: Request) {
         message: `Agent rejected the order. Reason: ${rejectReason}`,
       },
     });
+
+    try {
+      const playerUser = await prisma.user.findFirst({
+        where: {
+          email: order.playerEmail.trim().toLowerCase(),
+          deletedAt: null,
+          role: { equals: "PLAYER", mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (playerUser) {
+        await createNotification({
+          userId: playerUser.id,
+          title: "Your order was rejected",
+          message: `Your order was rejected. Reason: ${rejectReason}`,
+          type: "ALERT",
+          link: "/player/orders",
+        });
+      }
+    } catch (e) {
+      console.warn("Order reject notification:", e);
+    }
 
     return NextResponse.json({
       message: "Order rejected successfully",

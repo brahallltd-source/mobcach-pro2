@@ -27,6 +27,8 @@ type VisualBranding = {
   faviconUrl: string;
   pwaIcon192: string;
   pwaIcon512: string;
+  pwaThemeColor: string;
+  pwaBgColor: string;
 };
 
 type SocialBranding = {
@@ -58,6 +60,8 @@ export default function AdminBrandingPage() {
     faviconUrl: "",
     pwaIcon192: "",
     pwaIcon512: "",
+    pwaThemeColor: DEFAULT_PRIMARY,
+    pwaBgColor: DEFAULT_PRIMARY,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,6 +101,8 @@ export default function AdminBrandingPage() {
           faviconUrl: String(b.faviconUrl ?? ""),
           pwaIcon192: String(b.pwaIcon192 ?? ""),
           pwaIcon512: String(b.pwaIcon512 ?? ""),
+          pwaThemeColor: String(b.pwaThemeColor ?? DEFAULT_PRIMARY),
+          pwaBgColor: String(b.pwaBgColor ?? DEFAULT_PRIMARY),
         });
       }
     } catch {
@@ -212,6 +218,8 @@ export default function AdminBrandingPage() {
           faviconUrl: form.faviconUrl.trim() || null,
           pwaIcon192: form.pwaIcon192.trim() || null,
           pwaIcon512: form.pwaIcon512.trim() || null,
+          pwaThemeColor: form.pwaThemeColor.trim(),
+          pwaBgColor: form.pwaBgColor.trim(),
         }),
       });
       const data = await res.json();
@@ -224,6 +232,8 @@ export default function AdminBrandingPage() {
           faviconUrl: String(data.branding.faviconUrl ?? ""),
           pwaIcon192: String(data.branding.pwaIcon192 ?? ""),
           pwaIcon512: String(data.branding.pwaIcon512 ?? ""),
+          pwaThemeColor: String(data.branding.pwaThemeColor ?? DEFAULT_PRIMARY),
+          pwaBgColor: String(data.branding.pwaBgColor ?? DEFAULT_PRIMARY),
         });
       }
       setMessage("Saved. Theme updates apply site-wide after refresh.");
@@ -363,16 +373,22 @@ export default function AdminBrandingPage() {
               </div>
             </GlassCard>
 
-            <GlassCard className="space-y-5 p-6 md:p-8">
-              <h2 className="text-lg font-semibold text-white">PWA &amp; mobile app icons</h2>
-              <p className="text-sm text-white/50">
-                Used by <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">/manifest.json</code> for install
-                prompts and splash screens. Only PNG is accepted.
-              </p>
+            <GlassCard className="space-y-6 border-primary/20 bg-gradient-to-b from-white/[0.06] to-black/20 p-6 md:p-8 ring-1 ring-primary/15">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-white">PWA &amp; Mobile App Settings</h2>
+                <p className="mt-1 text-base font-medium text-primary" dir="rtl">
+                  إعدادات التطبيق والهاتف
+                </p>
+                <p className="mt-2 text-sm text-white/55">
+                  Install prompt, home screen icon, and splash appearance. Icons must be PNG. The live Web App Manifest
+                  is generated from these settings (defaults apply when a field is empty).
+                </p>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">PWA icon (192×192)</p>
-                  <p className="mt-1 text-xs text-white/40">Required for mobile home screen (PNG, 192×192px).</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">Home Screen Icon</p>
+                  <p className="mt-1 text-sm font-medium text-white/80">192×192 PNG</p>
+                  <p className="mt-1 text-xs text-white/40">Shown on the device home screen after install.</p>
                   {form.pwaIcon192 ? (
                     <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-white/5 p-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -403,8 +419,9 @@ export default function AdminBrandingPage() {
                   />
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">PWA icon (512×512)</p>
-                  <p className="mt-1 text-xs text-white/40">Required for splash screen (PNG, 512×512px).</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-white/50">Splash Screen Icon</p>
+                  <p className="mt-1 text-sm font-medium text-white/80">512×512 PNG</p>
+                  <p className="mt-1 text-xs text-white/40">High-resolution asset for splash / maskable contexts.</p>
                   {form.pwaIcon512 ? (
                     <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-white/5 p-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -433,6 +450,51 @@ export default function AdminBrandingPage() {
                       e.target.value = "";
                     }}
                   />
+                </div>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/50">
+                    Theme color
+                  </label>
+                  <p className="text-xs text-white/45">Controls the mobile status bar and browser chrome tint.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="color"
+                      aria-label="PWA theme color"
+                      value={/^#[0-9A-Fa-f]{6}$/i.test(form.pwaThemeColor) ? form.pwaThemeColor : DEFAULT_PRIMARY}
+                      onChange={(e) => setForm((f) => ({ ...f, pwaThemeColor: e.target.value }))}
+                      className="h-12 w-14 cursor-pointer overflow-hidden rounded-xl border border-white/15 bg-black/30 p-1"
+                    />
+                    <TextField
+                      className="min-w-[10rem] flex-1 font-mono text-sm"
+                      placeholder="#0f172a"
+                      value={form.pwaThemeColor}
+                      onChange={(e) => setForm((f) => ({ ...f, pwaThemeColor: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/50">
+                    Background color
+                  </label>
+                  <p className="text-xs text-white/45">Splash screen background while the app loads.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="color"
+                      aria-label="PWA background color"
+                      value={/^#[0-9A-Fa-f]{6}$/i.test(form.pwaBgColor) ? form.pwaBgColor : DEFAULT_PRIMARY}
+                      onChange={(e) => setForm((f) => ({ ...f, pwaBgColor: e.target.value }))}
+                      className="h-12 w-14 cursor-pointer overflow-hidden rounded-xl border border-white/15 bg-black/30 p-1"
+                    />
+                    <TextField
+                      className="min-w-[10rem] flex-1 font-mono text-sm"
+                      placeholder="#0f172a"
+                      value={form.pwaBgColor}
+                      onChange={(e) => setForm((f) => ({ ...f, pwaBgColor: e.target.value }))}
+                    />
+                  </div>
                 </div>
               </div>
             </GlassCard>

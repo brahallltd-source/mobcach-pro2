@@ -176,6 +176,17 @@ export async function POST(req: Request) {
     });
 
     if (result.mode === "rejected") {
+      try {
+        await createNotification({
+          userId: application.userId,
+          title: "Application rejected",
+          message: "Your agent application has been rejected.",
+          type: "ALERT",
+          link: "/player/profile",
+        });
+      } catch (e) {
+        console.warn("Agent application reject notification:", e);
+      }
       return NextResponse.json({ success: true, message: "Agent application rejected successfully" });
     }
 

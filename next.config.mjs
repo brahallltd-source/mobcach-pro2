@@ -1,3 +1,14 @@
+import withPWAInit from "@ducanh2912/next-pwa";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  customWorkerSrc: "worker",
+  /** Precache + front-end nav cache can surprise auth-heavy apps; keep off unless you tune runtimeCaching. */
+  cacheOnFrontEndNav: false,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -21,4 +32,5 @@ const nextConfig = {
     ];
   },
 };
-export default nextConfig;
+
+export default withPWA(nextConfig);

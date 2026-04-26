@@ -84,6 +84,8 @@ model User {
   isOnline          Boolean  @default(false)
   lastSeen          DateTime @default(now())
   broadcastsCreated Broadcast[] @relation("BroadcastCreatedBy")
+  /// Latest Web Push `PushSubscription` JSON for this user (single device; replace on re-subscribe).
+  pushSubscription  Json?
 
   @@index([deletedAt])
   @@index([referredById])
@@ -111,6 +113,10 @@ model SystemSettings {
   pwaIcon192      String?
   /// PWA splash / maskable-friendly icon (PNG, 512×512).
   pwaIcon512      String?
+  /// PWA manifest `theme_color` (e.g. mobile status bar).
+  pwaThemeColor   String   @default("#0f172a")
+  /// PWA manifest `background_color` (splash while loading).
+  pwaBgColor      String   @default("#0f172a")
   updatedAt       DateTime @updatedAt
 }
 

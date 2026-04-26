@@ -12,6 +12,7 @@ import {
 } from "@/lib/recharge-proof-lifecycle";
 import { applyAutomatedMilestoneBonuses } from "@/lib/agent-milestone-bonus";
 import { applySubAgentReferrerBonuses } from "@/lib/agent-subagent-bonus";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +96,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           agentRejectReason: reason.slice(0, 2000),
         },
       });
+      try {
+        await createNotification({
+          userId: row.playerUserId,
+          title: "Payment proof rejected",
+          message: `Your payment proof was rejected. Reason: ${reason.slice(0, 300)}`,
+          type: "ALERT",
+          link: `/player/transactions/${encodeURIComponent(proofId)}`,
+        });
+      } catch (e) {
+        console.warn("Payment proof reject notification:", e);
+      }
       return NextResponse.json({
         ok: true,
         transaction: {
@@ -236,6 +248,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
       await applySubAgentReferrerBonuses(tx, { childUserId: agentCtx.userId });
     });
+
+    try {
+      await createNotification({
+        userId: row.playerUserId,
+        title: "Payment proof approved",
+        message: `Your payment of ${row.amount} MAD was approved and credited to your wallet.`,
+        type: "SUCCESS",
+        link: `/player/transactions/${encodeURIComponent(proofId)}`,
+      });
+    } catch (e) {
+      console.warn("Payment proof approve notification:", e);
+    }
 
     const updated = await prisma.paymentProofTransaction.findUnique({
       where: { id: proofId },

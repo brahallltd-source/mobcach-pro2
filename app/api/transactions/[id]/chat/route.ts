@@ -7,6 +7,7 @@ import {
   executionMinutesFromAgentSettings,
   normalizeRechargeProofStatus,
 } from "@/lib/recharge-proof-lifecycle";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -251,6 +252,28 @@ export async function POST(req: Request, ctx: RouteCtx) {
         createdAt: true,
       },
     });
+
+    try {
+      const peerUserId =
+        senderRole === "AGENT" ? auth.row.playerUserId : auth.row.agentUserId;
+      const preview =
+        content.length > 120 ? `${content.slice(0, 120)}…` : content;
+      const title =
+        senderRole === "AGENT" ? "New message from agent" : "New message from player";
+      const link =
+        senderRole === "AGENT"
+          ? `/player/transactions/${encodeURIComponent(proofId)}`
+          : "/agent/transactions";
+      await createNotification({
+        userId: peerUserId,
+        title,
+        message: preview,
+        type: "INFO",
+        link,
+      });
+    } catch (notifErr) {
+      console.warn("Transaction chat peer notification:", notifErr);
+    }
 
     return NextResponse.json({
       message: {

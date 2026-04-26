@@ -19,7 +19,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: b.platformName,
     description: "Modern recharge workflow for players, agents and admins",
-    manifest: "/manifest.json",
     ...(b.faviconUrl
       ? {
           icons: {

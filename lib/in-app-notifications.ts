@@ -1,6 +1,7 @@
 import { UserAccountStatus } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/constants/i18n";
+import { sendPushNotification } from "@/lib/web-push";
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
@@ -37,6 +38,7 @@ export async function notifyAllActiveAdmins(opts: {
   const message = localizeNotificationMessage(opts.message);
   const type = opts.type ?? "INFO";
 
+  const link = opts.link ?? undefined;
   for (const id of ids) {
     await prisma.notification.create({
       data: {
@@ -49,6 +51,11 @@ export async function notifyAllActiveAdmins(opts: {
         link: opts.link ?? null,
         read: false,
       },
+    });
+    void sendPushNotification(id, {
+      title,
+      message,
+      ...(link ? { url: link } : {}),
     });
   }
 }
@@ -75,18 +82,26 @@ export async function notifyAllAdminsOfNewRechargeRequest(opts: {
     select: { id: true },
   });
 
+  const title = localizeNotificationTitle(opts.title);
+  const message = localizeNotificationMessage(opts.message);
+  const link = opts.link ?? undefined;
   for (const a of admins) {
     await prisma.notification.create({
       data: {
         userId: a.id,
         targetRole: "ADMIN",
         targetId: a.id,
-        title: localizeNotificationTitle(opts.title),
-        message: localizeNotificationMessage(opts.message),
+        title,
+        message,
         type: "RECHARGE_REQUEST",
         link: opts.link ?? null,
         read: false,
       },
+    });
+    void sendPushNotification(a.id, {
+      title,
+      message,
+      ...(link ? { url: link } : {}),
     });
   }
 }
@@ -112,19 +127,23 @@ export async function notifyAllAdminsNewAgentApplication(opts: {
   });
 
   const username = opts.applicantUsername.trim() || "—";
+  const title = "طلب وكيل جديد";
+  const message = `قام ${username} بالتسجيل كوكيل جديد وينتظر التفعيل.`;
+  const link = "/admin/users";
   for (const a of admins) {
     await prisma.notification.create({
       data: {
         userId: a.id,
         targetRole: "ADMIN",
         targetId: a.id,
-        title: "طلب وكيل جديد",
-        message: `قام ${username} بالتسجيل كوكيل جديد وينتظر التفعيل.`,
+        title,
+        message,
         type: "INFO",
-        link: "/admin/users",
+        link,
         read: false,
       },
     });
+    void sendPushNotification(a.id, { title, message, url: link });
   }
 }
 
@@ -139,17 +158,27 @@ export async function notifyAgentRechargeDecision(opts: {
   const prisma = getPrisma();
   if (!prisma) return;
 
+  const title = localizeNotificationTitle(opts.title);
+  const message = localizeNotificationMessage(opts.message);
+  const link = opts.link ?? undefined;
+
   await prisma.notification.create({
     data: {
       userId: opts.agentUserId,
       targetRole: "AGENT",
       targetId: opts.agentUserId,
-      title: localizeNotificationTitle(opts.title),
-      message: localizeNotificationMessage(opts.message),
+      title,
+      message,
       type: opts.type,
       link: opts.link ?? null,
       read: false,
     },
+  });
+
+  void sendPushNotification(opts.agentUserId, {
+    title,
+    message,
+    ...(link ? { url: link } : {}),
   });
 }
 
@@ -177,19 +206,23 @@ export async function notifyAllAdminsNewSupportTicket(opts: {
 
   const who = opts.agentUsername.trim() || "وكيل";
   const subj = opts.subject.trim() || "—";
+  const title = "تذكرة دعم جديدة";
+  const message = `${who}: ${subj}`;
+  const link = `/admin/support?ticket=${encodeURIComponent(opts.ticketId)}`;
   for (const a of admins) {
     await prisma.notification.create({
       data: {
         userId: a.id,
         targetRole: "ADMIN",
         targetId: a.id,
-        title: "تذكرة دعم جديدة",
-        message: `${who}: ${subj}`,
+        title,
+        message,
         type: "ALERT",
-        link: `/admin/support?ticket=${encodeURIComponent(opts.ticketId)}`,
+        link,
         read: false,
       },
     });
+    void sendPushNotification(a.id, { title, message, url: link });
   }
 }
 
@@ -202,16 +235,21 @@ export async function notifyAgentSupportTicketReplied(opts: {
   if (!prisma) return;
 
   const subj = opts.subject.trim() || "تذكرتك";
+  const title = "رد الإدارة على تذكرة الدعم";
+  const message = `تم الرد على: ${subj}. افتح صفحة الدعم لقراءة الرد الكامل.`;
+  const link = "/agent/support";
   await prisma.notification.create({
     data: {
       userId: opts.agentUserId,
       targetRole: "AGENT",
       targetId: opts.agentUserId,
-      title: "رد الإدارة على تذكرة الدعم",
-      message: `تم الرد على: ${subj}. افتح صفحة الدعم لقراءة الرد الكامل.`,
+      title,
+      message,
       type: "INFO",
-      link: "/agent/support",
+      link,
       read: false,
     },
   });
+
+  void sendPushNotification(opts.agentUserId, { title, message, url: link });
 }

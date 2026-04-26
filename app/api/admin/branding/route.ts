@@ -207,6 +207,17 @@ export async function PATCH(req: Request) {
     const nextPrimary =
       primaryColorRaw !== undefined ? normalizeHexColor(primaryColorRaw, sys.primaryColor) : sys.primaryColor;
 
+    const pwaThemeColorRaw = body.pwaThemeColor != null ? String(body.pwaThemeColor).trim() : undefined;
+    const pwaBgColorRaw = body.pwaBgColor != null ? String(body.pwaBgColor).trim() : undefined;
+    const nextPwaTheme =
+      pwaThemeColorRaw !== undefined
+        ? normalizeHexColor(pwaThemeColorRaw, String(sys.pwaThemeColor ?? "#0f172a"))
+        : undefined;
+    const nextPwaBg =
+      pwaBgColorRaw !== undefined
+        ? normalizeHexColor(pwaBgColorRaw, String(sys.pwaBgColor ?? "#0f172a"))
+        : undefined;
+
     const updated = await prisma.systemSettings.update({
       where: { id: sys.id },
       data: {
@@ -216,6 +227,8 @@ export async function PATCH(req: Request) {
         ...(faviconUrl !== undefined ? { faviconUrl } : {}),
         ...(pwaIcon192 !== undefined ? { pwaIcon192 } : {}),
         ...(pwaIcon512 !== undefined ? { pwaIcon512 } : {}),
+        ...(nextPwaTheme !== undefined ? { pwaThemeColor: nextPwaTheme } : {}),
+        ...(nextPwaBg !== undefined ? { pwaBgColor: nextPwaBg } : {}),
       },
     });
 

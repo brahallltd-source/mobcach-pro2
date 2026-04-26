@@ -2,3 +2,12 @@ node_modules
 .next
 .DS_Store
 .env
+
+# @ducanh2912/next-pwa build output (regenerated on `next build`)
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/worker-*.js
+public/worker-*.js.map
+public/fallback-*.js
