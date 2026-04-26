@@ -19,6 +19,7 @@ type SettingsState = {
   minRechargeAmount: string;
   affiliateBonusEnabled: boolean;
   maxWithdrawalAmount: string;
+  usdtToMadRate: string;
   isMaintenance: boolean;
   announcement: string;
 };
@@ -32,6 +33,7 @@ export default function AdminSystemSettingsPage() {
     minRechargeAmount: "1000",
     affiliateBonusEnabled: true,
     maxWithdrawalAmount: "100000",
+    usdtToMadRate: "10.5",
     isMaintenance: false,
     announcement: "",
   });
@@ -50,6 +52,7 @@ export default function AdminSystemSettingsPage() {
         minRechargeAmount: String(j.minRechargeAmount ?? 1000),
         affiliateBonusEnabled: Boolean(j.affiliateBonusEnabled ?? true),
         maxWithdrawalAmount: String(j.maxWithdrawalAmount ?? 100000),
+        usdtToMadRate: String(j.usdtToMadRate ?? 10.5),
         isMaintenance: Boolean(j.isMaintenance),
         announcement: String(j.announcement ?? ""),
       });
@@ -80,6 +83,11 @@ export default function AdminSystemSettingsPage() {
       toast.error(tx("admin.settings.maxWithdrawInvalid"));
       return;
     }
+    const usdtRate = parseFloat(String(form.usdtToMadRate).trim());
+    if (!Number.isFinite(usdtRate) || usdtRate < 0.01 || usdtRate > 10_000) {
+      toast.error(tx("admin.settings.usdtRateInvalid"));
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/admin/system-settings", {
@@ -91,6 +99,7 @@ export default function AdminSystemSettingsPage() {
           minRechargeAmount: minRecharge,
           affiliateBonusEnabled: form.affiliateBonusEnabled,
           maxWithdrawalAmount: maxWithdrawal,
+          usdtToMadRate: usdtRate,
           isMaintenance: form.isMaintenance,
           announcement: form.announcement,
         }),
@@ -105,6 +114,7 @@ export default function AdminSystemSettingsPage() {
         minRechargeAmount: String(j.minRechargeAmount ?? minRecharge),
         affiliateBonusEnabled: Boolean(j.affiliateBonusEnabled ?? form.affiliateBonusEnabled),
         maxWithdrawalAmount: String(j.maxWithdrawalAmount ?? maxWithdrawal),
+        usdtToMadRate: String(j.usdtToMadRate ?? usdtRate),
         isMaintenance: Boolean(j.isMaintenance),
         announcement: String(j.announcement ?? ""),
       });
@@ -173,6 +183,21 @@ export default function AdminSystemSettingsPage() {
             className="max-w-xs"
           />
           <p className="mt-1 text-xs text-white/40">{tx("admin.settings.maxWithdrawHint")}</p>
+
+          <label className="mt-4 mb-1 block text-xs font-medium text-white/60">
+            {tx("admin.settings.usdtRateLabel")}
+          </label>
+          <TextField
+            type="number"
+            inputMode="decimal"
+            min={0.01}
+            step="0.01"
+            dir="ltr"
+            value={form.usdtToMadRate}
+            onChange={(e) => setForm((f) => ({ ...f, usdtToMadRate: e.target.value }))}
+            className="max-w-xs"
+          />
+          <p className="mt-1 text-xs text-white/40">{tx("admin.settings.usdt_rate")}</p>
         </div>
 
         <div>

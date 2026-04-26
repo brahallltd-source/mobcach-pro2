@@ -13,6 +13,7 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
+import { DeviceSettingsCard } from "@/components/pwa/DeviceSettingsCard";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { agentProfileUpdateSchema, type AgentProfileUpdateInput } from "@/lib/agent-profile-update";
 
@@ -107,7 +108,8 @@ export default function AgentGeneralSettingsPage() {
         }
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-xl space-y-6">
+      <div className="mx-auto max-w-xl space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <GlassCard className="border border-white/[0.06] p-6 md:p-8">
           <h2 className="text-lg font-semibold text-white">الملف الشخصي</h2>
           <p className="mt-1 text-sm text-white/50">البيانات المعروضة للاعبين والإدارة وفق سياسة المنصة.</p>
@@ -185,6 +187,8 @@ export default function AgentGeneralSettingsPage() {
           {formState.isSubmitting ? "جاري الحفظ..." : "حفظ التعديلات"}
         </PrimaryButton>
       </form>
+      <DeviceSettingsCard />
+      </div>
     </SidebarShell>
   );
 }

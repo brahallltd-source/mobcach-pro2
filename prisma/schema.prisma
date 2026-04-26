@@ -101,7 +101,7 @@ model SystemSettings {
   affiliateBonusEnabled Boolean @default(true)
   /// Max DH per player profit-withdrawal request (admin-editable; enforced on submission).
   maxWithdrawalAmount Float @default(100000)
-  /// Display / treasury hint: 1 USDT ≈ this many MAD (super-admin editable from command center).
+  /// USDT↔MAD exchange rate for treasury top-ups: MAD per 1 USDT (admin system settings; default 10.5).
   usdtToMadRate   Float    @default(10.5)
   isMaintenance   Boolean  @default(false)
   announcement    String?

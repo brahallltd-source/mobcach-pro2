@@ -14,6 +14,15 @@ function formatDh(value: number, lang: Lang): string {
   return `${n} DH`;
 }
 
+function formatUsdtMadRate(value: number, lang: Lang): string {
+  const locale = lang === "ar" ? "ar-MA" : lang === "fr" ? "fr-FR" : "en-US";
+  const safe = Number.isFinite(value) && value > 0 ? value : 10.5;
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  }).format(safe);
+}
+
 export type Gs365TopupSummaryCardProps = {
   /** Raw value from the amount field (shown literally + " DH"). */
   amountRaw: string;
@@ -28,6 +37,8 @@ export type Gs365TopupSummaryCardProps = {
   isCrypto: boolean;
   /** USDT to send for treasury leg (base + standard only). */
   requiredUsdt: string | null;
+  /** MAD per 1 USDT (platform setting). */
+  usdtToMadRate?: number;
   /** When false, hide invitation / promotion UI (admin disabled merge in system settings). */
   affiliateFeatureEnabled: boolean;
 };
@@ -41,6 +52,7 @@ export function Gs365TopupSummaryCard({
   onApplyRewardsChange,
   isCrypto,
   requiredUsdt,
+  usdtToMadRate = 10.5,
   affiliateFeatureEnabled,
 }: Gs365TopupSummaryCardProps) {
   const { am, lang, dir } = useAgentTranslation();
@@ -136,6 +148,11 @@ export function Gs365TopupSummaryCard({
           <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
             <p className="text-center text-sm font-semibold text-amber-200/95" dir="ltr">
               {am("topup.summary.mustSendUsdt", { amount: requiredUsdt })}
+            </p>
+            <p className="text-center text-xs text-white/45" dir="ltr">
+              {am("topup.summary.exchangeRateHint", {
+                rate: formatUsdtMadRate(usdtToMadRate, lang),
+              })}
             </p>
           </div>
         ) : null}

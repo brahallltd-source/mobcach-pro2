@@ -378,7 +378,8 @@
         "promotionTooltip": "Le compteur bonus promotion est remis à zéro une fois la demande approuvée par l’administration.",
         "applyPromotion": "Inclure le bonus promotion dans cette demande",
         "total": "Total à recevoir",
-        "mustSendUsdt": "Vous devez envoyer : {{amount}} USDT"
+        "mustSendUsdt": "Vous devez envoyer : {{amount}} USDT",
+        "exchangeRateHint": "(Taux : 1 USDT = {{rate}} MAD)"
       }
     },
     "invite": {
@@ -626,8 +627,36 @@
       "announcementLabel": "Annonce pour les agents",
       "announcementPlaceholder": "Ex. : maintenance vendredi 22h–23h…",
       "announcementHint": "Affiché en haut du tableau agent si non vide.",
+      "usdtRateLabel": "Taux USDT (MAD pour 1 USDT)",
+      "usdt_rate": "Taux de change USDT (1 USDT = X MAD) — définissez combien de dirhams marocains valent 1 USDT pour les recharges trésorerie en USDT.",
+      "usdtRateInvalid": "Le taux doit être entre 0,01 et 10 000 MAD pour 1 USDT.",
       "saveButton": "Enregistrer les paramètres",
       "saving": "Enregistrement…"
+    }
+  },
+  "pwa": {
+    "installBanner": {
+      "title": "Installer l’application",
+      "subtitle": "Ajoutez MobCash à l’écran d’accueil pour un accès plus rapide et une expérience quasi plein écran.",
+      "installCta": "Installer l’application",
+      "installing": "Installation…",
+      "dismiss": "Plus tard",
+      "dismissAria": "Fermer la bannière d’installation",
+      "iosTitle": "Ajouter à l’écran d’accueil",
+      "iosBody": "Pour installer l’app, appuyez sur Partager ⍐ puis choisissez « Ajouter à l’écran d’accueil » ➕."
+    },
+    "device": {
+      "sectionTitle": "Paramètres de l’appareil",
+      "sectionSubtitle": "Installez l’application et gérez les alertes sur cet appareil.",
+      "pushLabel": "Notifications push",
+      "pushDescription": "Recevez les mises à jour importantes de votre agent et de la plateforme sur cet appareil.",
+      "activeHint": "Actif sur cet appareil",
+      "deniedHint": "Notifications bloquées par le navigateur. Activez-les dans les paramètres du site.",
+      "unsupportedHint": "Les notifications push ne sont pas prises en charge dans ce navigateur.",
+      "vapidMissingHint": "Les notifications push ne sont pas configurées sur ce serveur (clé VAPID manquante).",
+      "enableToast": "Notifications push activées",
+      "disableToast": "Notifications push désactivées sur cet appareil",
+      "errorToast": "Impossible d’activer les notifications push"
     }
   }
 }

@@ -18,11 +18,15 @@ export async function GET() {
   const maxRaw = Number(row.maxWithdrawalAmount);
   const maxWithdrawalAmount =
     Number.isFinite(maxRaw) && maxRaw >= 100 ? maxRaw : 100000;
+  const usdtRaw = Number(row.usdtToMadRate);
+  const usdtToMadRate =
+    Number.isFinite(usdtRaw) && usdtRaw > 0 ? usdtRaw : 10.5;
   return NextResponse.json({
     bonusPercentage: row.bonusPercentage,
     minRechargeAmount: Number(row.minRechargeAmount),
     affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
     maxWithdrawalAmount,
+    usdtToMadRate,
     isMaintenance: row.isMaintenance,
     announcement: row.announcement,
   });
@@ -43,6 +47,9 @@ export async function PATCH(request: Request) {
     minRechargeAmount?: unknown;
     affiliateBonusEnabled?: unknown;
     maxWithdrawalAmount?: unknown;
+    /** MAD per 1 USDT (same as DB `usdtToMadRate`). */
+    usdtToMadRate?: unknown;
+    usdtExchangeRate?: unknown;
     isMaintenance?: unknown;
     announcement?: unknown;
   };
@@ -57,6 +64,7 @@ export async function PATCH(request: Request) {
     minRechargeAmount?: number;
     affiliateBonusEnabled?: boolean;
     maxWithdrawalAmount?: number;
+    usdtToMadRate?: number;
     isMaintenance?: boolean;
     announcement?: string;
   } = {};
@@ -99,6 +107,23 @@ export async function PATCH(request: Request) {
     data.maxWithdrawalAmount = n;
   }
 
+  const usdtIncoming =
+    body.usdtToMadRate !== undefined && body.usdtToMadRate !== null
+      ? body.usdtToMadRate
+      : body.usdtExchangeRate !== undefined && body.usdtExchangeRate !== null
+        ? body.usdtExchangeRate
+        : undefined;
+  if (usdtIncoming !== undefined) {
+    const n = parseFloat(String(usdtIncoming));
+    if (!Number.isFinite(n) || n < 0.01 || n > 10_000) {
+      return NextResponse.json(
+        { message: "usdtToMadRate must be a number between 0.01 and 10000 (MAD per 1 USDT)" },
+        { status: 400 }
+      );
+    }
+    data.usdtToMadRate = n;
+  }
+
   if (body.isMaintenance !== undefined && body.isMaintenance !== null) {
     data.isMaintenance = body.isMaintenance === true || String(body.isMaintenance) === "true";
   }
@@ -125,11 +150,16 @@ export async function PATCH(request: Request) {
   const maxWithdrawalAmount =
     Number.isFinite(maxOut) && maxOut >= 100 ? maxOut : 100000;
 
+  const usdtOut = Number(row.usdtToMadRate);
+  const usdtToMadRate =
+    Number.isFinite(usdtOut) && usdtOut > 0 ? usdtOut : 10.5;
+
   return NextResponse.json({
     bonusPercentage: row.bonusPercentage,
     minRechargeAmount: Number(row.minRechargeAmount),
     affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
     maxWithdrawalAmount,
+    usdtToMadRate,
     isMaintenance: row.isMaintenance,
     announcement: row.announcement,
   });

@@ -378,7 +378,8 @@
         "promotionTooltip": "The promotion bonus pool resets once admin approves this request.",
         "applyPromotion": "Include promotion bonus in this request",
         "total": "Total to receive",
-        "mustSendUsdt": "You must send: {{amount}} USDT"
+        "mustSendUsdt": "You must send: {{amount}} USDT",
+        "exchangeRateHint": "(Exchange rate: 1 USDT = {{rate}} MAD)"
       }
     },
     "invite": {
@@ -626,8 +627,36 @@
       "announcementLabel": "Announcement for agents",
       "announcementPlaceholder": "e.g. Scheduled maintenance Friday 22:00–23:00…",
       "announcementHint": "Shown at the top of the agent dashboard when not empty.",
+      "usdtRateLabel": "USDT Exchange Rate (MAD)",
+      "usdt_rate": "USDT Exchange Rate (1 USDT = X MAD) — set how many Moroccan dirhams equal one USDT for treasury USDT top-up calculations.",
+      "usdtRateInvalid": "USDT rate must be between 0.01 and 10,000 MAD per 1 USDT.",
       "saveButton": "Save settings",
       "saving": "Saving…"
+    }
+  },
+  "pwa": {
+    "installBanner": {
+      "title": "Install app",
+      "subtitle": "Add MobCash to your home screen for quicker access and a fuller-screen experience.",
+      "installCta": "Install app",
+      "installing": "Installing…",
+      "dismiss": "Not now",
+      "dismissAria": "Dismiss install banner",
+      "iosTitle": "Add to Home Screen",
+      "iosBody": "To install the app, tap Share ⍐ and select 'Add to Home Screen' ➕."
+    },
+    "device": {
+      "sectionTitle": "Device settings",
+      "sectionSubtitle": "Install the app and manage how this device receives alerts.",
+      "pushLabel": "Push notifications",
+      "pushDescription": "Get important updates from your agent and the platform on this device.",
+      "activeHint": "Active on this device",
+      "deniedHint": "Notifications blocked by browser. Please enable them in site settings.",
+      "unsupportedHint": "Push notifications are not supported in this browser.",
+      "vapidMissingHint": "Push is not configured on this server (missing VAPID key).",
+      "enableToast": "Push notifications enabled",
+      "disableToast": "Push notifications turned off on this device",
+      "errorToast": "Could not enable push notifications"
     }
   }
 }

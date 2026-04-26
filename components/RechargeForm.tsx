@@ -56,8 +56,8 @@ export type RechargeFormProps = {
 };
 
 const MIN_RECHARGE_FALLBACK = 1000;
-/** Display-only hint for crypto treasury top-up (1 USDT → MAD). */
-const USDT_TO_MAD_RATE = 10.5;
+/** Fallback MAD per 1 USDT if settings are missing or invalid. */
+const DEFAULT_USDT_TO_MAD_RATE = 10.5;
 
 function formatRechargeDh(value: number, lang: Lang): string {
   const locale = lang === "ar" ? "ar-MA" : lang === "fr" ? "fr-FR" : "en-US";
@@ -66,6 +66,14 @@ function formatRechargeDh(value: number, lang: Lang): string {
     maximumFractionDigits: 2,
   }).format(value);
   return `${n} DH`;
+}
+
+function formatUsdtMadRate(value: number, lang: Lang): string {
+  const locale = lang === "ar" ? "ar-MA" : lang === "fr" ? "fr-FR" : "en-US";
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  }).format(value);
 }
 
 function rechargeAmountMeetsMinimum(raw: string, min: number): boolean {
@@ -108,7 +116,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
   } = _props;
   const embedded = Boolean(embeddedProp);
   const router = useRouter();
-  const { t, lang, dir } = useTranslation();
+  const { t, tx, lang, dir } = useTranslation();
   const [methods, setMethods] = useState<any[]>([]);
   /** Platform recharge bonus % from SystemSettings (default 10). */
   const [rechargeBonusPct, setRechargeBonusPct] = useState(10);
@@ -130,6 +138,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
   const [applyInvitationBonus, setApplyInvitationBonus] = useState(false);
   const [settingsMinRecharge, setSettingsMinRecharge] = useState(MIN_RECHARGE_FALLBACK);
   const [settingsAffiliateEnabled, setSettingsAffiliateEnabled] = useState(true);
+  const [usdtToMadRate, setUsdtToMadRate] = useState(DEFAULT_USDT_TO_MAD_RATE);
 
   const minRechargeAmount = useMemo(() => {
     if (rechargePolicyProp != null) {
@@ -211,6 +220,11 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
         const minOk =
           Number.isFinite(minC) && minC >= 1 ? minC : MIN_RECHARGE_FALLBACK;
         affiliateFromCtx = ctx.affiliateBonusEnabled !== false;
+
+        const ur = Number(ctx.usdtToMadRate);
+        if (Number.isFinite(ur) && ur > 0) {
+          setUsdtToMadRate(ur);
+        }
 
         if (rechargePolicyProp == null) {
           setSettingsMinRecharge(minOk);
@@ -499,11 +513,13 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
   if (loading) return <LoadingCard text={t("loading") || "Loading..."} />;
 
   /** USDT to cover is the paid treasury amount (base + platform %), not invitation credit. */
+  const usdtRateSafe =
+    Number.isFinite(usdtToMadRate) && usdtToMadRate > 0 ? usdtToMadRate : DEFAULT_USDT_TO_MAD_RATE;
   const requiredUsdt =
     isCrypto && rechargeAmountBreakdown
       ? (
           (rechargeAmountBreakdown.base + rechargeAmountBreakdown.bonus) /
-          USDT_TO_MAD_RATE
+          usdtRateSafe
         ).toFixed(2)
       : null;
 
@@ -545,6 +561,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
                   onApplyRewardsChange={setApplyInvitationBonus}
                   isCrypto={isCrypto}
                   requiredUsdt={requiredUsdt}
+                  usdtToMadRate={usdtRateSafe}
                   affiliateFeatureEnabled={affiliateBonusEnabledGlobal}
                 />
               ) : rechargeAmountBreakdown ? (
@@ -573,10 +590,12 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
                   {isCrypto ? (
                     <div className="space-y-1 border-t border-white/10 pt-3">
                       <p className="font-semibold text-amber-200/95" dir="ltr">
-                        You must send: {requiredUsdt} USDT
+                        {tx("agent.topup.summary.mustSendUsdt", { amount: String(requiredUsdt ?? "") })}
                       </p>
                       <p className="text-xs text-white/45" dir="ltr">
-                        (Exchange rate: 1 USDT = {USDT_TO_MAD_RATE} MAD)
+                        {tx("agent.topup.summary.exchangeRateHint", {
+                          rate: formatUsdtMadRate(usdtRateSafe, lang),
+                        })}
                       </p>
                     </div>
                   ) : null}

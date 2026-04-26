@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ExternalLink, Mail, MessageCircle } from "lucide-react";
 import { AgentStatusCard } from "@/components/AgentStatusCard";
 import { SupportModal } from "@/components/SupportModal";
+import { DeviceSettingsCard } from "@/components/pwa/DeviceSettingsCard";
 import {
   DangerButton,
   GlassCard,
@@ -392,6 +393,8 @@ export default function PlayerProfilePage() {
             </div>
           </GlassCard>
         </div>
+
+        <DeviceSettingsCard />
 
         {branding ? (
           <GlassCard className="border-primary/25 p-6 md:p-8">

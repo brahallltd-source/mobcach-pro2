@@ -32,6 +32,7 @@ export async function GET() {
       minRechargeAmount: 1000,
       affiliateBonusEnabled: true,
       maxWithdrawalAmount: 100000,
+      usdtToMadRate: 10.5,
     });
   }
 
@@ -44,6 +45,10 @@ export async function GET() {
   const maxWithdrawalAmount =
     Number.isFinite(maxRaw) && maxRaw >= 100 ? maxRaw : 100000;
 
+  const usdtRaw = Number(row.usdtToMadRate);
+  const usdtToMadRate =
+    Number.isFinite(usdtRaw) && usdtRaw > 0 ? usdtRaw : 10.5;
+
   return NextResponse.json({
     announcement: String(row.announcement ?? "").trim(),
     isMaintenance: Boolean(row.isMaintenance),
@@ -51,5 +56,6 @@ export async function GET() {
     minRechargeAmount,
     affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
     maxWithdrawalAmount,
+    usdtToMadRate,
   });
 }

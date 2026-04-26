@@ -27,12 +27,17 @@ cloudinary.config({
 
 type PwaPublicFile = "icon-192x192.png" | "icon-512x512.png";
 
-function readOptionalNullableString(body: Record<string, unknown>, key: string): string | null | undefined {
+/**
+ * PWA icon URL from PATCH body. Returns `undefined` when the field should not change the DB
+ * (key absent, or value null / undefined / whitespace-only). Non-destructive: empty clears nothing.
+ */
+function readPwaIconIncoming(body: Record<string, unknown>, key: string): string | undefined {
   if (!(key in body)) return undefined;
   const v = body[key];
-  if (v === null) return null;
-  const s = String(v ?? "").trim();
-  return s.length ? s : null;
+  if (v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  if (!s.length) return undefined;
+  return s;
 }
 
 function assertPngDataUrl(dataUrl: string, label: string) {
@@ -194,14 +199,12 @@ export async function PATCH(req: Request) {
       faviconUrl = await uploadIfNeeded(faviconUrl, "mobcash/branding/favicon");
     }
 
-    let pwaIcon192 = readOptionalNullableString(body, "pwaIcon192");
-    let pwaIcon512 = readOptionalNullableString(body, "pwaIcon512");
-    if (pwaIcon192 !== undefined) {
-      pwaIcon192 = await normalizePwaIconField(pwaIcon192, "icon-192x192.png");
-    }
-    if (pwaIcon512 !== undefined) {
-      pwaIcon512 = await normalizePwaIconField(pwaIcon512, "icon-512x512.png");
-    }
+    const rawPwa192 = readPwaIconIncoming(body, "pwaIcon192");
+    const rawPwa512 = readPwaIconIncoming(body, "pwaIcon512");
+    const pwaIcon192 =
+      rawPwa192 !== undefined ? await normalizePwaIconField(rawPwa192, "icon-192x192.png") : undefined;
+    const pwaIcon512 =
+      rawPwa512 !== undefined ? await normalizePwaIconField(rawPwa512, "icon-512x512.png") : undefined;
 
     const nextPlatform = platformNameRaw !== undefined ? platformNameRaw.slice(0, 120) : sys.platformName;
     const nextPrimary =
@@ -225,8 +228,8 @@ export async function PATCH(req: Request) {
         ...(primaryColorRaw !== undefined ? { primaryColor: nextPrimary } : {}),
         ...(logoUrl !== undefined ? { logoUrl } : {}),
         ...(faviconUrl !== undefined ? { faviconUrl } : {}),
-        ...(pwaIcon192 !== undefined ? { pwaIcon192 } : {}),
-        ...(pwaIcon512 !== undefined ? { pwaIcon512 } : {}),
+        ...(pwaIcon192 !== undefined && pwaIcon192 !== null ? { pwaIcon192 } : {}),
+        ...(pwaIcon512 !== undefined && pwaIcon512 !== null ? { pwaIcon512 } : {}),
         ...(nextPwaTheme !== undefined ? { pwaThemeColor: nextPwaTheme } : {}),
         ...(nextPwaBg !== undefined ? { pwaBgColor: nextPwaBg } : {}),
       },

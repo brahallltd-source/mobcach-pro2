@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -16,10 +16,11 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export type PushSupport = "unsupported" | "unsupported_api" | "ready";
 
 export function usePushNotifications() {
-  const [permission, setPermission] = useState<NotificationPermission | "default">(
+  const [permission, setPermission] = useState<NotificationPermission>(() =>
     typeof Notification !== "undefined" ? Notification.permission : "default",
   );
-  const [subscribing, setSubscribing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const support = useMemo((): PushSupport => {
@@ -29,25 +30,52 @@ export function usePushNotifications() {
     return "ready";
   }, []);
 
-  const subscribeToPush = useCallback(async (): Promise<boolean> => {
+  const syncSubscription = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setIsSubscribed(false);
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      setIsSubscribed(Boolean(sub));
+    } catch {
+      setIsSubscribed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void syncSubscription();
+  }, [syncSubscription]);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined") return;
+    const syncPerm = () => setPermission(Notification.permission);
+    syncPerm();
+    document.addEventListener("visibilitychange", syncPerm);
+    return () => document.removeEventListener("visibilitychange", syncPerm);
+  }, []);
+
+  const subscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
     if (support !== "ready") {
-      setError("Web Push is not supported in this browser.");
+      setError("unsupported");
       return false;
     }
 
     const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
     if (!vapidPublic) {
-      setError("NEXT_PUBLIC_VAPID_PUBLIC_KEY is not configured.");
+      setError("vapid");
       return false;
     }
 
-    setSubscribing(true);
+    setIsLoading(true);
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
       if (perm !== "granted") {
-        setError("Notification permission was not granted.");
+        setError("permission");
         return false;
       }
 
@@ -71,24 +99,44 @@ export function usePushNotifications() {
 
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
       if (!res.ok || !data.success) {
-        setError(data.message || `Subscribe failed (${res.status})`);
+        setError(data.message || `http_${res.status}`);
+        setIsSubscribed(false);
         return false;
       }
 
+      setIsSubscribed(true);
       return true;
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Subscribe failed");
+      setError(e instanceof Error ? e.message : "unknown");
+      setIsSubscribed(false);
       return false;
     } finally {
-      setSubscribing(false);
+      setIsLoading(false);
     }
   }, [support]);
+
+  const unsubscribeLocal = useCallback(async (): Promise<void> => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+    setIsSubscribed(false);
+  }, []);
 
   return {
     support,
     permission,
-    subscribing,
+    isSubscribed,
+    isLoading,
     error,
-    subscribeToPush,
+    subscribe,
+    unsubscribeLocal,
+    refreshSubscription: syncSubscription,
+    /** @deprecated use {@link subscribe} */
+    subscribeToPush: subscribe,
   };
 }

@@ -12,6 +12,7 @@ const tajawal = Tajawal({
 });
 import { Toaster } from "sonner";
 import { BrandingStyleVars } from "@/components/BrandingStyleVars";
+import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { getRootBranding } from "@/lib/root-branding";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -52,6 +53,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <div className="relative z-0">
           <LanguageProvider>
             <Toaster richColors position="top-center" closeButton />
+            <InstallBanner />
             {children}
           </LanguageProvider>
         </div>
