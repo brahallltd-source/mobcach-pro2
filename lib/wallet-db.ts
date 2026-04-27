@@ -87,6 +87,11 @@ export async function dbCreditWallet(
       data: { balance: { increment: amount } },
     });
 
+    await tx.agent.update({
+      where: { id: resolved.agentTableId },
+      data: { availableBalance: Number(updated.balance || 0) },
+    });
+
     const ledgerEntry = await tx.walletLedger.create({
       data: {
         agentId: resolved.userId,
@@ -132,6 +137,11 @@ export async function dbDebitWallet(
     const updated = await tx.wallet.update({
       where: { id: wallet.id },
       data: { balance: { decrement: amount } },
+    });
+
+    await tx.agent.update({
+      where: { id: resolved.agentTableId },
+      data: { availableBalance: Number(updated.balance || 0) },
     });
 
     const ledgerEntry = await tx.walletLedger.create({

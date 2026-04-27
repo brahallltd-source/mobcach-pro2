@@ -174,6 +174,14 @@ export default function AgentDashboardPage() {
     void loadData();
   }, [loadCustomers, lang]);
 
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshHome();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [refreshHome]);
+
   const searchHit = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return null;

@@ -1,8 +1,8 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { adminManualSetWalletBalanceInTx, notifyAgentBalanceTopup } from "@/lib/admin-agent-balance";
 import { getPrisma } from "@/lib/db";
 import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
-import { ensureAgentWallet } from "@/lib/wallet-db";
 import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -42,47 +42,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "الوكيل غير موجود" }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const wallet = await ensureAgentWallet(tx, resolved);
-      const previousBalance = Number(wallet.balance || 0);
-      const nextBalance = newBalanceNum;
-      const delta = nextBalance - previousBalance;
-
-      const updatedWallet = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: nextBalance },
-      });
-
-      await tx.balanceLog.create({
-        data: {
-          adminId: auth.user.id,
-          agentId: resolved.userId,
-          type: "MANUAL_ADJUST",
-          amount: Math.abs(delta),
-          operation: delta >= 0 ? "IN" : "OUT",
-          bonusApplied: false,
-          previousBalance,
-          newBalance: nextBalance,
-        },
-      });
-
-      if (delta !== 0) {
-        await tx.walletLedger.create({
-          data: {
-            agentId: resolved.userId,
-            walletId: wallet.id,
-            type: delta > 0 ? "credit" : "debit",
-            amount: Math.abs(delta),
-            reason: `ADMIN_MANUAL_SET: ${reason}`,
-            meta: { previousBalance, newBalance: nextBalance, adminId: auth.user.id },
-          },
-        });
-      }
-
-      return { updatedWallet, previousBalance, newBalance: nextBalance };
-    });
+    const result = await prisma.$transaction(async (tx) =>
+      adminManualSetWalletBalanceInTx(tx, resolved, newBalanceNum, {
+        adminId: auth.user.id,
+        reason,
+        ledgerReason: `ADMIN_MANUAL_SET: ${reason}`,
+      }),
+    );
 
     revalidatePath("/agent/dashboard", "layout");
+
+    console.log(
+      `[admin-balance] update-balance done agentUserId=${resolved.userId} newBalance=${result.newBalance} previousBalance=${result.previousBalance} delta=${result.delta}`,
+    );
+    if (result.delta > 0) {
+      await notifyAgentBalanceTopup({
+        userId: resolved.userId,
+        newBalance: result.newBalance,
+        amountDh: result.delta,
+      });
+    }
 
     return NextResponse.json({
       success: true,

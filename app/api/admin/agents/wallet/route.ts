@@ -1,8 +1,8 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { adminManualSetWalletBalanceInTx, notifyAgentBalanceTopup } from "@/lib/admin-agent-balance";
 import { getPrisma } from "@/lib/db";
 import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
-import { ensureAgentWallet } from "@/lib/wallet-db";
 import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
@@ -39,48 +39,28 @@ export async function PATCH(req: Request) {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const wallet = await ensureAgentWallet(tx, resolved);
-      const previousBalance = Number(wallet.balance || 0);
-      const nextBalance = balanceNum;
-      const delta = nextBalance - previousBalance;
-
-      const w = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: nextBalance },
+      const r = await adminManualSetWalletBalanceInTx(tx, resolved, balanceNum, {
+        adminId: auth.user.id,
+        reason: "ADMIN_WALLET_PATCH",
+        ledgerReason: "ADMIN_WALLET_PATCH",
       });
-
-      await tx.balanceLog.create({
-        data: {
-          adminId: auth.user.id,
-          agentId: resolved.userId,
-          type: "MANUAL_ADJUST",
-          amount: Math.abs(delta),
-          operation: delta >= 0 ? "IN" : "OUT",
-          bonusApplied: false,
-          previousBalance,
-          newBalance: nextBalance,
-        },
-      });
-
-      if (delta !== 0) {
-        await tx.walletLedger.create({
-          data: {
-            agentId: resolved.userId,
-            walletId: wallet.id,
-            type: delta > 0 ? "credit" : "debit",
-            amount: Math.abs(delta),
-            reason: "ADMIN_WALLET_PATCH",
-            meta: { previousBalance, newBalance: nextBalance, adminId: auth.user.id },
-          },
-        });
-      }
-
-      return w;
+      return r;
     });
 
     revalidatePath("/agent/dashboard", "layout");
 
-    return NextResponse.json({ success: true, balance: updated.balance });
+    console.log(
+      `[admin-balance] wallet PATCH done agentUserId=${resolved.userId} newBalance=${updated.newBalance} previousBalance=${updated.previousBalance} delta=${updated.delta}`,
+    );
+    if (updated.delta > 0) {
+      await notifyAgentBalanceTopup({
+        userId: resolved.userId,
+        newBalance: updated.newBalance,
+        amountDh: updated.delta,
+      });
+    }
+
+    return NextResponse.json({ success: true, balance: updated.newBalance });
   } catch (error) {
     console.error("WALLET PATCH ERROR:", error);
     return NextResponse.json({ success: false, message: "Update failed" }, { status: 500 });

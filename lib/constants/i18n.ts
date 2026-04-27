@@ -40,6 +40,7 @@ export const NOTIFICATION_TITLE_EN_TO_AR: Record<string, string> = {
   "payout completed": "تم إكمال طلب السحب",
   "payout sent": "تم إرسال طلب السحب",
   "transaction approved": "تم قبول عملية الشحن",
+  "balance top-up successful": "تم شحن رصيدك بنجاح",
   "new message": "رسالة جديدة من الوكيل",
 };
 

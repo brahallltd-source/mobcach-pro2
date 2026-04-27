@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { notifyAgentBalanceTopup } from "@/lib/admin-agent-balance";
 import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { dbCreditWallet, dbGetWalletBalance } from "@/lib/wallet-db";
 import { applyPendingBonusesToRecharge } from "@/lib/bonus";
@@ -54,6 +55,17 @@ export async function POST(req: Request) {
         );
 
         const newBalance = await dbGetWalletBalance(walletKey);
+        const totalAdded = newBalance - previousBalance;
+        console.log(
+          `[admin-balance] topup-agent done agentUserId=${resolved.userId} previousBalance=${previousBalance} newBalance=${newBalance} totalAdded=${totalAdded}`,
+        );
+        if (totalAdded > 0) {
+          await notifyAgentBalanceTopup({
+            userId: resolved.userId,
+            newBalance,
+            amountDh: totalAdded,
+          });
+        }
 
         revalidatePath("/agent/dashboard", "layout");
 
