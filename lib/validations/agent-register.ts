@@ -55,9 +55,8 @@ export const agentRegisterSchema = z
     fullName: z.string().trim().min(2, "الاسم الكامل مطلوب"),
     username: z.string().trim().min(2, "اسم المستخدم مطلوب"),
     email: z.string().trim().email("البريد الإلكتروني غير صالح"),
-    password: z.string().min(8, { message: "كلمة المرور يجب أن تكون 8 أحرف على الأقل" }),
-    /** No min length here; cross-field rules below. */
-    confirmPassword: z.string().optional(),
+    password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+    confirmPassword: z.string().min(1, "أكد كلمة المرور"),
     birthDate: z
       .string({ required_error: "تاريخ الميلاد مطلوب" })
       .trim()
@@ -71,12 +70,8 @@ export const agentRegisterSchema = z
       .transform((s) => s.replace(/\s+/g, "")),
     note: z.string().trim().optional(),
   })
-  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
-    message: "كلمات المرور غير متطابقة",
-    path: ["confirmPassword"],
-  })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "أكد كلمة المرور",
+    message: "كلمات المرور غير متطابقة",
     path: ["confirmPassword"],
   })
   .superRefine((data, ctx) => {

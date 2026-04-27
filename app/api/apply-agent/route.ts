@@ -14,12 +14,17 @@ export const runtime = "nodejs";
 
 function buildRegisterPayload(raw: Record<string, unknown>) {
   const country = String(raw.country ?? "Morocco").trim();
+  const password = String(raw.password ?? "").trim();
+  const confirmFromClient = String(
+    raw.confirmPassword ?? raw.confirm_password ?? ""
+  ).trim();
   return {
     fullName: String(raw.fullName ?? raw.full_name ?? "").trim(),
-    username: String(raw.username ?? "").trim(),
+    username: String(raw.username ?? "").trim().replace(/\s+/g, ""),
     email: String(raw.email ?? "").trim().toLowerCase(),
-    password: String(raw.password ?? "").trim(),
-    confirmPassword: String(raw.confirmPassword ?? raw.confirm_password ?? "").trim(),
+    password,
+    /** Ingest: client may omit confirm; it must still match in Zod, so default to the same as password. */
+    confirmPassword: confirmFromClient || password,
     birthDate: normalizeAgentBirthDateInput(raw.birthDate ?? raw.birth_date),
     country,
     city: String(raw.city ?? "").trim(),
@@ -62,10 +67,14 @@ export async function POST(req: Request) {
 
     const parsed = agentRegisterSchema.safeParse(buildRegisterPayload(rawBody));
     if (!parsed.success) {
+      console.error("Backend validation failed (apply-agent):", parsed.error.flatten());
+      console.error("Backend validation issues (apply-agent):", parsed.error.issues);
       return NextResponse.json(
         {
           success: false,
+          error: "Validation failed",
           message: "Validation failed",
+          details: parsed.error.issues,
           fieldErrors: formatAgentRegisterFieldErrors(parsed.error),
         },
         { status: 422 }

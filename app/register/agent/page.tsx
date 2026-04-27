@@ -98,18 +98,21 @@ function RegisterAgentPageContent() {
 
   const onSubmit = async (values: AgentRegisterFormValues) => {
     try {
-      const { confirmPassword: _confirmPassword, birthDate, ...rest } = values;
-      void _confirmPassword;
+      const { confirmPassword, ...rest } = values;
+      void confirmPassword;
+
+      const payloadToSend = {
+        ...rest,
+        username: rest.username.trim().replace(/\s+/g, ""),
+        birthDate: normalizeAgentBirthDateInput(rest.birthDate),
+        accountType: "AGENT" as const,
+        ...(inviteRef.current ? { ref: inviteRef.current } : {}),
+      };
 
       const res = await fetch("/api/apply-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...rest,
-          birthDate: normalizeAgentBirthDateInput(birthDate),
-          accountType: "AGENT",
-          ...(inviteRef.current ? { ref: inviteRef.current } : {}),
-        }),
+        body: JSON.stringify(payloadToSend),
       });
 
       let data: {
