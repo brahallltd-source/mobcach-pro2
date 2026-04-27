@@ -13,6 +13,7 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
+import { publicAgentProfileFetchInit, publicAgentProfileUrl } from "@/lib/public-agent-client";
 
 type CopyRow = { key: string; label: string; value: string };
 
@@ -104,10 +105,7 @@ export default function PlayerRechargeWithAgentPage() {
       return;
     }
     try {
-      const res = await fetch(
-        `/api/agent/public-profile?agentId=${encodeURIComponent(agentId)}&t=${Date.now()}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(publicAgentProfileUrl(agentId), publicAgentProfileFetchInit);
       const data = await res.json();
       if (!res.ok || !data.agent) {
         throw new Error(data.message || "الوكيل غير موجود");
@@ -128,6 +126,14 @@ export default function PlayerRechargeWithAgentPage() {
 
   useEffect(() => {
     void loadAgent();
+  }, [loadAgent]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadAgent();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [loadAgent]);
 
   const agentName = agent

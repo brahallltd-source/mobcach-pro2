@@ -8,6 +8,12 @@ import { GlassCard, LoadingCard, PageHeader, SidebarShell } from "@/components/u
 import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 import type { PublicPaymentMethodPayload } from "@/lib/agent-payment-settings";
+import {
+  fetchPublicAgentProfile,
+  publicAgentAvailableBalance,
+  publicAgentProfileFetchInit,
+  publicAgentProfileUrl,
+} from "@/lib/public-agent-client";
 
 type FlowStep = "METHOD" | "AMOUNT" | "CONFIRM";
 
@@ -54,9 +60,7 @@ export default function AchatStepOnePage() {
   const loadAgent = useCallback(async () => {
     if (!params.agentId) return;
     try {
-      const res = await fetch(`/api/agent/public-profile?agentId=${params.agentId}&t=${Date.now()}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(publicAgentProfileUrl(String(params.agentId)), publicAgentProfileFetchInit);
       const data = await res.json();
       if (!res.ok || !data.agent) {
         throw new Error(data.message || "Agent not found");
@@ -96,6 +100,14 @@ export default function AchatStepOnePage() {
     void loadAgent();
     const interval = setInterval(() => void loadAgent(), 10_000);
     return () => clearInterval(interval);
+  }, [loadAgent]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadAgent();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [loadAgent]);
 
   const numericAmount = Number(String(amount).replace(",", ".")) || 0;
@@ -166,6 +178,30 @@ export default function AchatStepOnePage() {
 
     setSubmitting(true);
     try {
+      const fresh = await fetchPublicAgentProfile(agent.id);
+      if (!fresh.ok || !fresh.data) {
+        throw new Error(fresh.message || "تعذّر التحقق من رصيد الوكيل");
+      }
+      const liveBalance = publicAgentAvailableBalance(fresh.data);
+      if (numericAmount > liveBalance) {
+        toast.error(
+          "عذراً، رصيد الوكيل الحالي لا يغطي هذا المبلغ. عدّل المبلغ أو أعد المحاولة لاحقاً.",
+        );
+        const methods = Array.isArray(fresh.data.activePaymentMethods)
+          ? (fresh.data.activePaymentMethods as PublicPaymentMethodPayload[])
+          : [];
+        setAgent((prev) =>
+          prev
+            ? {
+                ...prev,
+                availableBalance: liveBalance,
+                activePaymentMethods: methods.length ? methods : prev.activePaymentMethods,
+              }
+            : prev,
+        );
+        return;
+      }
+
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

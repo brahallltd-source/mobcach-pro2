@@ -12,6 +12,12 @@ import {
   SidebarShell,
   TextField,
 } from "@/components/ui";
+import {
+  fetchPublicAgentProfile,
+  publicAgentAvailableBalance,
+  publicAgentProfileFetchInit,
+  publicAgentProfileUrl,
+} from "@/lib/public-agent-client";
 
 type ActivePaymentMethod = {
   id: string;
@@ -25,6 +31,8 @@ type PublicAgent = {
   id: string;
   fullName: string;
   username: string;
+  /** Wallet balance for guard vs deposit amount (from `/api/agent/public-profile`). */
+  availableBalance: number;
   activePaymentMethods: ActivePaymentMethod[];
 };
 
@@ -77,17 +85,16 @@ function SubmitProofForm() {
       return;
     }
     try {
-      const res = await fetch(
-        `/api/agent/public-profile?agentId=${encodeURIComponent(agentId)}&t=${Date.now()}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(publicAgentProfileUrl(agentId), publicAgentProfileFetchInit);
       const data = await res.json();
       if (!res.ok || !data.agent) {
         throw new Error(data.message || "الوكيل غير موجود");
       }
-      const a = data.agent as PublicAgent;
+      const a = data.agent as PublicAgent & { availableBalance?: number };
+      const bal = publicAgentAvailableBalance(a);
       setAgent({
         ...a,
+        availableBalance: bal,
         activePaymentMethods: Array.isArray(a.activePaymentMethods) ? a.activePaymentMethods : [],
       });
     } catch (e: unknown) {
@@ -99,6 +106,14 @@ function SubmitProofForm() {
 
   useEffect(() => {
     void loadAgent();
+  }, [loadAgent]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadAgent();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [loadAgent]);
 
   const selected = agent?.activePaymentMethods?.find((m) => m.id === methodId) ?? null;
@@ -120,10 +135,17 @@ function SubmitProofForm() {
     return amountNum >= selected.minAmount && amountNum <= selected.maxAmount;
   }, [selected, amountNum]);
 
+  const walletOk = useMemo(() => {
+    if (!agent) return false;
+    if (!Number.isFinite(amountNum) || amountNum <= 0) return false;
+    return amountNum <= publicAgentAvailableBalance(agent);
+  }, [agent, amountNum]);
+
   const canSubmit =
     Boolean(userEmail) &&
     Boolean(selected) &&
     amountOk &&
+    walletOk &&
     senderName.trim().length >= 2 &&
     (!phoneField || senderPhone.trim().length >= 6) &&
     Boolean(file) &&
@@ -149,6 +171,21 @@ function SubmitProofForm() {
     setSubmitting(true);
     setError(null);
     try {
+      const live = await fetchPublicAgentProfile(agentId);
+      if (!live.ok || !live.data) {
+        throw new Error(live.message || "تعذّر التحقق من رصيد الوكيل");
+      }
+      const liveBal = publicAgentAvailableBalance(live.data);
+      setAgent((prev) =>
+        prev
+          ? { ...prev, availableBalance: liveBal }
+          : prev,
+      );
+      if (amountNum > liveBal) {
+        setError("رصيد الوكيل تغيّر ولم يعد يكفي لهذا المبلغ. ارجع لصفحة الشحن وعدّل المبلغ.");
+        return;
+      }
+
       const fd = new FormData();
       fd.set("file", file);
       fd.set("playerEmail", userEmail);
@@ -243,6 +280,25 @@ function SubmitProofForm() {
             className="inline-flex w-full items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
           >
             تصحيح المبلغ
+          </Link>
+        </GlassCard>
+      </SidebarShell>
+    );
+  }
+
+  if (agent && selected && amountOk && !walletOk) {
+    return (
+      <SidebarShell role="player">
+        <PageHeader
+          title="رصيد الوكيل غير كافٍ"
+          subtitle="رصيد الوكيل الحالي أقل من مبلغ الإيداع. عدّل المبلغ من صفحة الشحن ثم أعد المحاولة."
+        />
+        <GlassCard className="p-8 text-center">
+          <Link
+            href={`/player/recharge/${encodeURIComponent(agentId)}`}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
+          >
+            العودة لصفحة الشحن
           </Link>
         </GlassCard>
       </SidebarShell>
