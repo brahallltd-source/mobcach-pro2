@@ -59,6 +59,8 @@ function RegisterAgentPageContent() {
     formState: { errors, isSubmitting },
   } = useForm<AgentRegisterFormInput, unknown, AgentRegisterFormValues>({
     resolver: zodResolver(agentRegisterSchema),
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
       fullName: "",
       username: "",

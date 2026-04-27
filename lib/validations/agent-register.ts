@@ -56,7 +56,8 @@ export const agentRegisterSchema = z
     username: z.string().trim().min(2, "اسم المستخدم مطلوب"),
     email: z.string().trim().email("البريد الإلكتروني غير صالح"),
     password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
-    confirmPassword: z.string().min(1, "أكد كلمة المرور"),
+    /** May be empty while the user is still typing; cross-field rules below. */
+    confirmPassword: z.string(),
     birthDate: z
       .string({ required_error: "تاريخ الميلاد مطلوب" })
       .trim()
@@ -70,11 +71,27 @@ export const agentRegisterSchema = z
       .transform((s) => s.replace(/\s+/g, "")),
     note: z.string().trim().optional(),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "كلمات المرور غير متطابقة",
-    path: ["confirmPassword"],
-  })
   .superRefine((data, ctx) => {
+    const pwd = data.password;
+    const confirm = data.confirmPassword;
+    const confirmTrim = confirm.trim();
+
+    if (confirmTrim.length === 0) {
+      if (pwd.length >= 8) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "أكد كلمة المرور",
+          path: ["confirmPassword"],
+        });
+      }
+    } else if (pwd.length >= 8 && pwd !== confirm) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "كلمات المرور غير متطابقة",
+        path: ["confirmPassword"],
+      });
+    }
+
     const national = extractNationalPhoneForAgentSchema(data.phoneNumber, data.country);
     if (!isValidNationalForCountry(national, data.country)) {
       ctx.addIssue({
