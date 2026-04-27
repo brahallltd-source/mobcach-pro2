@@ -27,7 +27,7 @@ type CurrentUser = {
   email: string;
   role: string;
   username?: string;
-  /** `User.status` — PENDING_APPROVAL waits on agent; PENDING_AGENT completes linking on `/player/choose-agent`. */
+  /** `User.status` — PENDING_APPROVAL waits on agent; PENDING_AGENT completes linking on `/player/select-agent`. */
   status?: string;
   player_status?: "inactive" | "active";
   assigned_agent_id?: string;
@@ -128,7 +128,7 @@ export default function PlayerDashboardPage() {
 
       const acct = String(parsedUser.status ?? "").trim().toUpperCase();
       if (acct === "PENDING_AGENT") {
-        router.replace("/player/choose-agent");
+        router.replace("/player/select-agent");
         return;
       }
 

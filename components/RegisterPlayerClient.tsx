@@ -66,7 +66,7 @@ function resolvePostRegistrationRedirect(args: {
   const r = args.role.toUpperCase();
   if (r === "AGENT") return "/agent/dashboard";
   if (r === "PLAYER") {
-    return args.hasAgentCode ? "/player/dashboard" : "/player/choose-agent";
+    return args.hasAgentCode ? "/player/dashboard" : "/player/select-agent";
   }
   return "/player/dashboard";
 }

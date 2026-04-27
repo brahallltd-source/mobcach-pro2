@@ -299,7 +299,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       appSt === "PENDING"
         ? "/pending"
         : roleForToken === "player" && userAcctSt === "PENDING_AGENT"
-          ? "/player/choose-agent"
+          ? "/player/select-agent"
           : roleForToken === "player" && userAcctSt === "PENDING_APPROVAL"
             ? "/player/dashboard"
             : undefined;

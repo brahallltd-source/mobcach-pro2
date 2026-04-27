@@ -87,7 +87,7 @@ export default function LoginPage() {
       if (role === "player") {
         const acct = String(data.user.status ?? "").trim().toUpperCase();
         if (acct === "PENDING_AGENT") {
-          window.location.href = "/player/choose-agent";
+          window.location.href = "/player/select-agent";
           return;
         }
         if (acct === "PENDING_APPROVAL") {
@@ -95,7 +95,7 @@ export default function LoginPage() {
           return;
         }
         const assigned = data.user.player?.assignedAgentId;
-        window.location.href = assigned ? "/player/dashboard" : "/player/choose-agent";
+        window.location.href = assigned ? "/player/dashboard" : "/player/select-agent";
         return;
       }
       if (role === "admin" || role === "super_admin") {

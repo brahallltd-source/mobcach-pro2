@@ -101,7 +101,7 @@ export async function registerPlayerCore(
   let assignedAgentId: string | null = null;
   let playerStatus: string = "inactive";
   let accountUserStatus = "ACTIVE";
-  let nextStep = "/player/choose-agent";
+  let nextStep = "/player/select-agent";
   /** When creating `AgentCustomer` in the same transaction. */
   let agentCustomerLinkStatus: "REQUESTED" | "CONNECTED" | "PENDING" | null = null;
 
@@ -176,7 +176,7 @@ export async function registerPlayerCore(
           accountUserStatus = "ACTIVE";
           playerStatus = "active";
           agentCustomerLinkStatus = "CONNECTED";
-          nextStep = "/player/choose-agent";
+          nextStep = "/player/select-agent";
         } else {
           return {
             ok: false,
