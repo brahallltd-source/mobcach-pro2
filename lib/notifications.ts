@@ -60,11 +60,15 @@ export async function createNotification(payload: {
   });
 
   const link = payload.link ?? undefined;
-  void sendPushNotification(user.id, {
-    title,
-    message,
-    ...(link ? { url: link } : {}),
-  });
+  try {
+    await sendPushNotification(user.id, {
+      title,
+      message,
+      ...(link ? { url: link } : {}),
+    });
+  } catch (e) {
+    console.error("[notifications] sendPushNotification after createNotification:", e);
+  }
 
   return created;
 }

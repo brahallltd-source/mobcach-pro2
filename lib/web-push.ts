@@ -25,12 +25,20 @@ function tryConfigureVapid(): boolean {
   if (vapidConfigured) return true;
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  if (!publicKey || !privateKey) return false;
+  if (!publicKey || !privateKey) {
+    console.error(
+      "[web-push] VAPID not configured: set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (and VAPID_SUBJECT or VAPID_MAILTO mailto:... for subject)."
+    );
+    return false;
+  }
+  const subject = getVapidSubject();
   try {
-    webpush.setVapidDetails(getVapidSubject(), publicKey, privateKey);
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    console.log("[web-push] VAPID setVapidDetails OK, subject:", subject);
     vapidConfigured = true;
     return true;
-  } catch {
+  } catch (e) {
+    console.error("[web-push] VAPID setVapidDetails failed:", e);
     return false;
   }
 }
@@ -73,23 +81,44 @@ function serializeSubscriptionsForDb(
 
 /**
  * Sends Web Push to the user's stored subscription(s), if any. Never throws.
- * Missing VAPID env, missing DB, missing subscription, or send errors are swallowed
- * (expired subscriptions are cleared when the push endpoint returns 404/410).
+ * Expired subscriptions (404/410) are pruned; other errors are logged to the server console.
  */
 export async function sendPushNotification(userId: string, payload: PushPayload): Promise<void> {
   try {
-    if (!tryConfigureVapid()) return;
+    console.log("[web-push] Sending push to user:", userId, {
+      title: payload.title,
+      url: payload.url,
+    });
+
+    if (!tryConfigureVapid()) {
+      console.error("[web-push] Abort: VAPID not available");
+      return;
+    }
 
     const prisma = getPrisma();
-    if (!prisma) return;
+    if (!prisma) {
+      console.error("[web-push] Abort: Prisma not available");
+      return;
+    }
 
     const row = await prisma.user.findUnique({
       where: { id: userId },
       select: { pushSubscription: true },
     });
 
-    const subs = normalizePushSubscriptions(row?.pushSubscription);
-    if (subs.length === 0) return;
+    const rawSub = row?.pushSubscription;
+    const subs = normalizePushSubscriptions(rawSub);
+    console.log("Subscription found:", {
+      count: subs.length,
+      userId,
+      hasRawField: rawSub != null,
+      sampleEndpoint: subs[0]?.endpoint ? String(subs[0].endpoint).slice(0, 80) + "…" : null,
+    });
+
+    if (subs.length === 0) {
+      console.log("[web-push] No valid push subscription in DB for user; skipping webpush.sendNotification");
+      return;
+    }
 
     const body = JSON.stringify({
       title: payload.title,
@@ -98,13 +127,17 @@ export async function sendPushNotification(userId: string, payload: PushPayload)
     });
 
     const retained: WebPushSubscriptionJson[] = [];
-    for (const sub of subs) {
+    for (let i = 0; i < subs.length; i++) {
+      const sub = subs[i]!;
       try {
         await webpush.sendNotification(sub, body, { TTL: 60 * 60 });
+        console.log(`[web-push] sendNotification OK for sub ${i + 1}/${subs.length}`);
         retained.push(sub);
       } catch (err: unknown) {
+        console.error("Web Push Error:", err);
         const sc = httpStatusFromWebPushError(err);
         if (sc === 404 || sc === 410) {
+          console.log(`[web-push] Dropping subscription ${i} (status ${sc})`);
           continue;
         }
         retained.push(sub);
@@ -117,11 +150,12 @@ export async function sendPushNotification(userId: string, payload: PushPayload)
           where: { id: userId },
           data: { pushSubscription: serializeSubscriptionsForDb(retained) },
         });
-      } catch {
-        // ignore persistence failures
+        console.log("[web-push] Updated user pushSubscription after endpoint expiry");
+      } catch (e) {
+        console.error("[web-push] Failed to persist pruned pushSubscription:", e);
       }
     }
-  } catch {
-    // never throw to callers
+  } catch (e) {
+    console.error("Web Push Error (outer):", e);
   }
 }

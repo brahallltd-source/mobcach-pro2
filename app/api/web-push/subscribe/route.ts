@@ -52,5 +52,11 @@ export async function POST(req: Request) {
     data: { pushSubscription: subscription as Prisma.InputJsonValue },
   });
 
+  const ep = (subscription as { endpoint?: string }).endpoint;
+  console.log("[web-push/subscribe] Saved push subscription for user:", user.id, {
+    role: user.role,
+    endpointHost: ep ? (() => { try { return new URL(ep).host; } catch { return "invalid-endpoint"; } })() : "none",
+  });
+
   return NextResponse.json({ success: true });
 }

@@ -136,11 +136,20 @@ export async function POST(req: Request) {
 
     const agentUserId = await getAgentUserIdByAgentProfileId(cleanAgentId);
     if (agentUserId) {
+      console.log("[select-agent] Resolved agent User.id for push + in-app notify:", {
+        agentProfileId: cleanAgentId,
+        agentUserId,
+      });
       await createNotification({
         userId: agentUserId,
         title: "لاعب جديد مربوط",
         message: `قام اللاعب ${result.updatedUser.username} باختيارك كوكيل له.`,
       });
+    } else {
+      console.error(
+        "[select-agent] No agent User.id for Agent profile id; push/in-app to agent skipped:",
+        cleanAgentId
+      );
     }
 
     await createNotification({
