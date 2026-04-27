@@ -110,9 +110,11 @@ export default function PlayerRechargeWithAgentPage() {
       if (!res.ok || !data.agent) {
         throw new Error(data.message || "الوكيل غير موجود");
       }
-      const a = data.agent as PublicAgent;
+      const a = data.agent as PublicAgent & { balance?: unknown };
+      const balNum = Number(a.availableBalance ?? a.balance ?? 0);
       setAgent({
         ...a,
+        availableBalance: Number.isFinite(balNum) ? balNum : 0,
         activePaymentMethods: Array.isArray(a.activePaymentMethods) ? a.activePaymentMethods : [],
       });
       setSelectedId(null);

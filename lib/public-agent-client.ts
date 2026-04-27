@@ -32,7 +32,7 @@ export async function fetchPublicAgentProfile(agentId: string): Promise<{
   return { ok: true, data: json.agent };
 }
 
-export function publicAgentAvailableBalance(agent: { availableBalance?: number; balance?: number } | undefined): number {
+export function publicAgentAvailableBalance(agent: { availableBalance?: unknown; balance?: unknown } | undefined): number {
   if (!agent) return 0;
   const n = Number(agent.availableBalance ?? agent.balance ?? 0);
   return Math.max(0, Number.isFinite(n) ? n : 0);

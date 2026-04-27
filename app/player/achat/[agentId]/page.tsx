@@ -75,9 +75,11 @@ export default function AchatStepOnePage() {
       const methods = Array.isArray(data.agent.activePaymentMethods)
         ? (data.agent.activePaymentMethods as PublicPaymentMethodPayload[])
         : [];
+      const raw = data.agent as { availableBalance?: unknown; balance?: unknown };
+      const balNum = Number(raw.availableBalance ?? raw.balance ?? 0);
       setAgent({
         ...data.agent,
-        availableBalance: data.agent.availableBalance ?? data.agent.balance ?? 0,
+        availableBalance: Number.isFinite(balNum) ? balNum : 0,
         activePaymentMethods: methods,
       });
       setError(null);
