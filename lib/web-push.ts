@@ -120,10 +120,12 @@ export async function sendPushNotification(userId: string, payload: PushPayload)
       return;
     }
 
+    const link = String(payload.url ?? "/").trim() || "/";
     const body = JSON.stringify({
       title: payload.title,
       message: payload.message,
-      url: payload.url ?? "/",
+      url: link,
+      link,
     });
 
     const retained: WebPushSubscriptionJson[] = [];
