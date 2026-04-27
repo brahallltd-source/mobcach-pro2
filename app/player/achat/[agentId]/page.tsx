@@ -40,6 +40,11 @@ function limitsForMethod(m: PublicPaymentMethodPayload) {
   return { min, max };
 }
 
+/** `Player.status` in DB (e.g. `active` / `ACTIVE` after agent activation). */
+function isPlayerRecordActive(status: string | null | undefined): boolean {
+  return String(status ?? "").trim().toUpperCase() === "ACTIVE";
+}
+
 export default function AchatStepOnePage() {
   const params = useParams<{ agentId: string }>();
   const router = useRouter();
@@ -56,6 +61,8 @@ export default function AchatStepOnePage() {
   const [amount, setAmount] = useState("");
   const [gosportUsername, setGosportUsername] = useState<string | null>(null);
   const [playerEmail, setPlayerEmail] = useState("");
+  /** `null` = session not yet loaded; do not show inactive-only banners until known. */
+  const [playerAccountActive, setPlayerAccountActive] = useState<boolean | null>(null);
 
   const loadAgent = useCallback(async () => {
     if (!params.agentId) return;
@@ -90,10 +97,19 @@ export default function AchatStepOnePage() {
     setPlayerEmail(u.email);
     const g = u.player?.gosportUsername;
     setGosportUsername(typeof g === "string" && g.trim() ? g.trim() : null);
+    setPlayerAccountActive(isPlayerRecordActive(u.player?.status));
   }, []);
 
   useEffect(() => {
     void hydratePlayer();
+  }, [hydratePlayer]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void hydratePlayer();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [hydratePlayer]);
 
   useEffect(() => {
@@ -110,7 +126,11 @@ export default function AchatStepOnePage() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [loadAgent]);
 
-  const numericAmount = Number(String(amount).replace(",", ".")) || 0;
+  const numericAmount = useMemo(() => {
+    const t = String(amount).trim().replace(",", ".");
+    const n = Number(t);
+    return Number.isFinite(n) ? n : NaN;
+  }, [amount]);
 
   /** Step 2+: method limits (catalog) + hidden guard vs agent wallet (refreshed in background). */
   const amountValidationError = useMemo(() => {
@@ -121,7 +141,7 @@ export default function AchatStepOnePage() {
 
     const minA = Math.max(0, Number(selectedMethod.minAmount) || 0);
     const maxA = Math.max(0, Number(selectedMethod.maxAmount) || 0);
-    const agentBalance = Math.max(0, Number(agent.availableBalance) || 0);
+    const agentBalance = Math.max(0, Number(agent.availableBalance ?? 0));
 
     if (numericAmount < minA) {
       return `الحد الأدنى هو ${minA} DH`;
@@ -130,6 +150,7 @@ export default function AchatStepOnePage() {
       return `الحد الأقصى لهذه الوسيلة هو ${maxA} DH`;
     }
     if (numericAmount > agentBalance) {
+      console.log("Validating Deposit -> Requested:", numericAmount, "Agent Balance:", agentBalance);
       return "عذراً، رصيد الوكيل الحالي لا يغطي هذا المبلغ. يرجى اختيار مبلغ أقل أو التواصل معه.";
     }
     return null;
@@ -183,6 +204,7 @@ export default function AchatStepOnePage() {
         throw new Error(fresh.message || "تعذّر التحقق من رصيد الوكيل");
       }
       const liveBalance = publicAgentAvailableBalance(fresh.data);
+      console.log("Validating Deposit -> Requested:", numericAmount, "Agent Balance:", liveBalance);
       if (numericAmount > liveBalance) {
         toast.error(
           "عذراً، رصيد الوكيل الحالي لا يغطي هذا المبلغ. عدّل المبلغ أو أعد المحاولة لاحقاً.",
@@ -323,11 +345,12 @@ export default function AchatStepOnePage() {
                     <span>حساب موثّق</span>
                     <span className="font-mono text-emerald-100/90">{gosportUsername}</span>
                   </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/35 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-100">
-                    لم يُضبط اسم GoSport365 بعد — راسل وكيلك لإكمال التفعيل.
+                ) : null}
+                {playerAccountActive === false ? (
+                  <div className="inline-flex max-w-md items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-center text-sm leading-relaxed text-amber-100">
+                    إن لم يكن حسابك مفعلاً على GoSport365، فراسل وكيلك قبل الشحن.
                   </div>
-                )}
+                ) : null}
               </div>
 
               <div className="text-center">

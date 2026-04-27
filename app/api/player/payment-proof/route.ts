@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAgentSpendableBalanceDh } from "@/lib/agent-spendable-balance";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureCloudinaryConfigured } from "@/lib/cloudinary";
@@ -25,14 +26,14 @@ export async function POST(req: Request) {
     const playerEmail = String(formData.get("playerEmail") || "").trim().toLowerCase();
     const agentId = String(formData.get("agentId") || "").trim();
     const paymentMethodId = String(formData.get("paymentMethodId") || "").trim();
-    const amount = Number(String(formData.get("amount") || "").replace(",", "."));
+    const requestedAmount = Number(String(formData.get("amount") || "").trim().replace(",", "."));
     const senderName = String(formData.get("senderName") || "").trim();
     const senderPhone = String(formData.get("senderPhone") || "").trim();
 
     if (!playerEmail || !agentId || !paymentMethodId) {
       return NextResponse.json({ message: "بيانات ناقصة" }, { status: 400 });
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
       return NextResponse.json({ message: "المبلغ غير صالح" }, { status: 400 });
     }
     if (senderName.length < 2 || senderName.length > 200) {
@@ -74,7 +75,10 @@ export async function POST(req: Request) {
         id: agentId,
         status: { in: ["ACTIVE", "active", "account_created", "pending"] },
       },
-      include: { user: { select: { id: true, paymentMethods: true } } },
+      include: {
+        user: { select: { id: true, paymentMethods: true } },
+        wallet: true,
+      },
     });
     if (!agentProfile?.user?.id) {
       return NextResponse.json({ message: "الوكيل غير متاح" }, { status: 404 });
@@ -91,7 +95,7 @@ export async function POST(req: Request) {
     const minA = Number(methodRow.min_amount);
     const maxA = Number(methodRow.max_amount);
     if (Number.isFinite(minA) && Number.isFinite(maxA) && minA > 0 && maxA > 0) {
-      if (amount < minA || amount > maxA) {
+      if (Number(requestedAmount) < Number(minA) || Number(requestedAmount) > Number(maxA)) {
         return NextResponse.json(
           { message: `المبلغ يجب أن يكون بين ${Math.round(minA)} و ${Math.round(maxA)} MAD` },
           { status: 400 }
@@ -99,12 +103,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const agentWallet = await prisma.wallet.findUnique({
-      where: { userId: agentProfile.user.id },
-      select: { balance: true },
-    });
-    const agentBal = Number(agentWallet?.balance ?? 0);
-    if (!Number.isFinite(agentBal) || agentBal < amount) {
+    const agentBal = getAgentSpendableBalanceDh(agentProfile);
+    console.log("Validating Deposit -> Requested:", requestedAmount, "Agent Balance:", agentBal);
+    if (!Number.isFinite(requestedAmount) || !Number.isFinite(agentBal) || requestedAmount > agentBal) {
       return NextResponse.json(
         {
           message:
@@ -128,7 +129,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const row = await prisma.paymentProofTransaction.create({
       data: {
-        amount,
+        amount: requestedAmount,
         senderName,
         senderPhone: senderPhone || null,
         receiptUrl,
@@ -145,7 +146,7 @@ export async function POST(req: Request) {
     await createNotification({
       userId: agentProfile.user.id,
       title: "إثبات دفع جديد",
-      message: `اللاعب ${playerUser.username || playerUser.email} أرسل إثبات تحويل بمبلغ ${amount} MAD (${methodTitle}).`,
+      message: `اللاعب ${playerUser.username || playerUser.email} أرسل إثبات تحويل بمبلغ ${requestedAmount} MAD (${methodTitle}).`,
       type: "RECHARGE_REQUEST",
       link: "/agent/notifications",
     });

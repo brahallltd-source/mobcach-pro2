@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAgentSpendableBalanceDh } from "@/lib/agent-spendable-balance";
 import { getPrisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import {
@@ -36,7 +37,10 @@ export async function POST(req: Request) {
 
     const agentId = String(body.agentId || "").trim();
 
-    const amount = Number(body.amount || 0);
+    const rawAmount = body.amount;
+    const requested = Number(
+      typeof rawAmount === "string" ? String(rawAmount).trim().replace(",", ".") : rawAmount ?? 0,
+    );
 
     let gosportUsername = String(
       body.gosportUsername ||
@@ -72,7 +76,7 @@ export async function POST(req: Request) {
       ? body.suspicious_flags.map((x: unknown) => String(x))
       : [];
 
-    if (!playerEmail || !agentId || !amount || amount <= 0) {
+    if (!playerEmail || !agentId || !Number.isFinite(requested) || requested <= 0) {
       return NextResponse.json(
         { message: "playerEmail, agentId and a positive amount are required" },
         { status: 400 }
@@ -138,12 +142,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const agentSpendable =
-      agent.wallet != null
-        ? Number(agent.wallet.balance)
-        : Number(agent.availableBalance ?? 0);
+    const agentSpendable = getAgentSpendableBalanceDh(agent);
+    console.log("Validating Deposit -> Requested:", requested, "Agent Balance:", agentSpendable);
 
-    if (!Number.isFinite(amount) || amount > agentSpendable) {
+    if (!Number.isFinite(requested) || !Number.isFinite(agentSpendable) || requested > agentSpendable) {
       return NextResponse.json(
         {
           error: "Agent has insufficient balance to process this request.",
@@ -164,7 +166,7 @@ export async function POST(req: Request) {
         );
       if (hit) {
         const pub = toPublicPaymentMethodPayload(hit as AgentPaymentMethodRow);
-        if (amount < pub.minAmount || amount > pub.maxAmount) {
+        if (Number(requested) < Number(pub.minAmount) || Number(requested) > Number(pub.maxAmount)) {
           return NextResponse.json(
             {
               message: `المبلغ خارج حدود وسيلة الدفع (${pub.minAmount}–${pub.maxAmount} DH).`,
@@ -209,7 +211,7 @@ export async function POST(req: Request) {
         agentId,
         playerId: player.id,
         playerEmail,
-        amount,
+        amount: requested,
         gosportUsername,
         paymentMethodName: paymentMethodName || null,
         proofUrl: proofUrl || null,
@@ -267,7 +269,7 @@ export async function POST(req: Request) {
       await createNotification({
         userId: agentForNotify.userId,
         title: "New order received",
-        message: `${playerEmail} created a new order of ${amount} DH.`,
+        message: `${playerEmail} created a new order of ${requested} DH.`,
       });
     }
 

@@ -1,5 +1,6 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { NextResponse } from "next/server";
+import { getAgentSpendableBalanceDh } from "@/lib/agent-spendable-balance";
 import { getPrisma } from "@/lib/db";
 import {
   type AgentPaymentMethodRow,
@@ -45,9 +46,7 @@ export async function GET(req: Request) {
       .filter((m) => m.isActive)
       .map((m) => toPublicPaymentMethodPayload(m as AgentPaymentMethodRow));
 
-    const walletBal = agentData.wallet != null ? Number(agentData.wallet.balance) : null;
-    const fallbackBal = Number(agentData.availableBalance) || 0;
-    const availableBalance = walletBal != null && Number.isFinite(walletBal) ? walletBal : fallbackBal;
+    const availableBalance = getAgentSpendableBalanceDh(agentData);
 
     const formattedAgent = {
       id: agentData.id,
