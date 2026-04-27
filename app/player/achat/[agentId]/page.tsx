@@ -181,12 +181,36 @@ export default function AchatStepOnePage() {
   const goBackToAmount = () => setCurrentStep("AMOUNT");
 
   const goToConfirm = () => {
+    console.log("Submit handler fired (goToConfirm) with values:", {
+      amount,
+      numericAmount,
+      gosportUsername,
+      amountValidationError,
+      hasMethodLimits: Boolean(methodLimits),
+    });
+    if (!gosportUsername) {
+      toast.error("لا يوجد حساب GoSport365 مفعّل على ملفك. تواصل مع وكيلك لإكمال التفعيل.");
+      return;
+    }
     if (amountValidationError || !amount.trim() || !methodLimits) {
       toast.error(amountValidationError || "أدخل مبلغاً ضمن الحدود");
       return;
     }
     setCurrentStep("CONFIRM");
   };
+
+  // No react-hook-form here — this logs what would block step 2 “متابعة للتأكيد” (replaces form.formState.errors for debugging).
+  useEffect(() => {
+    if (currentStep !== "AMOUNT") return;
+    const noGosport = !gosportUsername;
+    const emptyAmount = !String(amount).trim();
+    console.log("[achat step2] validation / blockers:", {
+      amountValidationError: amountValidationError ?? null,
+      emptyAmount,
+      noGosport,
+      /* Previously the button was disabled for noGosport — clicks were ignored with no toast. */
+    });
+  }, [currentStep, amount, amountValidationError, gosportUsername]);
 
   const handleSubmit = async () => {
     if (!agent || !playerEmail || !selectedMethod || !methodLimits) return;
@@ -390,7 +414,7 @@ export default function AchatStepOnePage() {
 
               <button
                 type="button"
-                disabled={!!amountValidationError || !amount.trim() || !gosportUsername}
+                disabled={!!amountValidationError || !amount.trim()}
                 onClick={goToConfirm}
                 className="w-full rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 px-6 py-4 text-base font-bold tracking-wide text-slate-950 shadow-lg shadow-cyan-950/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
