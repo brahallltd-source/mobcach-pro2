@@ -41,18 +41,26 @@ export default function PlayerSelectAgentPage() {
   useEffect(() => {
     const saved = localStorage.getItem("mobcash_user");
     if (!saved) return void (window.location.href = "/login");
-    const current = JSON.parse(saved) as {
-      email?: string;
-      role?: string;
-      assigned_agent_id?: string;
-      assignedAgentId?: string;
-    };
-    if (current.role !== "player") return void (window.location.href = "/login");
-    if (current.assigned_agent_id || current.assignedAgentId) {
-      window.location.href = "/player/dashboard";
-      return;
+    try {
+      const current = JSON.parse(saved) as {
+        email?: string;
+        role?: string;
+        assigned_agent_id?: string | null;
+        assignedAgentId?: string | null;
+      };
+      const role = String(current.role ?? "").trim().toLowerCase();
+      if (role !== "player") return void (window.location.href = "/login");
+
+      const assignedId = String(current.assigned_agent_id ?? current.assignedAgentId ?? "").trim();
+      if (assignedId) {
+        window.location.href = "/player/dashboard";
+        return;
+      }
+      setUser({ email: String(current.email || ""), role: "player" });
+    } catch {
+      localStorage.removeItem("mobcash_user");
+      window.location.href = "/login";
     }
-    setUser({ email: String(current.email || ""), role: "player" });
   }, []);
 
   const load = useCallback(async () => {

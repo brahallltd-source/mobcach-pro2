@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { hasAuthCookiePresence } from "@/lib/auth-cookie-presence";
 import { PlayerWaitingRoomGate } from "@/components/player/PlayerWaitingRoomGate";
@@ -17,7 +16,6 @@ export default async function PlayerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const headerStore = await headers();
   const cookieStore = await cookies();
   const prisma = getPrisma();
   const user = await getSessionUserFromCookies();
@@ -40,13 +38,6 @@ export default async function PlayerLayout({
       return <>{children}</>;
     }
 
-    const currentPath =
-      headerStore.get("next-url") ||
-      headerStore.get("x-invoke-path") ||
-      headerStore.get("x-matched-path") ||
-      "";
-    const onSelectAgentPage = currentPath.includes("/player/select-agent");
-
     const player = await prisma.player.findUnique({
       where: { userId: user.id },
       select: {
@@ -60,10 +51,9 @@ export default async function PlayerLayout({
     const assignedAgentId =
       String(player?.assignedAgentId ?? user.player?.assignedAgentId ?? "").trim() || null;
     if (!assignedAgentId) {
-      if (onSelectAgentPage) {
-        return <>{children}</>;
-      }
-      redirect("/player/select-agent");
+      // Avoid header-based path detection loops: when no agent is selected yet,
+      // let the underlying page handle the onboarding UI/redirect.
+      return <>{children}</>;
     }
 
     const latestLinkRequest = player
