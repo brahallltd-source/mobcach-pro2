@@ -1,291 +1,204 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  CheckCircle2, CreditCard, Upload, Copy, MessageCircle, 
-  AlertCircle, Clock, ChevronRight, Zap, Phone, Info, Flag // 👈 زدنا Flag هنا
-} from "lucide-react";
-import {
-  GlassCard, 
-  LoadingCard, 
-  SidebarShell, 
-  PrimaryButton, 
-  DangerButton, 
-  EmptyState 
-} from "@/components/ui";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { AlertTriangle, CheckCircle2, Flag, MessageCircle, ThumbsDown, ThumbsUp } from "lucide-react";
+import { toast } from "sonner";
+import { GlassCard, LoadingCard, SidebarShell, TextArea } from "@/components/ui";
 
 type Order = {
   id: string;
   amount: number;
   status: string;
   agentId: string;
-  paymentMethodName?: string;
-  gosportUsername?: string;
-  proofUrl?: string;
-  createdAt: string;
-  agent?: { phone: string; fullName: string }; 
+  paymentMethodName?: string | null;
+  gosportUsername?: string | null;
+  proofUrl?: string | null;
+  createdAt?: string;
+  agent?: { fullName?: string; phone?: string };
 };
 
-export default function PlayerOrderMapPage({ params }: { params: Promise<{ orderId: string }> }) {
-  const resolvedParams = use(params);
-  const orderId = resolvedParams.orderId;
+export default function PlayerOrderPage() {
+  const { orderId } = useParams<{ orderId: string }>();
   const router = useRouter();
-
-  const [currentUser, setCurrentUser] = useState<any>(null); // 👈 زدنا حالة المستخدم
-  const [order, setOrder] = useState<Order | null>(null);
-  const [methods, setMethods] = useState<any[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState<any>(null);
-  const [proofFile, setProofFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [isFlagging, setIsFlagging] = useState(false); // 👈 حالة الإبلاغ
+  const [order, setOrder] = useState<Order | null>(null);
+  const [rating, setRating] = useState<"like" | "dislike" | null>("like");
+  const [comment, setComment] = useState("تم التأكد من وصول الرصيد بنجاح.");
+  const [flagReason, setFlagReason] = useState("");
+
+  const load = async () => {
+    const res = await fetch(`/api/order-messages?orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Order not found");
+    setOrder(data.order || null);
+  };
 
   useEffect(() => {
-    // جلب بيانات اللاعب من التخزين المحلي
-    const savedUser = localStorage.getItem("mobcash_user");
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const res = await fetch(`/api/order-messages?orderId=${orderId}`);
-      const data = await res.json();
-      setOrder(data.order);
-
-      // جلب الحسابات البنكية إذا كان الطلب بانتظار الدفع
-      if (data.order?.status === "pending_payment") {
-        const methodsRes = await fetch(`/api/agent/payment-methods?agentId=${data.order.agentId}`);
-        const methodsData = await methodsRes.json();
-        setMethods(methodsData.methods || []);
+    void (async () => {
+      try {
+        await load();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "تعذّر تحميل الطلب");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) { 
-      console.error("Fetch Error:", error); 
-    } finally { 
-      setLoading(false); 
+    })();
+  }, [orderId]);
+
+  const closeOrder = async () => {
+    if (!order) return;
+    if (!rating) {
+      toast.error("اختر تقييم العملية أولاً");
+      return;
     }
-  };
-
-  useEffect(() => { if (orderId) void loadData(); }, [orderId]);
-
-  const handleUploadProof = async () => {
-    if (!selectedMethod || !proofFile || !order) return alert("يرجى اختيار البنك ورفع الوصل");
     setBusy(true);
     try {
-      const formData = new FormData();
-      formData.append("file", proofFile);
-      formData.append("orderId", order.id);
-      formData.append("paymentMethodName", selectedMethod.methodName);
-
-      const res = await fetch("/api/upload-proof", { method: "POST", body: formData });
-      if (res.ok) { 
-        alert("تم الإرسال بنجاح!"); 
-        await loadData(); 
-      }
-    } catch { 
-      alert("خطأ في الرفع"); 
-    } finally { 
-      setBusy(false); 
-    }
-  };
-
-  // 🟢 دالة الإبلاغ (Flag) الجديدة
-  const handleFlagOrder = async () => {
-    const reason = window.prompt("المرجو كتابة سبب الإبلاغ عن هذا الطلب (سيتم تحويله للإدارة):");
-    if (!reason || reason.trim() === "") return;
-
-    setIsFlagging(true);
-    try {
-      const res = await fetch(`/api/orders/${order?.id}/flag`, {
+      const res = await fetch("/api/player/close-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          note: reason,
-          reportedByRole: "player", 
-          reporterId: currentUser?.id || "unknown"
+        body: JSON.stringify({
+          orderId: order.id,
+          action: "confirm",
+          rating,
+          comment,
         }),
       });
-
       const data = await res.json();
-      if (res.ok) {
-        alert(data.message); 
-        await loadData(); // تحديث البيانات بلا مانحتاجو Reload للصفحة
-      } else {
-        alert(data.message || "فشل في إرسال البلاغ");
-      }
-    } catch (error) {
-      alert("حدث خطأ في الاتصال بالخادم.");
+      if (!res.ok) throw new Error(data.message || "فشل إغلاق الطلب");
+      toast.success("تم إغلاق الطلب بنجاح");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذّر إغلاق الطلب");
     } finally {
-      setIsFlagging(false);
+      setBusy(false);
     }
   };
 
-  if (loading) return <SidebarShell role="player"><LoadingCard text="تحميل الخريطة..." /></SidebarShell>;
-  
-  if (!order) return (
-    <SidebarShell role="player">
-      <EmptyState title="الطلب غير موجود" subtitle="تأكد من رقم الطلب أو تواصل مع الدعم" />
-    </SidebarShell>
-  );
+  const flagOrder = async () => {
+    if (!order) return;
+    if (flagReason.trim().length < 5) {
+      toast.error("اكتب سبب المشكلة (5 أحرف على الأقل)");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/player/close-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          action: "flag",
+          reason: flagReason.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "فشل رفع البلاغ");
+      toast.success("تم تحويل الطلب للمراجعة");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذّر رفع البلاغ");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  // منطق مراحل الخريطة (Steps)
-  const isStep1Done = true;
-  const isStep2Active = order.status === "pending_payment";
-  const isStep2Done = ["proof_uploaded", "agent_approved_waiting_player", "completed", "flagged_for_review"].includes(order.status);
-  const isStep3Active = order.status === "agent_approved_waiting_player";
-  const isStep3Done = order.status === "completed";
-  
-  // 🟢 تحديد حالة الفلاج الحقيقية
-  const isFlagged = order.status === "flagged_for_review"; 
+  if (loading) {
+    return (
+      <SidebarShell role="player">
+        <LoadingCard text="جاري تحميل الطلب..." />
+      </SidebarShell>
+    );
+  }
+  if (!order) {
+    return (
+      <SidebarShell role="player">
+        <GlassCard className="p-8 text-center text-white/70">الطلب غير موجود</GlassCard>
+      </SidebarShell>
+    );
+  }
 
   return (
     <SidebarShell role="player">
-      <div className="mx-auto max-w-4xl space-y-6">
-        
-        {/* الخريطة البصرية (Progress Map) */}
-        <GlassCard className="p-6">
-          <div className="relative flex justify-between items-center">
-            <div className="absolute top-5 left-[12%] right-[12%] h-0.5 bg-white/10 -z-0" />
-            <div 
-              className="absolute top-5 left-[12%] h-0.5 bg-cyan-500 transition-all duration-1000 -z-0" 
-              style={{ width: isStep3Done ? '76%' : isStep2Done ? '38%' : '0%' }}
-            />
-            <MapStep icon={CheckCircle2} label="المبلغ" active={true} done={isStep1Done} />
-            <MapStep icon={CreditCard} label="الدفع والوصل" active={isStep2Active || isStep2Done} done={isStep2Done} />
-            <MapStep icon={Zap} label="إتمام العملية" active={isStep3Active || isStep3Done} done={isStep3Done} />
-          </div>
+      <div className="mx-auto max-w-3xl space-y-5">
+        <GlassCard className="space-y-3 p-6">
+          <p className="text-xs uppercase tracking-wide text-white/50">Order</p>
+          <p className="text-lg font-semibold text-white">#{order.id.slice(0, 8)}</p>
+          <p className="text-white/80">Amount: {order.amount} DH</p>
+          <p className="text-white/60">Status: {order.status}</p>
+          {order.proofUrl ? (
+            <img src={order.proofUrl} alt="Payment proof" className="max-h-[420px] w-full rounded-2xl border border-white/10 object-contain" />
+          ) : null}
         </GlassCard>
 
-        {/* 🚨 حالة الفلاج (الإبلاغ للإدارة) */}
-        {isFlagged && (
-          <GlassCard className="p-10 text-center space-y-6 border-red-500/30 bg-red-500/5 animate-in fade-in">
-            <div className="mx-auto h-20 w-20 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center animate-pulse">
-              <AlertCircle size={40} />
+        {order.status === "agent_approved_waiting_player" ? (
+          <GlassCard className="space-y-4 p-6">
+            <h2 className="text-lg font-semibold text-white">تحقق من الرصيد على GoSport365 ثم أغلق الطلب</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRating("like")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${rating === "like" ? "border-emerald-400 bg-emerald-500/15 text-emerald-100" : "border-white/15 text-white/70"}`}
+              >
+                <ThumbsUp className="mr-2 inline h-4 w-4" /> Like
+              </button>
+              <button
+                type="button"
+                onClick={() => setRating("dislike")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${rating === "dislike" ? "border-rose-400 bg-rose-500/15 text-rose-100" : "border-white/15 text-white/70"}`}
+              >
+                <ThumbsDown className="mr-2 inline h-4 w-4" /> Dislike
+              </button>
             </div>
-            <h3 className="text-2xl font-bold text-red-400">الطلب قيد مراجعة الإدارة</h3>
-            <p className="text-white/60">تم الإبلاغ عن هذا الطلب لوجود مشكلة. الإدارة تراجع التفاصيل حالياً وسيتم حل المشكلة في أقرب وقت.</p>
-          </GlassCard>
-        )}
-
-        {/* المرحلة ٢: اختيار البنك والرفع (تختفي إذا كان الطلب مبلوكي) */}
-        {isStep2Active && !isFlagged && (
-          <GlassCard className="p-6 md:p-8 space-y-6 border-cyan-500/20 animate-in fade-in zoom-in-95">
-            {/* ... الكود ديال اختيار البنك والرفع بقى كما هو ... */}
-            <div className="flex items-center gap-3 text-cyan-400">
-              <Info size={24} />
-              <h2 className="text-xl font-bold">المرحلة الثانية: بيانات الدفع</h2>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <p className="text-sm font-semibold opacity-70">اختر حساب الوكيل البنكي:</p>
-                <div className="grid gap-3">
-                  {methods.map((m) => (
-                    <button key={m.id} onClick={() => setSelectedMethod(m)}
-                      className={`flex items-center justify-between p-4 rounded-2xl border transition ${selectedMethod?.id === m.id ? "border-cyan-500 bg-cyan-500/10" : "border-white/10 bg-white/5"}`}
-                    >
-                      <span className="font-bold">{m.methodName}</span>
-                      <ChevronRight size={16} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedMethod && (
-                <div className="rounded-3xl bg-black/40 p-6 border border-white/10 space-y-4 shadow-2xl animate-in slide-in-from-right-4">
-                  <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">بيانات التحويل</p>
-                  <div><p className="text-[10px] opacity-40">RIB / رقم الحساب</p>
-                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl mt-1">
-                      <p className="font-mono text-xs overflow-hidden text-ellipsis">{selectedMethod.rib}</p>
-                      <Copy size={14} className="text-cyan-400 cursor-pointer" onClick={() => {navigator.clipboard.writeText(selectedMethod.rib); alert("تم النسخ");}} />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {selectedMethod && (
-              <div className="pt-6 border-t border-white/10 space-y-4">
-                <p className="text-sm font-semibold">ارفع صورة وصل التحويل (Screenshot):</p>
-                <div className="flex flex-col md:flex-row gap-4">
-                  <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files?.[0] || null)} className="flex-1 text-sm file:bg-cyan-500 file:rounded-full file:border-0 file:px-4 file:py-2 file:text-black file:font-bold cursor-pointer" />
-                  <PrimaryButton disabled={!proofFile || busy} onClick={handleUploadProof}>
-                    {busy ? "جاري الرفع..." : "إرسال الإثبات للوكيل"}
-                  </PrimaryButton>
-                </div>
-              </div>
-            )}
-          </GlassCard>
-        )}
-
-        {/* الحالة: انتظار المراجعة */}
-        {order.status === "proof_uploaded" && (
-          <GlassCard className="p-10 text-center space-y-6 border-yellow-500/20">
-            <div className="mx-auto h-20 w-20 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center animate-pulse">
-              <Clock size={40} />
-            </div>
-            <h3 className="text-2xl font-bold">جاري التحقق من التحويل...</h3>
-            <p className="text-white/50">سيقوم الوكيل بمراجعة الوصل وشحن حسابك فوراً.</p>
-          </GlassCard>
-        )}
-
-        {/* المرحلة ٣: الإتمام والنجاح */}
-        {isStep3Active && (
-          <GlassCard className="p-10 text-center space-y-6 border-emerald-500/20">
-            <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <CheckCircle2 size={40} />
-            </div>
-            <h3 className="text-2xl font-bold">قام الوكيل بشحن حسابك!</h3>
-            <PrimaryButton className="w-full bg-emerald-600 hover:bg-emerald-500 py-4" onClick={() => router.push("/player/dashboard")}>
-              تم إتمام العملية ✅
-            </PrimaryButton>
-          </GlassCard>
-        )}
-
-        {/* أزرار الدعم والتواصل */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button onClick={() => router.push(`/player/chat?orderId=${order.id}`)} className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 p-4 hover:bg-white/10 transition text-sm">
-            <MessageCircle size={18} /> محادثة
-          </button>
-          
-          <a href={`https://wa.me/${order.agent?.phone}`} target="_blank" className="flex items-center justify-center gap-2 rounded-2xl bg-green-500/10 p-4 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition text-sm">
-            <Phone size={18} /> واتساب
-          </a>
-
-          {/* 🟢 زر الإبلاغ (Flag) - يظهر فقط إذا لم يكتمل الطلب ولم يتم الإبلاغ عنه */}
-          {!isStep3Done && !isFlagged && (
-            <button 
-              onClick={handleFlagOrder}
-              disabled={isFlagging}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-red-500/10 p-4 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition disabled:opacity-50 text-sm"
+            <TextArea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="تعليق اختياري..." className="min-h-[110px]" />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void closeOrder()}
+              className="w-full rounded-full bg-emerald-500 px-5 py-3 font-bold text-slate-950 disabled:opacity-50"
             >
-              <Flag size={18} /> {isFlagging ? "جاري..." : "إبلاغ المشرف"}
+              <CheckCircle2 className="mr-2 inline h-4 w-4" /> Confirm & Close
             </button>
-          )}
 
-          {!isStep3Done && !isFlagged && (
-            <DangerButton className="text-sm" onClick={() => {/* دالة الإلغاء */}}>إلغاء الطلب</DangerButton>
-          )}
+            <div className="space-y-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4">
+              <p className="text-sm font-semibold text-rose-100">Issue Path (Flag)</p>
+              <TextArea value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="اشرح المشكلة..." className="min-h-[100px]" />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void flagOrder()}
+                className="w-full rounded-full border border-rose-400/40 bg-rose-500/20 px-5 py-3 font-bold text-rose-100 disabled:opacity-50"
+              >
+                <Flag className="mr-2 inline h-4 w-4" /> Flag
+              </button>
+            </div>
+          </GlassCard>
+        ) : null}
+
+        {order.status === "completed" ? (
+          <GlassCard className="p-6 text-center text-emerald-200">
+            <CheckCircle2 className="mx-auto mb-2 h-8 w-8" />
+            تم إكمال الطلب بنجاح.
+          </GlassCard>
+        ) : null}
+
+        {order.status === "flagged_for_review" ? (
+          <GlassCard className="p-6 text-center text-rose-200">
+            <AlertTriangle className="mx-auto mb-2 h-8 w-8" />
+            تم رفع الطلب للمراجعة من طرف الإدارة.
+          </GlassCard>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => router.push(`/player/chat?orderId=${order.id}`)} className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+            <MessageCircle className="mr-2 inline h-4 w-4" /> محادثة
+          </button>
+          <button onClick={() => router.push("/player/orders")} className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+            رجوع للطلبات
+          </button>
         </div>
       </div>
     </SidebarShell>
-  );
-}
-
-// مكون المرحلة الصغيرة داخل الخريطة
-function MapStep({ icon: Icon, label, active, done }: any) {
-  return (
-    <div className="relative z-10 flex flex-col items-center gap-2">
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center border-2 transition-all duration-700 ${
-        done ? "bg-cyan-500 border-cyan-500 text-black" : 
-        active ? "border-cyan-500 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] bg-[#0B0F19]" : 
-        "border-white/10 text-white/20 bg-[#0B0F19]"
-      }`}>
-        <Icon size={24} />
-      </div>
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${active ? "text-cyan-400" : "text-white/20"}`}>
-        {label}
-      </span>
-    </div>
   );
 }

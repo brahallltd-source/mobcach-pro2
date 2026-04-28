@@ -7,7 +7,7 @@ import { getSessionUserFromCookies } from "@/lib/server-session-user";
 export const dynamic = "force-dynamic";
 
 /**
- * Uses the same DB-backed session resolution as `GET /api/auth/me` (not JWT `role` claim alone
+ * Uses the same DB-backed session resolution as `GET /api/auth/session` (not JWT `role` claim alone
  * and not `localStorage`), so cookie-only logins are recognized.
  * `middleware.ts` also sends `PENDING` users to `/pending` first — this is a second line of defense.
  */

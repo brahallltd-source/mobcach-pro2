@@ -110,6 +110,12 @@ export function AgentLinkRequestApprovalRow({
     if (!successMessage) return "";
     return `https://wa.me/?text=${encodeURIComponent(successMessage)}`;
   }, [successMessage]);
+  const credentialsPreview = useMemo(() => {
+    const username = form.new_gosport_username.trim();
+    const password = form.player_gosport_password;
+    if (!username || !password) return "";
+    return `GoSport365 Credentials\nUsername: ${username}\nPassword: ${password}`;
+  }, [form.new_gosport_username, form.player_gosport_password]);
 
   const copyMessage = async () => {
     if (!successMessage) return;
@@ -187,118 +193,6 @@ export function AgentLinkRequestApprovalRow({
 
   return (
     <>
-      {slideOpen ? (
-        <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            aria-label="إغلاق"
-            onClick={() => !busy && closeSlide()}
-          />
-          <div className="relative z-[101] flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0b1220] shadow-2xl shadow-black/50">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <h3 className="text-lg font-semibold text-white">
-                {successMessage ? "تم التفعيل" : "إعداد حساب GoSport365"}
-              </h3>
-              <button
-                type="button"
-                className="rounded-lg px-2 py-1 text-sm text-white/60 hover:bg-white/10 hover:text-white"
-                onClick={() => !busy && closeSlide()}
-              >
-                إغلاق
-              </button>
-            </div>
-            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-              {successMessage ? (
-                <>
-                  <pre className="whitespace-pre-wrap rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-4 font-sans text-sm leading-relaxed text-white/90">
-                    {successMessage}
-                  </pre>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <PrimaryButton type="button" className="w-full sm:flex-1" onClick={() => void copyMessage()}>
-                      نسخ الرسالة
-                    </PrimaryButton>
-                    <a
-                      href={shareUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={clsx(
-                        "inline-flex w-full flex-1 items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:translate-y-[-1px] hover:brightness-110 sm:w-auto",
-                      )}
-                    >
-                      مشاركة عبر واتساب
-                    </a>
-                  </div>
-                  <PrimaryButton
-                    type="button"
-                    className="w-full border border-white/20 bg-white/5 hover:bg-white/10"
-                    onClick={closeSlide}
-                  >
-                    إغلاق
-                  </PrimaryButton>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-white/55">
-                    اللاعب: <span className="font-semibold text-cyan-200">{row.username}</span> — معرّف:{" "}
-                    <span className="font-mono text-cyan-100" dir="ltr">
-                      {displayId}
-                    </span>
-                  </p>
-                  {formError ? (
-                    <p
-                      role="alert"
-                      className="rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-sm text-rose-100"
-                    >
-                      {formError}
-                    </p>
-                  ) : null}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="mb-1 block text-xs text-white/50">new_gosport_username</label>
-                      <TextField
-                        autoComplete="off"
-                        value={form.new_gosport_username}
-                        onChange={(e) => patchForm({ new_gosport_username: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-white/50">confirm_new_gosport_username</label>
-                      <TextField
-                        autoComplete="off"
-                        value={form.confirm_new_gosport_username}
-                        onChange={(e) => patchForm({ confirm_new_gosport_username: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-white/50">player_gosport_password</label>
-                      <TextField
-                        type="password"
-                        autoComplete="new-password"
-                        value={form.player_gosport_password}
-                        onChange={(e) => patchForm({ player_gosport_password: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-white/50">confirm_player_gosport_password</label>
-                      <TextField
-                        type="password"
-                        autoComplete="new-password"
-                        value={form.confirm_player_gosport_password}
-                        onChange={(e) => patchForm({ confirm_player_gosport_password: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <PrimaryButton type="button" disabled={busy} className="w-full" onClick={() => void submit()}>
-                    {busy ? "جاري الحفظ..." : approveLabel}
-                  </PrimaryButton>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {rejectOpen ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <button
@@ -384,6 +278,119 @@ export function AgentLinkRequestApprovalRow({
           </div>
         </div>
       </GlassCard>
+      {slideOpen ? (
+        <GlassCard className="mt-3 space-y-4 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">{successMessage ? "تم التفعيل" : "إعداد حساب GoSport365"}</h3>
+            <button
+              type="button"
+              className="rounded-lg px-2 py-1 text-sm text-white/60 hover:bg-white/10 hover:text-white"
+              onClick={() => !busy && closeSlide()}
+            >
+              إغلاق
+            </button>
+          </div>
+          {successMessage ? (
+            <>
+              <pre className="whitespace-pre-wrap rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-4 font-sans text-sm leading-relaxed text-white/90">
+                {successMessage}
+              </pre>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <PrimaryButton type="button" className="w-full sm:flex-1" onClick={() => void copyMessage()}>
+                  نسخ الرسالة
+                </PrimaryButton>
+                <a
+                  href={shareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={clsx(
+                    "inline-flex w-full flex-1 items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:translate-y-[-1px] hover:brightness-110 sm:w-auto",
+                  )}
+                >
+                  مشاركة عبر واتساب
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-white/55">
+                اللاعب: <span className="font-semibold text-cyan-200">{row.username}</span> — معرّف:{" "}
+                <span className="font-mono text-cyan-100" dir="ltr">
+                  {displayId}
+                </span>
+              </p>
+              {formError ? (
+                <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-sm text-rose-100">
+                  {formError}
+                </p>
+              ) : null}
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs text-white/50">new_gosport_username</label>
+                  <TextField
+                    autoComplete="off"
+                    value={form.new_gosport_username}
+                    onChange={(e) => patchForm({ new_gosport_username: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-white/50">confirm_new_gosport_username</label>
+                  <TextField
+                    autoComplete="off"
+                    value={form.confirm_new_gosport_username}
+                    onChange={(e) => patchForm({ confirm_new_gosport_username: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-white/50">player_gosport_password</label>
+                  <TextField
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.player_gosport_password}
+                    onChange={(e) => patchForm({ player_gosport_password: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-white/50">confirm_player_gosport_password</label>
+                  <TextField
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.confirm_player_gosport_password}
+                    onChange={(e) => patchForm({ confirm_player_gosport_password: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-200/90">Preview</p>
+                {credentialsPreview ? (
+                  <>
+                    <pre className="whitespace-pre-wrap font-mono text-xs text-cyan-50">{credentialsPreview}</pre>
+                    <button
+                      type="button"
+                      className="mt-3 rounded-xl border border-cyan-300/40 bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/30"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(credentialsPreview);
+                          toast.success("تم نسخ بيانات الحساب");
+                        } catch {
+                          toast.error("تعذّر النسخ");
+                        }
+                      }}
+                    >
+                      Copy to Clipboard
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-xs text-white/60">املأ اسم المستخدم وكلمة المرور لعرض المعاينة.</p>
+                )}
+              </div>
+              <PrimaryButton type="button" disabled={busy} className="w-full" onClick={() => void submit()}>
+                {busy ? "جاري الحفظ..." : approveLabel}
+              </PrimaryButton>
+            </>
+          )}
+        </GlassCard>
+      ) : null}
     </>
   );
 }

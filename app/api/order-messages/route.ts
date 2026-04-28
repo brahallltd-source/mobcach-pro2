@@ -233,14 +233,29 @@ export async function GET(req: Request) {
 
     // 3. حالة طلب واحد
     if (orderId) {
+      // 1. Fetch the order with messages
       const order = await prisma.order.findUnique({
         where: { id: orderId },
-        include: { messages: { orderBy: { createdAt: "asc" } } },
+        include: { messages: { orderBy: { createdAt: "asc" } } }
       });
+
       if (!order) return NextResponse.json({ message: "Order not found" }, { status: 404 });
+
+      // 2. Fetch ALL agent payment methods to perform a fuzzy/safe match
+      const agentMethods = await prisma.paymentMethod.findMany({
+        where: { agentId: order.agentId }
+      });
+
+      // 3. Match the method by trimming and ignoring case (prevents empty fields due to spaces)
+      const paymentDetails = agentMethods.find(m => 
+        m.methodName.trim().toLowerCase() === order.paymentMethodName?.trim().toLowerCase()
+      ) || null;
+
+      // 4. Return the complete package
       return NextResponse.json({ 
-        order: { id: order.id, status: order.status, amount: order.amount }, 
-        messages: order.messages.map(mapMessage) 
+        order, 
+        paymentDetails, // This contains the RIB and Account Name
+        messages: order.messages 
       });
     }
 

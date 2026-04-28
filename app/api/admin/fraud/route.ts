@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
+import { ensureAgentWallet } from "@/lib/wallet-db";
 import { requireAdminPermission, respondIfAdminAccessDenied } from "@/lib/server-auth";
 import { applyFraudFlagOrderAction } from "@/lib/admin-fraud-flag-action";
 
@@ -137,21 +139,25 @@ export async function POST(req: Request) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
-        const wallet = await tx.wallet.update({
-          where: { agentId },
+        const resolved = await resolveAgentWalletIds(tx, agentId);
+        if (!resolved) throw new Error("Agent wallet keys not found");
+        const wallet = await ensureAgentWallet(tx, resolved);
+        const updated = await tx.wallet.update({
+          where: { id: wallet.id },
           data: { balance: newBalance },
         });
+        await tx.agent.update({ where: { id: resolved.agentTableId }, data: { availableBalance: newBalance } });
 
         await tx.walletLedger.create({
           data: {
-            agentId,
+            agentId: resolved.agentTableId,
             walletId: wallet.id,
             type: "ADMIN_ADJUSTMENT",
             amount: newBalance,
             reason: (data.reason != null ? String(data.reason) : "") || "تعديل يدوي من الإدارة",
           },
         });
-        return wallet;
+        return updated;
       });
 
       return NextResponse.json({

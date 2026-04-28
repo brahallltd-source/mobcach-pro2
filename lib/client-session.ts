@@ -1,12 +1,12 @@
 /**
  * Client-side session helpers: the browser cannot read httpOnly `mobcash_session` /
- * `mobcash_user` cookies, so we call `GET /api/auth/me` and mirror the user into
+ * `mobcash_user` cookies, so we call `GET /api/auth/session` and mirror the user into
  * `localStorage` for legacy UI that still reads `mobcash_user` there.
  */
 
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 
-const ME_URL = "/api/auth/me";
+const ME_URL = "/api/auth/session";
 
 export type { MobcashUser };
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
+import { ensureAgentWallet } from "@/lib/wallet-db";
 import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -49,20 +51,20 @@ export async function POST(req: Request) {
 
     // 5. التحديث فـ Transaction
     const result = await prisma.$transaction(async (tx) => {
-      // أ. جلب المحفظة
-      const wallet = await tx.wallet.findUnique({ where: { agentId } });
-      if (!wallet) throw new Error("Wallet not found");
+      const resolved = await resolveAgentWalletIds(tx, agentId);
+      if (!resolved) throw new Error("Agent wallet keys not found");
+      const wallet = await ensureAgentWallet(tx, resolved);
 
       // ب. زيادة الرصيد
       const updatedWallet = await tx.wallet.update({
-        where: { agentId },
+        where: { id: wallet.id },
         data: { balance: { increment: 200 } }
       });
 
       // ج. تسجيل العملية فـ WalletLedger (بلاصة Transaction)
       await tx.walletLedger.create({
         data: {
-          agentId,
+          agentId: resolved.agentTableId,
           walletId: wallet.id,
           type: "CREDIT",
           amount: 200,

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
+import { ensureAgentWallet } from "@/lib/wallet-db";
 import { createNotification, getAgentUserIdByAgentProfileId } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -60,23 +62,20 @@ export async function POST(req: Request) {
       });
 
       if (action === "approve") {
-        // ب. جلب المحفظة
-        const wallet = await tx.wallet.findUnique({
-          where: { agentId: claim.agentId }
-        });
-
-        if (!wallet) throw new Error("Wallet not found for this agent");
+        const resolved = await resolveAgentWalletIds(tx, claim.agentId);
+        if (!resolved) throw new Error("Wallet keys not found for this agent");
+        const wallet = await ensureAgentWallet(tx, resolved);
 
         // ج. إضافة الرصيد للمحفظة
         await tx.wallet.update({
-          where: { agentId: claim.agentId },
+          where: { id: wallet.id },
           data: { balance: { increment: claim.amount } }
         });
 
         // د. تسجيل العملية فـ الـ Ledger
         await tx.walletLedger.create({
           data: {
-            agentId: claim.agentId,
+            agentId: resolved.agentTableId,
             walletId: wallet.id,
             type: "BONUS",
             amount: claim.amount,

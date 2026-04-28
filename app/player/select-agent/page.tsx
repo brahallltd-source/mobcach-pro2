@@ -95,7 +95,7 @@ export default function PlayerSelectAgentPage() {
         });
         const data = (await res.json()) as { message?: string; user?: unknown };
         if (!res.ok) throw new Error(data.message || tp("selectAgent.joinFailed"));
-        const me = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" }).then((r) => r.json());
+        const me = await fetch("/api/auth/session", { credentials: "include", cache: "no-store" }).then((r) => r.json());
         if (me.success && me.user) {
           localStorage.setItem("mobcash_user", JSON.stringify(me.user));
         } else if (data.user) {

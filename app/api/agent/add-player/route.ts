@@ -155,6 +155,7 @@ if (!password) {
           firstName,
           lastName,
           username,
+          gosportUsername: username,
           phone: normalizedPhone,
           city: city || null,
           country: country || null,

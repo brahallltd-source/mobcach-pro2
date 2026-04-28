@@ -135,6 +135,19 @@ export async function POST(
           status: "CONNECTED",
         },
       });
+      await tx.activation.updateMany({
+        where: {
+          playerUserId: row.player.userId,
+          agentId,
+        },
+        data: {
+          username: u,
+          passwordPlain: p,
+          status: "active",
+          activatedAt: new Date(),
+          sentAt: new Date(),
+        },
+      });
     });
 
     return NextResponse.json({ success: true, message: "تمت الموافقة وتفعيل حساب اللاعب" });

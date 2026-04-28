@@ -1,0 +1,64 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "back": "Back",
+    "copy": "Copy",
+    "copied": "Copied",
+    "loading": "Loading..."
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "player": {
+    "achat": {
+      "title": "Recharge Request",
+      "subtitle": "4 steps: amount, identity, payment details, proof upload.",
+      "step1": "Step 1 - Enter amount",
+      "step2": "Step 2 - Identity validation",
+      "step3": "Step 3 - Payment map & details",
+      "step4": "Step 4 - Upload proof",
+      "sendProof": "Send Proof",
+      "amountPlaceholder": "Enter amount",
+      "identityUsername": "player user name gosport365",
+      "identityConfirm": "confirm player user name gosport365",
+      "inactiveWarning": "Your account is not active yet. Contact your agent before recharging.",
+      "invalidAmount": "Invalid amount",
+      "insufficientAgentBalance": "Sorry, agent balance does not cover this amount.",
+      "identityMismatch": "GoSport365 username confirmation does not match.",
+      "proofRequired": "Upload proof image (JPG or PNG)."
+    },
+    "orders": {
+      "confirmClose": "Confirm & Close",
+      "flag": "Flag",
+      "flagReasonPlaceholder": "Describe the issue...",
+      "completed": "Order completed successfully.",
+      "flagged": "Order was flagged for admin review.",
+      "rateLike": "Like",
+      "rateDislike": "Dislike"
+    }
+  },
+  "agent": {
+    "linkApproval": {
+      "title": "GoSport365 Setup",
+      "approve": "Approve",
+      "reject": "Reject",
+      "preview": "Preview",
+      "copyCredentials": "Copy to Clipboard",
+      "username": "add new gosport365 player username",
+      "confirmUsername": "confirm add new gosport365 player username",
+      "password": "gosport365 player password",
+      "confirmPassword": "confirm gosport365 player password",
+      "mismatchUsername": "Username confirmation does not match.",
+      "mismatchPassword": "Password confirmation does not match."
+    },
+    "orderReview": {
+      "approveRelease": "Approve & Release",
+      "reject": "Reject",
+      "flag": "Report to admin",
+      "insufficientBalance": "Your balance is not enough for this order."
+    }
+  }
+}

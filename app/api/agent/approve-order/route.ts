@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
+import { ensureAgentWallet } from "@/lib/wallet-db";
 import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
@@ -27,20 +29,28 @@ export async function POST(req: Request) {
         },
       });
 
-      if (!order || !order.agent || !order.agent.wallet) {
-        throw new Error("Order, Agent or Wallet not found");
+      if (!order || !order.agent) {
+        throw new Error("Order or Agent not found");
       }
+
+      const resolved = await resolveAgentWalletIds(tx, order.agentId);
+      if (!resolved) throw new Error("Agent wallet keys not found");
+      const wallet = await ensureAgentWallet(tx, resolved);
 
       if (order.walletDeducted || order.status === "completed") {
         throw new Error("هذا الطلب تم تفعيله مسبقاً.");
       }
-
-      if (order.agent.wallet.balance < order.amount) {
-        throw new Error(`رصيدك غير كافٍ. المتوفر حالياً: ${order.agent.wallet.balance} DH`);
+      if (!["proof_uploaded", "pending_payment"].includes(String(order.status))) {
+        throw new Error("الطلب ليس في حالة قابلة للموافقة.");
       }
 
+      if (Number(wallet.balance || 0) < order.amount) {
+        throw new Error(`رصيدك غير كافٍ. المتوفر حالياً: ${wallet.balance} DH`);
+      }
+      const nextWalletBalance = Number(wallet.balance || 0) - Number(order.amount || 0);
+
       await tx.wallet.update({
-        where: { agentId: order.agentId },
+        where: { id: wallet.id },
         data: {
           balance: { decrement: order.amount },
           ledger: {
@@ -57,6 +67,10 @@ export async function POST(req: Request) {
             },
           },
         },
+      });
+      await tx.agent.update({
+        where: { id: order.agentId },
+        data: { availableBalance: nextWalletBalance },
       });
 
       const upd = await tx.order.update({

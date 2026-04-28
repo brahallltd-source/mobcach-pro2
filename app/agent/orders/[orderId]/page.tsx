@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AlertTriangle, MessageCircle, XCircle, CheckCircle, Flag } from "lucide-react";
+import { toast } from "sonner";
 import {
   GlassCard,
   PageHeader,
@@ -21,6 +22,7 @@ export default function AgentOrderDetailPage() {
   
   const [currentUser, setCurrentUser] = useState<any>(null); // 👈 زدنا المستخدم
   const [order, setOrder] = useState<any>(null);
+  const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [agentData, setAgentData] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -36,6 +38,7 @@ export default function AgentOrderDetailPage() {
       return;
     }
     setCurrentUser(user);
+    setPaymentInfo(null);
 
     try {
       const agentId = (user as { agentId?: string }).agentId || user.id;
@@ -46,8 +49,11 @@ export default function AgentOrderDetailPage() {
       
       const oData = await orderRes.json();
       const pData = await profileRes.json();
-      
+
+      console.log("====== FRONTEND DEBUG ======");
+      console.log("Received oData:", oData);
       setOrder(oData.order || null);
+      setPaymentInfo(oData.paymentDetails || null);
       setAgentData(pData.wallet || null);
     } catch (error) {
       console.error(error);
@@ -75,10 +81,10 @@ export default function AgentOrderDetailPage() {
         setMessage(""); 
       } else {
         const err = await res.json();
-        alert(err.message || "Action failed");
+        toast.error(err.message || "Action failed");
       }
     } catch (error) {
-      alert("Network error");
+      toast.error("Network error");
     } finally { setBusy(false); }
   };
 
@@ -92,7 +98,7 @@ export default function AgentOrderDetailPage() {
   };
 
   const handleReject = async () => {
-    if (!cancelReason.trim()) return alert("يرجى كتابة سبب الإلغاء");
+    if (!cancelReason.trim()) return toast.error("يرجى كتابة سبب الإلغاء");
     setBusy(true);
     try {
       const res = await fetch("/api/agent/reject-order", {
@@ -104,7 +110,7 @@ export default function AgentOrderDetailPage() {
         }),
       });
       if (res.ok) {
-        alert("تم إلغاء الطلب وإرسال السبب للاعب.");
+        toast.success("تم إلغاء الطلب وإرسال السبب للاعب.");
         router.push("/agent/add-requests");
       }
     } finally { setBusy(false); }
@@ -129,13 +135,13 @@ export default function AgentOrderDetailPage() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        toast.success(data.message);
         await load(); // تحديث الصفحة
       } else {
-        alert(data.message || "فشل في إرسال البلاغ");
+        toast.error(data.message || "فشل في إرسال البلاغ");
       }
     } catch (error) {
-      alert("حدث خطأ في الاتصال بالخادم.");
+      toast.error("حدث خطأ في الاتصال بالخادم.");
     } finally {
       setIsFlagging(false);
     }
@@ -169,6 +175,37 @@ export default function AgentOrderDetailPage() {
                 <p className="text-xl font-bold">{order.amount} DH</p>
               </div>
             </div>
+            {paymentInfo ? (
+              <div className="mt-6 p-5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+                <p className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-4">بيانات حسابك البنكي لهذا الطلب</p>
+                <div className="space-y-4">
+                  {paymentInfo.accountName && (
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                      <span className="text-xs text-white/40">اسم الحساب:</span>
+                      <span className="text-sm font-bold text-white">{paymentInfo.accountName}</span>
+                    </div>
+                  )}
+                  {paymentInfo.rib && (
+                    <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
+                      <span className="text-xs text-white/40">RIB:</span>
+                      <span className="font-mono text-sm font-bold text-cyan-300">{paymentInfo.rib}</span>
+                    </div>
+                  )}
+                  {paymentInfo.phone && (
+                    <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
+                      <span className="text-xs text-white/40">رقم الهاتف:</span>
+                      <span className="font-mono text-sm font-bold text-cyan-300">{paymentInfo.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+                <p className="text-[10px] text-amber-200">
+                  تنبيه: لم يتم العثور على تفاصيل الوسيلة "{order?.paymentMethodName}" في إعداداتك.
+                </p>
+              </div>
+            )}
 
             {order.proofUrl && (
               <div className="mt-6 rounded-3xl border border-white/10 overflow-hidden">
@@ -188,7 +225,7 @@ export default function AgentOrderDetailPage() {
               </div>
             )}
 
-            {order.status === "proof_uploaded" && !isFlagged && (
+            {["proof_uploaded", "pending_payment"].includes(order.status) && !isFlagged && (
               <div className="mt-8 flex flex-col gap-3">
                 {!hasEnoughBalance && (
                   <div className="p-4 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm flex gap-3">
