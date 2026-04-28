@@ -115,7 +115,7 @@ export async function POST(
         where: { id: row.playerId },
         data: {
           gosportUsername: u,
-          gosportPassword: hashed,
+          gosportPassword: p,
           status: "active",
         },
       });
