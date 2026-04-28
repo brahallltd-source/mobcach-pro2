@@ -2,9 +2,13 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
+  disable: process.env.NODE_ENV === "development",
   register: true,
   skipWaiting: true,
   customWorkerSrc: "worker",
+  buildExcludes: [/middleware-manifest\.json$/],
+  // Prevent worker minification hangs during build (terser/renderChunk).
+  minify: false,
   /** Precache + front-end nav cache can surprise auth-heavy apps; keep off unless you tune runtimeCaching. */
   cacheOnFrontEndNav: false,
 });
