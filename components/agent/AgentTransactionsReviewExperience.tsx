@@ -219,11 +219,16 @@ export function AgentTransactionsReviewExperience({
     setActionBusy(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/agent/transactions/${encodeURIComponent(row.id)}`, {
-        method: "PATCH",
+      const endpoint = action === "approve" ? "/api/agent/approve-order" : "/api/agent/reject-order";
+      const payload =
+        action === "approve"
+          ? { orderId: row.id }
+          : { orderId: row.id, reason: String(reason || "").trim() };
+      const res = await fetch(endpoint, {
+        method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason: reason ?? "" }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {

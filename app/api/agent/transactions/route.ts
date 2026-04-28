@@ -12,7 +12,6 @@ import {
 } from "@/lib/agent-payment-settings";
 import {
   executionMinutesFromAgentSettings,
-  normalizeRechargeProofStatus,
   RECHARGE_PROOF_STATUS,
 } from "@/lib/recharge-proof-lifecycle";
 
@@ -22,10 +21,10 @@ export const dynamic = "force-dynamic";
 function requireAgent(session: Awaited<ReturnType<typeof getSessionUserFromCookies>>) {
   if (!session || String(session.role ?? "").trim().toUpperCase() !== "AGENT") return null;
   if (!session.agentProfile?.id) return null;
-  return { session, userId: session.id };
+  return { session, userId: session.id, agentProfileId: session.agentProfile.id };
 }
 
-/** List player payment proofs for the signed-in agent (`PaymentProofTransaction`). */
+/** List player proof-uploaded orders for the signed-in agent (`Order`). */
 export async function GET() {
   try {
     const prisma = getPrisma();
@@ -50,14 +49,22 @@ export async function GET() {
         where: { id: ctx.userId },
         select: { paymentMethods: true },
       }),
-      prisma.paymentProofTransaction.findMany({
+      prisma.order.findMany({
         where: {
-          agentUserId: ctx.userId,
-          status: RECHARGE_PROOF_STATUS.PROCESSING,
+          agentId: ctx.agentProfileId,
+          status: { in: ["proof_uploaded", "flagged_for_review"] },
         },
         orderBy: { createdAt: "desc" },
         include: {
-          playerUser: { select: { id: true, username: true, email: true } },
+          player: {
+            select: {
+              id: true,
+              userId: true,
+              username: true,
+              phone: true,
+              user: { select: { email: true } },
+            },
+          },
         },
       }),
       prisma.agent.findUnique({
@@ -74,35 +81,47 @@ export async function GET() {
     const methods = parseAgentPaymentMethodsJson(userRow?.paymentMethods);
 
     const transactions = rows.map((r) => {
-      const methodId = r.paymentMethodId ?? "";
-      const methodRow = methods.find((m) => m.id === methodId) as AgentPaymentMethodRow | undefined;
+      const paymentMethodName = String(r.paymentMethodName ?? "").trim();
+      const methodRow = methods.find((m) => {
+        const pub = toPublicPaymentMethodPayload(m as AgentPaymentMethodRow);
+        return (
+          String(pub.methodTitle ?? "").trim().toLowerCase() ===
+          paymentMethodName.toLowerCase()
+        );
+      }) as AgentPaymentMethodRow | undefined;
       const methodPayload = methodRow ? toPublicPaymentMethodPayload(methodRow) : null;
+      const playerName = String(r.player?.username ?? "").trim();
+      const playerEmail = String(r.player?.user?.email ?? r.playerEmail ?? "").trim();
 
       return {
         id: r.id,
         amount: r.amount,
-        senderName: r.senderName,
-        senderPhone: r.senderPhone,
-        status: normalizeRechargeProofStatus(r.status),
-        receiptUrl: r.receiptUrl,
-        agentRejectReason: r.agentRejectReason,
-        paymentMethod: r.paymentMethod ?? r.paymentMethodTitle,
-        paymentMethodId: r.paymentMethodId,
-        paymentMethodTitle: r.paymentMethodTitle,
-        timerStartedAt: r.timerStartedAt?.toISOString() ?? null,
-        isLatePenaltyApplied: r.isLatePenaltyApplied,
+        senderName: playerName || playerEmail || "—",
+        senderPhone: r.player?.phone ?? null,
+        // UI expects this lifecycle key for the "pending review" bucket.
+        status: RECHARGE_PROOF_STATUS.PROCESSING,
+        receiptUrl: r.proofUrl ?? "",
+        agentRejectReason: r.reviewReason ?? null,
+        paymentMethod: paymentMethodName || null,
+        paymentMethodId: null,
+        paymentMethodTitle: paymentMethodName || null,
+        timerStartedAt: r.updatedAt?.toISOString() ?? r.createdAt.toISOString(),
+        isLatePenaltyApplied: false,
         executionWindowMinutes,
         createdAt: r.createdAt.toISOString(),
-        playerUserId: r.playerUserId,
-        playerUsername: r.playerUser.username,
-        playerEmail: r.playerUser.email,
+        playerUserId: r.player?.userId ?? "",
+        playerUsername: playerName || "—",
+        playerEmail,
         methodInstructions: methodPayload
           ? {
               methodTitle: methodPayload.methodTitle,
               copyable: methodPayload.copyable,
             }
-          : r.paymentMethodTitle
-            ? { methodTitle: r.paymentMethodTitle, copyable: [] as { key: string; label: string; value: string }[] }
+          : paymentMethodName
+            ? {
+                methodTitle: paymentMethodName,
+                copyable: [] as { key: string; label: string; value: string }[],
+              }
             : null,
       };
     });
