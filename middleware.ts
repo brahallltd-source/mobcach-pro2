@@ -279,8 +279,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     String(user?.applicationStatus ?? "")
       .trim()
       .toUpperCase() === "PENDING";
+  const pendingAgent =
+    applicationPending &&
+    String(user?.role ?? "")
+      .trim()
+      .toUpperCase() === "AGENT";
 
-  if (user && applicationPending) {
+  if (user && pendingAgent) {
     if (isPendingPage) {
       return NextResponse.next();
     }

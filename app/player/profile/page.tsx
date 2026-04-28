@@ -246,7 +246,22 @@ export default function PlayerProfilePage() {
       }
       setAgentStatus(data.status || "pending");
       toast.success(data.message || tp("profile.becomeAgentSuccess"));
-      await loadProfile();
+      try {
+        const saved = localStorage.getItem("mobcash_user");
+        if (saved) {
+          const current = JSON.parse(saved) as Record<string, unknown>;
+          const next = {
+            ...current,
+            role: "agent",
+            applicationStatus: "PENDING",
+          };
+          localStorage.setItem("mobcash_user", JSON.stringify(next));
+        }
+      } catch {
+        /* ignore localStorage hydration errors */
+      }
+      window.location.href = "/pending";
+      return;
     } catch {
       toast.error(tp("profile.networkError"));
     } finally {
