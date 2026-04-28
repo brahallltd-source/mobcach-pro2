@@ -148,7 +148,7 @@ export async function POST(req: Request) {
       title: "إثبات دفع جديد",
       message: `اللاعب ${playerUser.username || playerUser.email} أرسل إثبات تحويل بمبلغ ${requestedAmount} MAD (${methodTitle}).`,
       type: "RECHARGE_REQUEST",
-      link: "/agent/notifications",
+      link: "/agent/player-recharge-requests",
     });
 
     return NextResponse.json({

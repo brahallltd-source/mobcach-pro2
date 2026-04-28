@@ -13,6 +13,7 @@ import {
 import {
   executionMinutesFromAgentSettings,
   normalizeRechargeProofStatus,
+  RECHARGE_PROOF_STATUS,
 } from "@/lib/recharge-proof-lifecycle";
 
 export const runtime = "nodejs";
@@ -50,7 +51,10 @@ export async function GET() {
         select: { paymentMethods: true },
       }),
       prisma.paymentProofTransaction.findMany({
-        where: { agentUserId: ctx.userId },
+        where: {
+          agentUserId: ctx.userId,
+          status: RECHARGE_PROOF_STATUS.PROCESSING,
+        },
         orderBy: { createdAt: "desc" },
         include: {
           playerUser: { select: { id: true, username: true, email: true } },
