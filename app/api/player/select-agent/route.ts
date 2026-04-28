@@ -59,8 +59,8 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: {
           assignedAgentId: cleanAgentId,
-          playerStatus: "active",
-          status: "ACTIVE",
+          playerStatus: "pending_approval",
+          status: "PENDING",
           rejectionReason: null,
         },
       });
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         where: { id: player.id },
         data: {
           assignedAgentId: cleanAgentId,
-          status: "active",
+          status: "pending_agent",
           referredBy: player.referredBy || cleanAgentId,
         },
       });
@@ -85,8 +85,13 @@ export async function POST(req: Request) {
           data: {
             agentId: cleanAgentId,
             playerId: player.id,
-            status: "CONNECTED",
+            status: "PENDING",
           },
+        });
+      } else if (String(existingLink.status ?? "").toUpperCase() !== "PENDING") {
+        await tx.agentCustomer.update({
+          where: { id: existingLink.id },
+          data: { status: "PENDING" },
         });
       }
 
@@ -154,8 +159,8 @@ export async function POST(req: Request) {
 
     await createNotification({
       userId: user.id,
-      title: "تم الربط بنجاح",
-      message: "تم ربط حسابك بالوكيل. يمكنك البدء بطلب الشحن الآن.",
+      title: "تم إرسال طلب الربط",
+      message: "طلبك قيد المراجعة لدى الوكيل. ستظهر بيانات GoSport365 بعد الموافقة.",
     });
 
     // 6. الرد النهائي بالبيانات المطلوبة للـ LocalStorage
@@ -168,7 +173,7 @@ export async function POST(req: Request) {
         username: result.updatedUser.username,
         role: "player",
         status: result.updatedUser.status,
-        player_status: "active",
+        player_status: "pending_approval",
         assigned_agent_id: cleanAgentId,
         created_at: result.updatedUser.createdAt,
       },

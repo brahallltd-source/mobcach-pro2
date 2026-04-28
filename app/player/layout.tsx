@@ -97,10 +97,10 @@ export default async function PlayerLayout({
       "pending_activation",
     ]);
     const isActive =
-      userStatus === "active" ||
-      playerStatus === "active" ||
-      activationStatus === "active";
+      Boolean(assignedAgentId) &&
+      (userStatus === "active" || playerStatus === "active" || activationStatus === "active");
     const isPending =
+      Boolean(assignedAgentId) &&
       !isActive &&
       (pendingStates.has(userStatus) ||
         pendingStates.has(playerStatus) ||

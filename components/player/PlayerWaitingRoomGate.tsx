@@ -40,7 +40,9 @@ export function PlayerWaitingRoomGate({
           </div>
 
           <div className="space-y-3">
-            <h1 className="text-2xl font-bold text-white md:text-3xl">طلبك قيد المراجعة من قبل الوكيل. يرجى الانتظار.</h1>
+            <h1 className="text-2xl font-bold text-white md:text-3xl">
+              طلبك قيد المراجعة. سيقوم الوكيل بتزويدك ببيانات GoSport365 قريباً.
+            </h1>
             {agentName ? (
               <p className="text-sm text-white/65">
                 الوكيل الحالي: <span className="font-semibold text-white">{agentName}</span>
