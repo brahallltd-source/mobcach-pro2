@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -53,6 +53,8 @@ export type RechargeFormProps = {
     minRechargeAmount: number;
     affiliateBonusEnabled: boolean;
   } | null;
+  /** Optional WhatsApp support number from admin branding settings. */
+  whatsappSupportNumber?: string;
 };
 
 const MIN_RECHARGE_FALLBACK = 1000;
@@ -113,6 +115,7 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
     invitationAffiliateAvailableDh = 0,
     onInvitationAffiliateRefetch,
     rechargePolicy: rechargePolicyProp = null,
+    whatsappSupportNumber = "",
   } = _props;
   const embedded = Boolean(embeddedProp);
   const router = useRouter();
@@ -296,6 +299,20 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
     [methods, form.admin_method_id],
   );
   const isCrypto = useMemo(() => isTreasuryCryptoMethod(selectedMethod ?? null), [selectedMethod]);
+  const normalizedWhatsAppNumber = useMemo(
+    () =>
+      String(whatsappSupportNumber || "")
+        .replace(/[^\d+]/g, "")
+        .replace(/^\+/, ""),
+    [whatsappSupportNumber]
+  );
+
+  const whatsappHref = useMemo(() => {
+    // Keep help card visible even before admin saves a number.
+    const numberForLink = normalizedWhatsAppNumber || "1234567890";
+    const text = encodeURIComponent("أريد شحن رصيدي عبر وكيل معتمد");
+    return `https://wa.me/${numberForLink}?text=${text}`;
+  }, [normalizedWhatsAppNumber]);
 
   const validate = useCallback((): boolean => {
     const parsed = parseAgentRechargeForm(
@@ -452,14 +469,32 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
         return;
       }
 
-      const res = await fetch("/api/agent/recharge", {
+      const endpoint = crypto ? "/api/agent/recharge/crypto" : "/api/agent/recharge";
+      const requestBody = crypto
+        ? {
+            amount: baseAmount,
+            note: form.note,
+            admin_method_id: form.admin_method_id,
+            admin_method_name: methodRow?.method_name,
+            gosport365_username: String(form.gosport365_username || "").trim(),
+            confirm_gosport365_username: String(
+              form.confirm_gosport365_username || ""
+            ).trim(),
+          }
+        : payload;
+      const res = await fetch(endpoint, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
       if (data.success) {
+        if (crypto && data.invoiceUrl) {
+          toast.success(t("recharge_request_sent") || "Request sent successfully");
+          window.location.href = String(data.invoiceUrl);
+          return;
+        }
         if (data.request?.id) {
           console.log("Recharge request created:", data.request.id, data.request);
         }
@@ -512,15 +547,12 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
 
   if (loading) return <LoadingCard text={t("loading") || "Loading..."} />;
 
-  /** USDT to cover is the paid treasury amount (base + platform %), not invitation credit. */
+  /** USDT to cover is based on requested base MAD only (bonus is free). */
   const usdtRateSafe =
     Number.isFinite(usdtToMadRate) && usdtToMadRate > 0 ? usdtToMadRate : DEFAULT_USDT_TO_MAD_RATE;
   const requiredUsdt =
     isCrypto && rechargeAmountBreakdown
-      ? (
-          (rechargeAmountBreakdown.base + rechargeAmountBreakdown.bonus) /
-          usdtRateSafe
-        ).toFixed(2)
+      ? (rechargeAmountBreakdown.base / usdtRateSafe).toFixed(2)
       : null;
 
   const inner = (
@@ -601,6 +633,25 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
                   ) : null}
                 </div>
               ) : null}
+              <GlassCard className="mt-4 border-amber-400/40 bg-amber-400/10 p-5">
+                <p className="text-sm font-semibold text-amber-100">
+                  إن لم تكن تمتلك حساب USDT فتصل بنا لنبحث لك عن بيانات وكيل موثوق ورفع صورة التحويل مع اسم المرسل وسنقوم بتحديث الرصيد تلقائيا مع نسبة 10%
+                </p>
+                {!normalizedWhatsAppNumber ? (
+                  <p className="mt-2 text-xs text-amber-200/80">
+                    رقم الدعم غير مضبوط بعد في لوحة الإدارة. تم تفعيل رابط تجريبي مؤقت لعرض الواجهة.
+                  </p>
+                ) : null}
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+              </GlassCard>
               {errors.amount ? (
                 <p className="text-sm text-rose-300" role="alert">
                   {errors.amount}

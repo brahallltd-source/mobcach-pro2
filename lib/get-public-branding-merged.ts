@@ -47,6 +47,7 @@ export type BrandingSysSlice = {
   primaryColor: string;
   logoUrl: string | null;
   faviconUrl: string | null;
+  whatsappSupportNumber?: string | null;
   /** Optional until DB row is migrated; manifest falls back to empty icons. */
   pwaIcon192?: string | null;
   pwaIcon512?: string | null;
@@ -102,6 +103,7 @@ export function mergePublicBranding(sys: BrandingSysSlice, marketing: Normalized
     platformName: sys.platformName || DEFAULT_PLATFORM,
     primaryColor: normalizeHexColor(sys.primaryColor, DEFAULT_PRIMARY),
     faviconUrl: String(sys.faviconUrl ?? "").trim(),
+    whatsappSupportNumber: String(sys.whatsappSupportNumber ?? "").trim(),
     pwaIcon192: String(sys.pwaIcon192 ?? "").trim(),
     pwaIcon512: String(sys.pwaIcon512 ?? "").trim(),
     pwaThemeColor: normalizeHexColor(String(sys.pwaThemeColor ?? ""), DEFAULT_PRIMARY),
@@ -121,6 +123,7 @@ export async function getPublicBrandingMerged() {
         primaryColor: DEFAULT_PRIMARY,
         logoUrl: null,
         faviconUrl: null,
+        whatsappSupportNumber: null,
         pwaIcon192: null,
         pwaIcon512: null,
         pwaThemeColor: DEFAULT_PRIMARY,
@@ -141,6 +144,7 @@ export async function getPublicBrandingMerged() {
         primaryColor: DEFAULT_PRIMARY,
         logoUrl: null,
         faviconUrl: null,
+        whatsappSupportNumber: null,
         pwaIcon192: null,
         pwaIcon512: null,
         pwaThemeColor: DEFAULT_PRIMARY,

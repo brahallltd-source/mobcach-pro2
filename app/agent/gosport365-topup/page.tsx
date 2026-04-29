@@ -11,6 +11,7 @@ import { useInvitationAffiliatePendingDh } from "@/hooks/useInvitationAffiliateP
 type RechargePolicy = {
   minRechargeAmount: number;
   affiliateBonusEnabled: boolean;
+  whatsappSupportNumber: string;
 };
 
 export default function AgentGs365TopupPage() {
@@ -19,6 +20,7 @@ export default function AgentGs365TopupPage() {
   const [rechargePolicy, setRechargePolicy] = useState<RechargePolicy>({
     minRechargeAmount: 1000,
     affiliateBonusEnabled: true,
+    whatsappSupportNumber: "",
   });
 
   useEffect(() => {
@@ -33,11 +35,13 @@ export default function AgentGs365TopupPage() {
         const j = (await res.json()) as {
           minRechargeAmount?: unknown;
           affiliateBonusEnabled?: unknown;
+          whatsappSupportNumber?: unknown;
         };
         const min = Number(j.minRechargeAmount);
         setRechargePolicy({
           minRechargeAmount: Number.isFinite(min) && min >= 1 ? min : 1000,
           affiliateBonusEnabled: j.affiliateBonusEnabled !== false,
+          whatsappSupportNumber: String(j.whatsappSupportNumber ?? "").trim(),
         });
       } catch {
         /* keep defaults */
@@ -69,6 +73,7 @@ export default function AgentGs365TopupPage() {
             invitationAffiliateAvailableDh={availableDh}
             onInvitationAffiliateRefetch={reload}
             rechargePolicy={rechargePolicy}
+            whatsappSupportNumber={rechargePolicy.whatsappSupportNumber}
           />
         </TabsContent>
         <TabsContent value="history">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
 import { GlassCard, LoadingCard, PageHeader, SidebarShell } from "@/components/ui";
 import { usePlayerTx } from "@/hooks/usePlayerTx";
+import { GS365_GLOW } from "@/lib/ui/gs365-glow";
 
 type Notification = {
   id: string;
@@ -43,38 +44,40 @@ export default function PlayerNotificationsPage() {
   return (
     <SidebarShell role="player">
       <PageHeader title={tp("notifications.title")} subtitle={tp("notifications.subtitle")} />
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <GlassCard
             key={item.id}
-            className={`border-s-4 p-6 sm:p-6 ${!item.read ? "border-s-cyan-500 bg-white/5" : "border-s-transparent"}`}
+            className={`${GS365_GLOW.cardShell} ${GS365_GLOW.cardShellInteractive}`}
           >
-            <div className="flex items-start gap-4">
-              <div
-                className={`rounded-2xl p-3 ${
-                  !item.read
-                    ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                    : "bg-cyan-400/10 text-cyan-100"
-                }`}
-              >
-                <BellRing size={18} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3
-                    className={`min-w-0 text-balance text-lg ${
-                      !item.read ? "font-bold text-white" : "font-semibold text-white/80"
-                    }`}
-                  >
-                    {item.title}
-                  </h3>
-                  <span className="shrink-0 font-mono text-xs uppercase tracking-[0.1em] text-white/40">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : tp("notifications.dateUnavailable")}
-                  </span>
+            <div className={`${GS365_GLOW.cardInner} h-full`}>
+              <div className="flex items-start gap-4">
+                <div
+                  className={`rounded-2xl p-3 ${
+                    !item.read
+                      ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                      : "bg-cyan-400/10 text-cyan-100"
+                  }`}
+                >
+                  <BellRing size={18} />
                 </div>
-                <p className={`mt-2 text-sm leading-6 ${!item.read ? "text-white/80" : "text-white/50"}`}>
-                  {item.message}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3
+                      className={`min-w-0 text-balance text-lg ${
+                        !item.read ? "font-bold text-white" : "font-semibold text-white/85"
+                      }`}
+                    >
+                      {item.title}
+                    </h3>
+                    <span className="shrink-0 font-mono text-xs uppercase tracking-[0.1em] text-slate-400">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleString() : tp("notifications.dateUnavailable")}
+                    </span>
+                  </div>
+                  <p className={`mt-2 text-sm leading-6 ${!item.read ? "text-white/80" : "text-slate-400"}`}>
+                    {item.message}
+                  </p>
+                </div>
               </div>
             </div>
           </GlassCard>

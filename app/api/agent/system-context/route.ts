@@ -33,6 +33,7 @@ export async function GET() {
       affiliateBonusEnabled: true,
       maxWithdrawalAmount: 100000,
       usdtToMadRate: 10.5,
+      whatsappSupportNumber: "",
     });
   }
 
@@ -57,5 +58,6 @@ export async function GET() {
     affiliateBonusEnabled: Boolean(row.affiliateBonusEnabled),
     maxWithdrawalAmount,
     usdtToMadRate,
+    whatsappSupportNumber: String(row.whatsappSupportNumber ?? "").trim(),
   });
 }

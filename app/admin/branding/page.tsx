@@ -22,6 +22,7 @@ const DEFAULT_PRIMARY = "#0f172a";
 
 type VisualBranding = {
   platformName: string;
+  whatsappSupportNumber: string;
   primaryColor: string;
   logoUrl: string;
   faviconUrl: string;
@@ -55,6 +56,7 @@ export default function AdminBrandingPage() {
   const router = useRouter();
   const [form, setForm] = useState<VisualBranding>({
     platformName: DEFAULT_PLATFORM,
+    whatsappSupportNumber: "",
     primaryColor: DEFAULT_PRIMARY,
     logoUrl: "",
     faviconUrl: "",
@@ -96,6 +98,7 @@ export default function AdminBrandingPage() {
       if (b) {
         setForm({
           platformName: String(b.platformName ?? b.brandName ?? DEFAULT_PLATFORM),
+          whatsappSupportNumber: String(b.whatsappSupportNumber ?? ""),
           primaryColor: String(b.primaryColor ?? DEFAULT_PRIMARY),
           logoUrl: String(b.logoUrl ?? ""),
           faviconUrl: String(b.faviconUrl ?? ""),
@@ -214,6 +217,7 @@ export default function AdminBrandingPage() {
     try {
       const payload: Record<string, unknown> = {
         platformName: form.platformName.trim(),
+        whatsappSupportNumber: form.whatsappSupportNumber.trim() || null,
         primaryColor: form.primaryColor.trim(),
         logoUrl: form.logoUrl.trim() || null,
         faviconUrl: form.faviconUrl.trim() || null,
@@ -236,6 +240,7 @@ export default function AdminBrandingPage() {
       if (data.branding) {
         setForm({
           platformName: String(data.branding.platformName ?? data.branding.brandName ?? DEFAULT_PLATFORM),
+          whatsappSupportNumber: String(data.branding.whatsappSupportNumber ?? ""),
           primaryColor: String(data.branding.primaryColor ?? DEFAULT_PRIMARY),
           logoUrl: String(data.branding.logoUrl ?? ""),
           faviconUrl: String(data.branding.faviconUrl ?? ""),
@@ -292,6 +297,21 @@ export default function AdminBrandingPage() {
                 value={form.platformName}
                 onChange={(e) => setForm((f) => ({ ...f, platformName: e.target.value }))}
               />
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">
+                  رقم WhatsApp للدعم الفني
+                </label>
+                <TextField
+                  placeholder="212612345678"
+                  value={form.whatsappSupportNumber}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      whatsappSupportNumber: e.target.value.replace(/[^\d+]/g, ""),
+                    }))
+                  }
+                />
+              </div>
               <div className="flex flex-wrap items-end gap-4">
                 <div className="min-w-0 flex-1">
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">

@@ -16,6 +16,7 @@ import {
   RECHARGE_PROOF_STATUS,
   rechargeProofStatusLabelAr,
 } from "@/lib/recharge-proof-lifecycle";
+import { GS365_GLOW, gs365StatusBadgeClass } from "@/lib/ui/gs365-glow";
 
 type MethodInstructions = {
   methodTitle: string;
@@ -61,21 +62,7 @@ const TABS: { key: FilterTab; label: string }[] = [
 ];
 
 function statusBadgeClass(status: string) {
-  switch (status) {
-    case RECHARGE_PROOF_STATUS.PROCESSING:
-    case RECHARGE_PROOF_STATUS.PENDING_PROOF:
-      return "border-amber-400/40 bg-amber-500/15 text-amber-100";
-    case RECHARGE_PROOF_STATUS.AGENT_APPROVED:
-      return "border-cyan-400/40 bg-cyan-500/15 text-cyan-100";
-    case RECHARGE_PROOF_STATUS.AGENT_REJECTED:
-      return "border-rose-400/40 bg-rose-500/15 text-rose-100";
-    case RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED:
-      return "border-emerald-400/40 bg-emerald-500/15 text-emerald-100";
-    case RECHARGE_PROOF_STATUS.DISPUTED:
-      return "border-red-500/50 bg-red-600/20 text-red-100";
-    default:
-      return "border-white/15 bg-white/10 text-white/70";
-  }
+  return gs365StatusBadgeClass(status);
 }
 
 function ExecutionCountdown({ deadlineMs }: { deadlineMs: number }) {
@@ -311,61 +298,79 @@ export function AgentTransactionsReviewExperience({
           })}
         </div>
 
-        <GlassCard className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/[0.03] text-start text-xs uppercase tracking-wide text-white/45">
-                  <th className="px-4 py-3 font-medium">معرّف اللاعب</th>
-                  <th className="px-4 py-3 font-medium">المبلغ (MAD)</th>
-                  <th className="px-4 py-3 font-medium">اسم المرسل</th>
-                  <th className="px-4 py-3 font-medium">التاريخ</th>
-                  <th className="px-4 py-3 font-medium">الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-white/45">
-                      لا توجد عمليات في هذا التبويب.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="cursor-pointer border-b border-white/5 transition hover:bg-white/[0.04]"
-                      onClick={() => {
-                        setSelected(row);
-                        setRejectReason("");
-                        setActionError(null);
-                      }}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-mono text-xs text-white/80" dir="ltr">
+        {filtered.length === 0 ? (
+          <GlassCard className="border border-white/10 p-10 text-center text-white/45">
+            لا توجد عمليات في هذا التبويب.
+          </GlassCard>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((row) => {
+              const headline = String(row.playerUsername || row.senderName || "—").trim() || "—";
+              const paymentMethod = String(
+                row.paymentMethodTitle || row.paymentMethod || "غير محدد"
+              ).trim();
+              return (
+                <div
+                  key={row.id}
+                  role="button"
+                  tabIndex={0}
+                  className={`group cursor-pointer rounded-2xl border border-emerald-500/20 bg-slate-950/80 p-6 shadow-[0_0_20px_rgba(16,185,129,0.15)] ${GS365_GLOW.cardShellInteractive}`}
+                  onClick={() => {
+                    setSelected(row);
+                    setRejectReason("");
+                    setActionError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelected(row);
+                      setRejectReason("");
+                      setActionError(null);
+                    }
+                  }}
+                >
+                  <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
+                    <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-bold text-white">{headline}</p>
+                        <p className="mt-1 font-mono text-[11px] text-white/40" dir="ltr">
                           {row.playerUserId.slice(0, 8)}…
-                        </div>
-                        <div className="text-xs text-white/45">{row.playerUsername}</div>
-                      </td>
-                      <td className="px-4 py-3 font-semibold tabular-nums">{Math.round(row.amount)}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3">{row.senderName}</td>
-                      <td className="px-4 py-3 text-white/55" dir="ltr">
-                        {new Date(row.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
-                        >
-                          {rechargeProofStatusLabelAr(row.status)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
+                      >
+                        {rechargeProofStatusLabelAr(row.status)}
+                      </span>
+                    </div>
+
+                    <div className={GS365_GLOW.amountPanel}>
+                      <p className="text-xs text-white/45">المبلغ المطلوب</p>
+                      <p className={GS365_GLOW.amountValue} dir="ltr">
+                        {Math.round(row.amount)} DH
+                      </p>
+                    </div>
+
+                    <div className="mt-4 space-y-1 text-xs text-slate-400">
+                      <p className="truncate">
+                        <span className="text-slate-500">طريقة الدفع: </span>
+                        <span className="text-slate-300">{paymentMethod}</span>
+                      </p>
+                      <p dir="ltr">{new Date(row.createdAt).toLocaleString()}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`mt-4 w-full px-3 py-2 text-sm font-semibold ${GS365_GLOW.ctaButton}`}
+                    >
+                      عرض التفاصيل
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </GlassCard>
+        )}
       </div>
 
       {selected ? (

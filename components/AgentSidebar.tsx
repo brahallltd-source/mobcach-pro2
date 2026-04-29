@@ -5,7 +5,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ClipboardList,
-  CircleDollarSign,
   CreditCard,
   History,
   Inbox,
@@ -32,7 +31,6 @@ export const AGENT_NAV_ITEMS: AgentNavConfigItem[] = [
   { href: "/agent/my-players", labelKey: "sidebar_my_players", icon: Users },
   { href: "/agent/add-requests", labelKey: "sidebar_add_requests", icon: ClipboardList },
   { href: "/agent/player-recharge-requests", labelKey: "sidebar_player_recharge_requests", icon: Inbox },
-  { href: "/agent/balance-topup-requests", labelKey: "sidebar_balance_topup_requests", icon: CircleDollarSign },
   { href: "/agent/all-history", labelKey: "sidebar_all_history", icon: History },
   { href: "/agent/chat", labelKey: "sidebar_chat", icon: MessageCircle },
   { href: "/agent/gosport365-topup", labelKey: "sidebar_gs365_topup", icon: Wallet },

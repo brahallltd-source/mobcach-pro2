@@ -85,7 +85,9 @@ export function DeviceSettingsCard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-white">{tx("pwa.device.pushLabel")}</p>
-            <p className="mt-1 max-w-xl text-xs text-white/50">{tx("pwa.device.pushDescription")}</p>
+            <p className="mt-1 text-sm text-white/55">
+              Get important updates from your agent and the platform on this device.
+            </p>
           </div>
         </div>
         {isSubscribed ? (

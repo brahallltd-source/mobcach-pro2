@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { notifyAllActiveAdmins } from "@/lib/in-app-notifications";
 import { resolveAgentWalletIds } from "@/lib/agent-wallet-resolve";
 import { ensureAgentWallet } from "@/lib/wallet-db";
+import { createNotification } from "@/lib/notifications";
 import crypto from "crypto";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function normalizeStatus(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
 
 export async function POST(req: Request) {
   try {
@@ -32,60 +39,111 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid Signature" }, { status: 400 });
     }
 
-    // 2. معالجة الطلب إذا كانت الحالة "finished"
-    if (data.payment_status === "finished" || data.payment_status === "partially_paid") {
-      const amount = Number(data.actually_paid);
-      const externalAgentKey = String(data.order_id ?? "").trim();
-      if (!Number.isFinite(amount) || amount <= 0 || !externalAgentKey) {
-        return NextResponse.json({ error: "Invalid payment payload" }, { status: 400 });
+    const paymentStatus = normalizeStatus(data.payment_status);
+    if (paymentStatus === "finished" || paymentStatus === "paid") {
+      const rechargeRequestId = String(data.order_id ?? "").trim();
+      const providerPaymentId = String(
+        data.payment_id ?? data.id ?? data.invoice_id ?? ""
+      ).trim();
+      if (!rechargeRequestId) {
+        return NextResponse.json({ error: "Missing order_id in webhook payload" }, { status: 400 });
       }
 
       const txResult = await prisma.$transaction(async (tx) => {
-        const resolved = await resolveAgentWalletIds(tx, externalAgentKey);
-        if (!resolved) throw new Error("Agent not found for webhook order_id");
-        const wallet = await ensureAgentWallet(tx, resolved);
+        const requestRow = await tx.rechargeRequest.findUnique({
+          where: { id: rechargeRequestId },
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            agentId: true,
+            nowPaymentsId: true,
+          },
+        });
 
+        if (!requestRow) {
+          return { kind: "not_found" as const };
+        }
+
+        const alreadyApproved =
+          String(requestRow.status ?? "").trim().toUpperCase() === "APPROVED";
+        if (alreadyApproved) {
+          return { kind: "already_approved" as const };
+        }
+
+        const amountMad = Number(requestRow.amount);
+        if (!Number.isFinite(amountMad) || amountMad <= 0) {
+          throw new Error(`Invalid recharge amount for request ${requestRow.id}`);
+        }
+
+        const resolved = await resolveAgentWalletIds(tx, requestRow.agentId);
+        if (!resolved) {
+          throw new Error(`Agent not found for recharge request ${requestRow.id}`);
+        }
+
+        const wallet = await ensureAgentWallet(tx, resolved);
         const updatedWallet = await tx.wallet.update({
           where: { id: wallet.id },
-          data: { balance: { increment: amount } },
+          data: { balance: { increment: amountMad } },
         });
         await tx.agent.update({
           where: { id: resolved.agentTableId },
           data: { availableBalance: Number(updatedWallet.balance || 0) },
         });
 
-        const userData = await tx.user.findUnique({
-          where: { id: resolved.userId },
-          select: { email: true, username: true },
-        });
-
-        const emailToUse = userData?.email || "crypto-user@gs365.com";
-        const usernameToUse = userData?.username || "CRYPTO_RECHARGE";
-
-        await tx.order.create({
+        await tx.walletLedger.create({
           data: {
-            agentId: resolved.agentTableId,
-            amount,
-            status: "completed",
-            playerEmail: emailToUse,
-            gosportUsername: usernameToUse,
+            agentId: resolved.userId,
+            walletId: wallet.id,
+            type: "credit",
+            amount: amountMad,
+            reason: "nowpayments_auto_approved",
+            meta: {
+              rechargeRequestId: requestRow.id,
+              nowPaymentsId: providerPaymentId || requestRow.nowPaymentsId || null,
+              paymentStatus,
+            },
           },
         });
 
-        return { usernameToUse };
+        await tx.rechargeRequest.update({
+          where: { id: requestRow.id },
+          data: {
+            status: "APPROVED",
+            nowPaymentsId: providerPaymentId || requestRow.nowPaymentsId || null,
+            updatedAt: new Date(),
+          },
+        });
+
+        return {
+          kind: "approved" as const,
+          agentUserId: resolved.userId,
+          amountMad,
+        };
       });
 
-      await notifyAllActiveAdmins({
-        title: "شحن تلقائي ناجح 💰",
-        message: `تمت تعبئة ${amount} بنجاح للوكيل ${txResult.usernameToUse}.`,
+      if (txResult.kind === "not_found" || txResult.kind === "already_approved") {
+        return NextResponse.json({ received: true, state: txResult.kind });
+      }
+
+      await createNotification({
+        userId: txResult.agentUserId,
+        title: "NOWPayments Recharge Approved",
+        message: "تم شحن رصيدك بنجاح عبر NOWPayments",
+        type: "SUCCESS",
+        link: "/agent/gosport365-topup?tab=history",
       });
 
-      return NextResponse.json({ success: "Webook processed securely" });
+      return NextResponse.json({
+        received: true,
+        state: "approved",
+        amountMad: txResult.amountMad,
+      });
     }
 
     return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error("🔥 Webhook Error:", err.message);
+  } catch (err: unknown) {
+    console.error("NOWPayments webhook error:", err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

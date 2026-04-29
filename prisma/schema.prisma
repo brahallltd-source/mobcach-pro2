@@ -106,6 +106,8 @@ model SystemSettings {
   isMaintenance   Boolean  @default(false)
   announcement    String?
   platformName    String   @default("GS365Cash")
+  /// WhatsApp support number for agent help flows (digits only, country code allowed).
+  whatsappSupportNumber String?
   primaryColor    String   @default("#0f172a")
   logoUrl         String?
   faviconUrl      String?
@@ -511,6 +513,8 @@ model AgentTransaction {
 
 model RechargeRequest {
   id                  String          @id
+  /// External NOWPayments invoice/payment id used for webhook reconciliation.
+  nowPaymentsId       String?
   agentId             String
   agentEmail          String
   /// Submitting user (`User.id` === `agentId`); nested `agentProfile` is the public `Agent` row when present.

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { GS365_GLOW } from "@/lib/ui/gs365-glow";
 
 type Msg = {
   senderRole: string;
@@ -278,21 +279,21 @@ export default function PlayerOrdersPage() {
               }
             />
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((order) => {
                 const hasUnread = lastMessageFromOtherParty(order.messages);
                 const detailHref = `/player/orders/${order.id}`;
 
                 return (
                   <Link key={order.id} href={detailHref} className="block">
-                    <Card className="border-primary/25 bg-white/[0.04] shadow-lg backdrop-blur-md transition hover:border-cyan-400/35 hover:bg-white/[0.07]">
-                      <CardContent className="p-5">
+                    <Card className={`h-full ${GS365_GLOW.cardShell} ${GS365_GLOW.cardShellInteractive}`}>
+                      <CardContent className={`${GS365_GLOW.cardInner} h-full`}>
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-3">
-                              <p className="text-4xl font-black tabular-nums tracking-tight text-white">
+                              <p className="bg-gradient-to-r from-emerald-300 via-amber-200 to-teal-300 bg-clip-text text-4xl font-black tabular-nums tracking-tight text-transparent drop-shadow-[0_0_20px_rgba(52,211,153,0.5)]">
                                 {order.amount.toLocaleString()}{" "}
-                                <span className="text-xl font-semibold text-white/50">DH</span>
+                                <span className="text-xl font-semibold text-white/60">DH</span>
                               </p>
                               <StatusBadge status={order.status} />
                               {hasUnread ? (
@@ -303,26 +304,26 @@ export default function PlayerOrdersPage() {
                               ) : null}
                             </div>
 
-                            <p className="mt-3 text-sm text-white/65">
+                            <p className="mt-3 text-sm text-slate-300">
                               <span className="font-medium text-white/80">
                                 {order.paymentMethodName || "Method pending"}
                               </span>{" "}
                               • {order.gosportUsername || "Username pending"}
                             </p>
 
-                            <div className="mt-4 grid gap-2 text-sm text-white/50 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="mt-4 grid gap-2 text-sm text-slate-400 md:grid-cols-2 xl:grid-cols-2">
                               <p>
-                                <span className="text-white/35">Order:</span> {order.id.split("-")[0]}
+                                <span className="text-slate-500">Order:</span> {order.id.split("-")[0]}
                               </p>
                               <p>
-                                <span className="text-white/35">Created:</span> {formatDate(order.createdAt)}
+                                <span className="text-slate-500">Created:</span> {formatDate(order.createdAt)}
                               </p>
                               <p>
-                                <span className="text-white/35">Updated:</span>{" "}
+                                <span className="text-slate-500">Updated:</span>{" "}
                                 {formatDate(order.updatedAt || order.createdAt)}
                               </p>
                               <p className="capitalize">
-                                <span className="text-white/35">Flow:</span>{" "}
+                                <span className="text-slate-500">Flow:</span>{" "}
                                 {getFilterTab(order).replaceAll("_", " ")}
                               </p>
                             </div>
@@ -347,7 +348,9 @@ export default function PlayerOrdersPage() {
                           </div>
 
                           <div className="flex shrink-0 flex-row gap-3 lg:flex-col">
-                            <span className="rounded-2xl border border-white/10 bg-muted/10 px-4 py-3 text-center text-sm font-semibold text-white/85">
+                            <span
+                              className={`rounded-2xl px-4 py-3 text-center text-sm font-semibold ${GS365_GLOW.ctaButton}`}
+                            >
                               {order.status === "pending_payment" ? "Pay Now" : "View Details"}
                             </span>
                           </div>

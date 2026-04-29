@@ -186,6 +186,10 @@ export async function PATCH(req: Request) {
 
     const platformNameRaw = body.platformName != null ? String(body.platformName).trim() : undefined;
     const primaryColorRaw = body.primaryColor != null ? String(body.primaryColor).trim() : undefined;
+    const whatsappSupportNumberRaw =
+      body.whatsappSupportNumber != null
+        ? String(body.whatsappSupportNumber).replace(/[^\d+]/g, "").trim()
+        : undefined;
 
     let logoUrl: string | null | undefined =
       body.logoUrl !== undefined ? (String(body.logoUrl).trim() || null) : undefined;
@@ -226,6 +230,9 @@ export async function PATCH(req: Request) {
       data: {
         ...(platformNameRaw !== undefined ? { platformName: nextPlatform } : {}),
         ...(primaryColorRaw !== undefined ? { primaryColor: nextPrimary } : {}),
+        ...(whatsappSupportNumberRaw !== undefined
+          ? { whatsappSupportNumber: whatsappSupportNumberRaw || null }
+          : {}),
         ...(logoUrl !== undefined ? { logoUrl } : {}),
         ...(faviconUrl !== undefined ? { faviconUrl } : {}),
         ...(pwaIcon192 !== undefined && pwaIcon192 !== null ? { pwaIcon192 } : {}),
