@@ -15,7 +15,7 @@ export type { RechargeRequestRow } from "@/components/admin/recharge-request-row
 
 /** Prefer DB column; legacy requests may store username only inside `note` as `[gosportUsername:…]`. */
 function gosport365Display(r: RechargeRequestRow): string {
-  const direct = String(r.gosport365Username ?? "").trim();
+  const direct = String(r.gosport365Username ?? r.targetUsername ?? "").trim();
   if (direct) return direct;
   const m = String(r.note ?? "").match(/\[gosportUsername:([^\]]+)\]/);
   return String(m?.[1] ?? "").trim();
@@ -23,7 +23,7 @@ function gosport365Display(r: RechargeRequestRow): string {
 
 /** Copy only when the API field is set (not `note` fallback), per product rules. */
 function canCopyGosport365Username(r: RechargeRequestRow): boolean {
-  const raw = String(r.gosport365Username ?? "").trim();
+  const raw = String(r.gosport365Username ?? r.targetUsername ?? "").trim();
   return raw.length > 0 && raw !== "-";
 }
 
@@ -315,7 +315,10 @@ export function RechargeRequestsManagement() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleCopy(String(r.gosport365Username ?? "").trim(), r.id)
+                                    handleCopy(
+                                      String(r.gosport365Username ?? r.targetUsername ?? "").trim(),
+                                      r.id
+                                    )
                                   }
                                   className="inline-flex shrink-0 rounded-md border border-white/10 bg-white/[0.06] p-1 text-white/50 transition hover:border-cyan-400/30 hover:bg-white/[0.1] hover:text-cyan-200"
                                   title={tx("admin.actions.copy")}

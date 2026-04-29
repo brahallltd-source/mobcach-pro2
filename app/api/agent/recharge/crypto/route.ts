@@ -20,6 +20,10 @@ type CryptoBody = {
   confirm_gosport365_username?: unknown;
   gosportUsername?: unknown;
   confirmGosport365Username?: unknown;
+  targetUsername?: unknown;
+  target_username?: unknown;
+  confirmTargetUsername?: unknown;
+  confirm_target_username?: unknown;
 };
 
 function parsePositiveAmount(value: unknown): number | null {
@@ -58,6 +62,8 @@ function resolveGosportUsername(body: CryptoBody): string {
   return String(
     body.gosport365_username ??
       body.gosportUsername ??
+      body.targetUsername ??
+      body.target_username ??
       ""
   ).trim();
 }
@@ -66,6 +72,8 @@ function resolveConfirmGosportUsername(body: CryptoBody): string {
   return String(
     body.confirm_gosport365_username ??
       body.confirmGosport365Username ??
+      body.confirmTargetUsername ??
+      body.confirm_target_username ??
       ""
   ).trim();
 }

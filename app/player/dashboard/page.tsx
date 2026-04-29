@@ -21,6 +21,7 @@ import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { fetchSessionUser, redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { AlertTriangle, Copy, ExternalLink, MousePointer2, UserCheck } from "lucide-react";
 import { AgentProfileCard, type AgentProfileCardAgent } from "@/components/AgentProfileCard";
+import { PushEngagementAlert } from "@/components/pwa/PushEngagementAlert";
 
 type CurrentUser = {
   id: string;
@@ -320,9 +321,9 @@ export default function PlayerDashboardPage() {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      toast.success(`تم نسخ ${label}`);
+      toast.success(tp("dashboard.copiedCredential", { label }));
     } catch {
-      toast.error("تعذر النسخ");
+      toast.error(tp("dashboard.copyFailed"));
     }
   };
 
@@ -355,46 +356,47 @@ export default function PlayerDashboardPage() {
         subtitle={tp("dashboard.subtitleSummary")}
         action={<PrimaryButton onClick={changeAgent}>{t("changeAgent")}</PrimaryButton>}
       />
+      <PushEngagementAlert role="player" />
 
       {accountActive && hasGsCredentials ? (
         <GlassCard className="mt-8 border-cyan-500/25 p-6 md:p-8">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-cyan-300">بيانات حسابك في GoSport365</h2>
+            <h2 className="text-lg font-bold text-cyan-300">{tp("dashboard.gosportCredentialsTitle")}</h2>
             <a
               href="https://gosport365.com"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/40 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
             >
-              Send / Go to GoSport365 <ExternalLink size={14} />
+              {tp("dashboard.gosportOpenCta")} <ExternalLink size={14} />
             </a>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-white/45">Username</p>
+                <p className="text-[11px] uppercase tracking-wider text-white/45">{tp("dashboard.usernameLabel")}</p>
                 <p className="font-mono text-sm font-bold text-white">{user.gosportUsername || "—"}</p>
               </div>
               <button
                 type="button"
-                onClick={() => void copyCredential("اسم المستخدم", user.gosportUsername || "")}
+                onClick={() => void copyCredential(tp("dashboard.copyUsername"), user.gosportUsername || "")}
                 className="rounded-lg bg-white/5 p-2 text-cyan-300 transition hover:bg-cyan-500/20"
-                title="Copy username"
+                title={tp("dashboard.copyTitleUsername")}
               >
                 <Copy size={16} />
               </button>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-white/45">Password</p>
+                <p className="text-[11px] uppercase tracking-wider text-white/45">{tp("dashboard.passwordLabel")}</p>
                 <p className="font-mono text-sm font-bold text-white">{user.gosportPassword || "—"}</p>
               </div>
               <button
                 type="button"
-                onClick={() => void copyCredential("كلمة المرور", user.gosportPassword || "")}
+                onClick={() => void copyCredential(tp("dashboard.copyPassword"), user.gosportPassword || "")}
                 className="rounded-lg bg-white/5 p-2 text-cyan-300 transition hover:bg-cyan-500/20"
-                title="Copy password"
+                title={tp("dashboard.copyTitlePassword")}
               >
                 <Copy size={16} />
               </button>

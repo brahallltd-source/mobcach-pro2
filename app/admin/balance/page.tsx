@@ -7,7 +7,7 @@ import { CASH_NETWORKS, CRYPTO_NETWORKS, MOROCCAN_BANKS } from "@/lib/payment-op
 import { DangerButton, GlassCard, PageHeader, PrimaryButton, SelectField, SidebarShell, StatCard, TextField } from "@/components/ui";
 
 type PaymentMethod = { id: string; type: "bank" | "crypto" | "cash"; method_name: string; account_name?: string; rib?: string; wallet_address?: string; currency: string; network?: string; phone?: string; fee_percent?: number };
-type TopupRequest = { id: string; agentId: string; agentEmail: string; amount: number; admin_method_name: string; tx_hash?: string; proof_url?: string; note?: string; status: string; bonus_amount?: number; pendingBonusApplied?: number; created_at: string };
+type TopupRequest = { id: string; agentId: string; agentEmail: string; amount: number; admin_method_name: string; tx_hash?: string; proof_url?: string; note?: string; status: string; bonus_amount?: number; pendingBonusApplied?: number; created_at: string; gosport365Username?: string | null; targetUsername?: string | null };
 type MethodForm = { type: "bank" | "crypto" | "cash"; method_name: string; currency: string; account_name: string; rib: string; wallet_address: string; network: string; phone: string; fee_percent: string };
 const initialMethodForm: MethodForm = { type: "bank", method_name: MOROCCAN_BANKS[0], currency: "MAD", account_name: "", rib: "", wallet_address: "", network: CRYPTO_NETWORKS[0], phone: "", fee_percent: "0" };
 
@@ -229,6 +229,9 @@ export default function AdminBalancePage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-lg font-semibold">{request.agentEmail}</p>
                     <p className="mt-1 text-sm text-white/55">{request.amount} DH • {request.admin_method_name}</p>
+                    <p className="mt-1 text-sm text-cyan-200/90" dir="ltr">
+                      GoSport365: {String(request.gosport365Username ?? request.targetUsername ?? "").trim() || "—"}
+                    </p>
                     <p className="mt-1 text-sm text-white/45">{new Date(request.created_at).toLocaleString()}</p>
                     {request.note ? <p className="mt-2 text-sm text-white/55">{request.note}</p> : null}
                     {request.proof_url ? <a href={request.proof_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10">Open proof</a> : null}

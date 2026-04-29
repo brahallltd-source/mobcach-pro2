@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
+import { Copy, Loader2, MessageCircle, Minus, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import {
   GlassCard,
   LoadingCard,
@@ -14,9 +15,10 @@ import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-sessio
 import { ChatBox } from "@/components/ChatBox";
 import {
   RECHARGE_PROOF_STATUS,
-  rechargeProofStatusLabelAr,
+  normalizeRechargeProofStatus,
 } from "@/lib/recharge-proof-lifecycle";
 import { GS365_GLOW, gs365StatusBadgeClass } from "@/lib/ui/gs365-glow";
+import { useTranslation } from "@/lib/i18n";
 
 type MethodInstructions = {
   methodTitle: string;
@@ -26,6 +28,7 @@ type MethodInstructions = {
 type AgentPaymentProofRow = {
   id: string;
   amount: number;
+  gosportUsername: string;
   senderName: string;
   senderPhone: string | null;
   status: string;
@@ -52,20 +55,46 @@ type FilterTab =
   | typeof RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED
   | typeof RECHARGE_PROOF_STATUS.DISPUTED;
 
-const TABS: { key: FilterTab; label: string }[] = [
-  { key: "all", label: "الكل" },
-  { key: RECHARGE_PROOF_STATUS.PROCESSING, label: "قيد المعالجة" },
-  { key: RECHARGE_PROOF_STATUS.AGENT_APPROVED, label: "بانتظار اللاعب" },
-  { key: RECHARGE_PROOF_STATUS.AGENT_REJECTED, label: "مرفوض" },
-  { key: RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED, label: "مؤكد" },
-  { key: RECHARGE_PROOF_STATUS.DISPUTED, label: "شكايات" },
-];
-
 function statusBadgeClass(status: string) {
   return gs365StatusBadgeClass(status);
 }
 
-function ExecutionCountdown({ deadlineMs }: { deadlineMs: number }) {
+function statusAccentClass(status: string) {
+  const normalized = normalizeRechargeProofStatus(status);
+  if (normalized === RECHARGE_PROOF_STATUS.PROCESSING) {
+    return "border-amber-300/50 bg-amber-400/15 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.22)]";
+  }
+  if (normalized === RECHARGE_PROOF_STATUS.DISPUTED) {
+    return "border-amber-200/45 bg-amber-300/10 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.18)]";
+  }
+  return "";
+}
+
+function statusLabel(tx: (path: string, vars?: Record<string, string>) => string, status: string) {
+  const normalized = normalizeRechargeProofStatus(status);
+  switch (normalized) {
+    case RECHARGE_PROOF_STATUS.PROCESSING:
+      return tx("agent.transactionsReview.tabsProcessing");
+    case RECHARGE_PROOF_STATUS.AGENT_APPROVED:
+      return tx("agent.transactionsReview.tabsWaitingPlayer");
+    case RECHARGE_PROOF_STATUS.AGENT_REJECTED:
+      return tx("agent.transactionsReview.tabsRejected");
+    case RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED:
+      return tx("agent.transactionsReview.tabsConfirmed");
+    case RECHARGE_PROOF_STATUS.DISPUTED:
+      return tx("agent.transactionsReview.tabsDisputed");
+    default:
+      return status;
+  }
+}
+
+function ExecutionCountdown({
+  deadlineMs,
+  tx,
+}: {
+  deadlineMs: number;
+  tx: (path: string, vars?: Record<string, string>) => string;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const i = window.setInterval(() => setNow(Date.now()), 1000);
@@ -77,7 +106,7 @@ function ExecutionCountdown({ deadlineMs }: { deadlineMs: number }) {
   if (deadlineMs <= now) {
     return (
       <span className="text-sm font-semibold text-rose-300">
-        انتهى مهلة التنفيذ — عند الموافقة قد يُطبَّق جزاء التأخير (مرة واحدة).
+        {tx("agent.transactionsReview.countdownExpired")}
       </span>
     );
   }
@@ -88,35 +117,37 @@ function ExecutionCountdown({ deadlineMs }: { deadlineMs: number }) {
   );
 }
 
-function ProofImageZoom({ src, alt }: { src: string; alt: string }) {
-  const [scale, setScale] = useState(1);
+function ProofImageZoom({
+  src,
+  alt,
+  tx,
+}: {
+  src: string;
+  alt: string;
+  tx: (path: string, vars?: Record<string, string>) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.12 : 0.12;
-    setScale((s) => Math.min(3, Math.max(1, Math.round((s + delta) * 100) / 100)));
-  };
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-white/45">معاينة الوصل (تكبير بالعجلة أو الأزرار)</span>
+        <span className="text-xs font-medium text-white/45">{tx("agent.transactionsReview.previewHelp")}</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             className="rounded-lg border border-white/15 bg-white/5 p-1.5 text-white/70 hover:bg-white/10"
-            aria-label="تصغير"
-            onClick={() => setScale((s) => Math.max(1, Math.round((s - 0.15) * 100) / 100))}
+            aria-label={tx("agent.transactionsReview.zoomOutAria")}
+            onClick={() => setExpanded(true)}
           >
             <Minus className="h-4 w-4" />
           </button>
-          <span className="min-w-[3rem] text-center text-xs text-white/50">{Math.round(scale * 100)}%</span>
+          <span className="min-w-[3rem] text-center text-xs text-white/50">100%</span>
           <button
             type="button"
             className="rounded-lg border border-white/15 bg-white/5 p-1.5 text-white/70 hover:bg-white/10"
-            aria-label="تكبير"
-            onClick={() => setScale((s) => Math.min(3, Math.round((s + 0.15) * 100) / 100))}
+            aria-label={tx("agent.transactionsReview.zoomInAria")}
+            onClick={() => setExpanded(true)}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -124,17 +155,52 @@ function ProofImageZoom({ src, alt }: { src: string; alt: string }) {
       </div>
       <div
         ref={wrapRef}
-        className="max-h-[min(55vh,28rem)] overflow-auto rounded-2xl border border-white/10 bg-black/40"
-        onWheel={onWheel}
+        role="button"
+        tabIndex={0}
+        className="relative h-[min(55vh,28rem)] w-full overflow-hidden rounded-2xl border border-white/10 bg-black/50"
+        onClick={() => setExpanded(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(true);
+          }
+        }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={alt}
-          className="mx-auto block max-w-none origin-top transition-transform duration-150 ease-out"
-          style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}
+          className="h-full w-full object-contain"
+          style={{ touchAction: "auto" }}
         />
       </div>
+      {expanded ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={alt}
+          onClick={() => setExpanded(false)}
+        >
+          <div className="relative h-full w-full max-w-6xl" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={alt}
+              className="h-full w-full object-contain"
+              style={{ touchAction: "auto" }}
+            />
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/60 p-2 text-white hover:bg-black/80"
+              aria-label={tx("agent.transactionsReview.closeAria")}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -145,6 +211,7 @@ export function AgentTransactionsReviewExperience({
   /** `embedded` = render without `SidebarShell` / `PageHeader` (e.g. inside another agent page tab). */
   layout?: "page" | "embedded";
 }) {
+  const { tx } = useTranslation();
   const embedded = layout === "embedded";
   const wrap = (children: ReactNode) =>
     embedded ? <div className="space-y-4">{children}</div> : <SidebarShell role="agent">{children}</SidebarShell>;
@@ -159,21 +226,33 @@ export function AgentTransactionsReviewExperience({
   const [actionError, setActionError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
 
+  const tabs = useMemo<{ key: FilterTab; label: string }[]>(
+    () => [
+      { key: "all", label: tx("agent.transactionsReview.tabsAll") },
+      { key: RECHARGE_PROOF_STATUS.PROCESSING, label: tx("agent.transactionsReview.tabsProcessing") },
+      { key: RECHARGE_PROOF_STATUS.AGENT_APPROVED, label: tx("agent.transactionsReview.tabsWaitingPlayer") },
+      { key: RECHARGE_PROOF_STATUS.AGENT_REJECTED, label: tx("agent.transactionsReview.tabsRejected") },
+      { key: RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED, label: tx("agent.transactionsReview.tabsConfirmed") },
+      { key: RECHARGE_PROOF_STATUS.DISPUTED, label: tx("agent.transactionsReview.tabsDisputed") },
+    ],
+    [tx],
+  );
+
   const load = useCallback(async () => {
     setError(null);
     try {
       const res = await fetch("/api/agent/transactions", { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "تعذّر التحميل");
+        throw new Error(data.message || tx("agent.transactionsReview.loadError"));
       }
       setItems(Array.isArray(data.transactions) ? data.transactions : []);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      setError(e instanceof Error ? e.message : tx("agent.transactionsReview.genericError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tx]);
 
   useEffect(() => {
     void (async () => {
@@ -219,12 +298,12 @@ export function AgentTransactionsReviewExperience({
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || "فشل التحديث");
+        throw new Error(data.message || tx("agent.transactionsReview.updateFailed"));
       }
       await load();
       setSelected(null);
     } catch (e: unknown) {
-      setActionError(e instanceof Error ? e.message : "خطأ");
+      setActionError(e instanceof Error ? e.message : tx("agent.transactionsReview.genericError"));
     } finally {
       setActionBusy(false);
     }
@@ -232,7 +311,9 @@ export function AgentTransactionsReviewExperience({
 
   const onApproveClick = (row: AgentPaymentProofRow) => {
     const amountRounded = Math.round(row.amount);
-    const ok = window.confirm(`هل تأكدت من وصول المبلغ ${amountRounded} إلى حسابك؟`);
+    const ok = window.confirm(
+      tx("agent.transactionsReview.confirmApprovePrompt", { amount: String(amountRounded) }),
+    );
     if (!ok) return;
     void patchStatus(row, "approve");
   };
@@ -240,11 +321,22 @@ export function AgentTransactionsReviewExperience({
   const onRejectClick = (row: AgentPaymentProofRow) => {
     const r = rejectReason.trim();
     if (r.length < 5) {
-      setActionError("سبب الرفض إلزامي (5 أحرف على الأقل).");
+      setActionError(tx("agent.transactionsReview.rejectReasonRequired"));
       return;
     }
     void patchStatus(row, "reject", r);
   };
+
+  const onCopyGosportUsername = useCallback(async (raw: string) => {
+    const value = String(raw || "").trim();
+    if (!value || value === "—") return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("Copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  }, []);
 
   const rejectOk = rejectReason.trim().length >= 5;
 
@@ -256,15 +348,15 @@ export function AgentTransactionsReviewExperience({
   }, [selected]);
 
   if (loading) {
-    return wrap(<LoadingCard text="جاري تحميل الطلبات..." />);
+    return wrap(<LoadingCard text={tx("agent.transactionsReview.loading")} />);
   }
 
   return wrap(
     <>
       {!embedded ? (
         <PageHeader
-          title="مراجعة إثباتات الدفع"
-          subtitle="راجع الوصل، راقب العد التنازلي لزمن التنفيذ، ثم أكّد الشحن أو ارفض مع سبب واضح."
+          title={tx("agent.transactionsReview.pageTitle")}
+          subtitle={tx("agent.transactionsReview.pageSubtitle")}
         />
       ) : null}
 
@@ -274,7 +366,7 @@ export function AgentTransactionsReviewExperience({
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          {TABS.map((t) => {
+          {tabs.map((t) => {
             const on = tab === t.key;
             const count =
               t.key === "all"
@@ -300,21 +392,21 @@ export function AgentTransactionsReviewExperience({
 
         {filtered.length === 0 ? (
           <GlassCard className="border border-white/10 p-10 text-center text-white/45">
-            لا توجد عمليات في هذا التبويب.
+            {tx("agent.transactionsReview.emptyTab")}
           </GlassCard>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map((row) => {
               const headline = String(row.playerUsername || row.senderName || "—").trim() || "—";
               const paymentMethod = String(
-                row.paymentMethodTitle || row.paymentMethod || "غير محدد"
+                row.paymentMethodTitle || row.paymentMethod || tx("agent.transactionsReview.unknownMethod")
               ).trim();
               return (
                 <div
                   key={row.id}
                   role="button"
                   tabIndex={0}
-                  className={`group cursor-pointer rounded-2xl border border-emerald-500/20 bg-slate-950/80 p-6 shadow-[0_0_20px_rgba(16,185,129,0.15)] ${GS365_GLOW.cardShellInteractive}`}
+                  className={`group relative cursor-pointer rounded-2xl pt-3 ${GS365_GLOW.cardShellInteractive}`}
                   onClick={() => {
                     setSelected(row);
                     setRejectReason("");
@@ -329,41 +421,39 @@ export function AgentTransactionsReviewExperience({
                     }
                   }}
                 >
-                  <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
-                    <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
-                      <div className="min-w-0">
+                  <div className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[0_8px_20px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                    <span
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-sm ${statusBadgeClass(row.status)} ${statusAccentClass(row.status)}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                      {statusLabel(tx, row.status)}
+                    </span>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 pt-2">
                         <p className="truncate text-base font-bold text-white">{headline}</p>
-                        <p className="mt-1 font-mono text-[11px] text-white/40" dir="ltr">
-                          {row.playerUserId.slice(0, 8)}…
+                        <p className="mt-1 truncate text-xs text-slate-400">{paymentMethod}</p>
+                        <p className="mt-1 text-xs text-slate-400" dir="ltr">
+                          {new Date(row.createdAt).toLocaleString()}
                         </p>
                       </div>
-                      <span
-                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
+                      <div className="flex flex-col items-end pt-2">
+                        <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                          {tx("agent.transactionsReview.requestedAmount")}
+                        </p>
+                      <p
+                        className="bg-gradient-to-r from-cyan-300 via-emerald-300 to-cyan-200 bg-clip-text text-5xl font-extrabold tracking-tight text-transparent drop-shadow-[0_0_14px_rgba(34,211,238,0.38)] md:text-7xl"
+                        dir="ltr"
                       >
-                        {rechargeProofStatusLabelAr(row.status)}
-                      </span>
-                    </div>
-
-                    <div className={GS365_GLOW.amountPanel}>
-                      <p className="text-xs text-white/45">المبلغ المطلوب</p>
-                      <p className={GS365_GLOW.amountValue} dir="ltr">
-                        {Math.round(row.amount)} DH
-                      </p>
-                    </div>
-
-                    <div className="mt-4 space-y-1 text-xs text-slate-400">
-                      <p className="truncate">
-                        <span className="text-slate-500">طريقة الدفع: </span>
-                        <span className="text-slate-300">{paymentMethod}</span>
-                      </p>
-                      <p dir="ltr">{new Date(row.createdAt).toLocaleString()}</p>
+                          {Math.round(row.amount)} DH
+                        </p>
+                      </div>
                     </div>
 
                     <button
                       type="button"
-                      className={`mt-4 w-full px-3 py-2 text-sm font-semibold ${GS365_GLOW.ctaButton}`}
+                      className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-xl border border-cyan-300/45 bg-gradient-to-r from-cyan-400 via-emerald-400 to-cyan-300 px-3 text-sm font-semibold text-slate-950 shadow-[0_0_12px_rgba(34,211,238,0.28)] transition hover:brightness-110 hover:shadow-[0_0_18px_rgba(16,185,129,0.42)]"
                     >
-                      عرض التفاصيل
+                      {tx("agent.transactionsReview.viewDetails")}
                     </button>
                   </div>
                 </div>
@@ -390,13 +480,13 @@ export function AgentTransactionsReviewExperience({
             <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div>
                 <h2 id="proof-dialog-title" className="text-lg font-bold text-white">
-                  مراجعة الطلب
+                  {tx("agent.transactionsReview.dialogTitle")}
                 </h2>
                 <p className="mt-0.5 break-all text-xs text-white/45" dir="ltr">
-                  طلب إثبات: {selected.id}
+                  {tx("agent.transactionsReview.proofRequestLabel")} {selected.id}
                 </p>
                 <p className="mt-1 break-all text-xs text-white/35" dir="ltr">
-                  معرّف اللاعب (User): {selected.playerUserId}
+                  {tx("agent.transactionsReview.playerIdLabel")} {selected.playerUserId}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -409,12 +499,12 @@ export function AgentTransactionsReviewExperience({
                   }}
                 >
                   <MessageCircle className="h-4 w-4" aria-hidden />
-                  مراسلة اللاعب
+                  {tx("agent.transactionsReview.messagePlayer")}
                 </button>
                 <button
                   type="button"
                   className="rounded-xl border border-white/10 p-2 text-white/60 hover:bg-white/5"
-                  aria-label="إغلاق"
+                  aria-label={tx("agent.transactionsReview.closeAria")}
                   onClick={() => setSelected(null)}
                 >
                   <X className="h-5 w-5" />
@@ -425,50 +515,75 @@ export function AgentTransactionsReviewExperience({
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {selected.status === RECHARGE_PROOF_STATUS.PROCESSING && countdownDeadline ? (
                 <GlassCard className="mb-4 border border-cyan-500/25 bg-cyan-500/10 p-4">
-                  <p className="text-xs font-medium text-cyan-100/80">العد التنازلي لزمن التنفيذ</p>
+                  <p className="text-xs font-medium text-cyan-100/80">{tx("agent.transactionsReview.countdownTitle")}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <ExecutionCountdown deadlineMs={countdownDeadline} />
+                    <ExecutionCountdown deadlineMs={countdownDeadline} tx={tx} />
                     <span className="text-xs text-white/45">
-                      مهلة {selected.executionWindowMinutes} دقيقة منذ رفع الإثبات
+                      {tx("agent.transactionsReview.deadlineMinutes", {
+                        minutes: String(selected.executionWindowMinutes),
+                      })}
                     </span>
                   </div>
                   {selected.isLatePenaltyApplied ? (
-                    <p className="mt-2 text-xs text-amber-200/90">تم تطبيق جزاء التأخير مسبقاً على هذا الطلب.</p>
+                    <p className="mt-2 text-xs text-amber-200/90">{tx("agent.transactionsReview.latePenaltyApplied")}</p>
                   ) : null}
                 </GlassCard>
               ) : null}
 
-              <ProofImageZoom src={selected.receiptUrl} alt="إثبات التحويل" />
+              <ProofImageZoom
+                src={selected.receiptUrl}
+                alt={tx("agent.transactionsReview.proofAlt")}
+                tx={tx}
+              />
 
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <GlassCard className="p-4">
-                  <h3 className="text-sm font-semibold text-cyan-200/90">ما أدخله اللاعب</h3>
+                  <h3 className="text-sm font-semibold text-cyan-200/90">{tx("agent.transactionsReview.playerInputTitle")}</h3>
                   <dl className="mt-3 space-y-2 text-sm">
                     <div>
-                      <dt className="text-xs text-white/40">الاسم الكامل</dt>
+                      <dt className="text-xs text-white/40">{tx("agent.transactionsReview.fullNameLabel")}</dt>
                       <dd className="mt-0.5 font-medium text-white">{selected.senderName}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-white/40">الهاتف (إن وُجد)</dt>
+                      <dt className="text-xs text-white/40">{tx("agent.transactionsReview.phoneOptionalLabel")}</dt>
                       <dd className="mt-0.5 font-mono text-white/90" dir="ltr">
                         {selected.senderPhone?.trim() || "—"}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-white/40">المبلغ</dt>
+                      <dt className="text-xs text-white/40">{tx("agent.transactionsReview.amountLabel")}</dt>
                       <dd className="mt-0.5 tabular-nums text-white">{Math.round(selected.amount)} MAD</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-white/40">اسم مستخدم GoSport365</dt>
+                      <dd className="mt-0.5 flex items-center gap-2">
+                        <span className="font-mono font-medium text-white" dir="ltr">
+                          {String(selected.gosportUsername || "—").trim() || "—"}
+                        </span>
+                        {String(selected.gosportUsername || "").trim() ? (
+                          <button
+                            type="button"
+                            onClick={() => void onCopyGosportUsername(selected.gosportUsername)}
+                            className="inline-flex rounded-md border border-white/10 bg-white/5 p-1.5 text-white/60 transition hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-400"
+                            aria-label="Copy GoSport365 username"
+                            title="Copy"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </dd>
                     </div>
                   </dl>
                 </GlassCard>
 
                 <GlassCard className="p-4">
-                  <h3 className="text-sm font-semibold text-emerald-200/90">تعليمات وسيلة الدفع لديك</h3>
+                  <h3 className="text-sm font-semibold text-emerald-200/90">{tx("agent.transactionsReview.paymentInstructionsTitle")}</h3>
                   {selected.methodInstructions ? (
                     <div className="mt-3 space-y-2">
                       <p className="text-sm font-medium text-white">{selected.methodInstructions.methodTitle}</p>
                       {selected.methodInstructions.copyable.length === 0 ? (
                         <p className="text-xs text-white/45">
-                          لا توجد حقول تفصيلية محفوظة لهذه الوسيلة. راجع إعدادات الدفع إن لزم.
+                          {tx("agent.transactionsReview.noDetailedFields")}
                         </p>
                       ) : (
                         <ul className="space-y-2">
@@ -485,7 +600,7 @@ export function AgentTransactionsReviewExperience({
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-white/50">
-                      {selected.paymentMethodTitle || selected.paymentMethod || "وسيلة غير معروفة"}
+                      {selected.paymentMethodTitle || selected.paymentMethod || tx("agent.transactionsReview.unknownMethodFallback")}
                     </p>
                   )}
                 </GlassCard>
@@ -493,7 +608,7 @@ export function AgentTransactionsReviewExperience({
 
               {showChat ? (
                 <div className="mt-6 border-t border-white/10 pt-6">
-                  <h3 className="mb-2 text-sm font-semibold text-white/80">محادثة مع اللاعب</h3>
+                  <h3 className="mb-2 text-sm font-semibold text-white/80">{tx("agent.transactionsReview.chatTitle")}</h3>
                   <ChatBox
                     transactionId={selected.id}
                     currentUserRole="AGENT"
@@ -512,14 +627,15 @@ export function AgentTransactionsReviewExperience({
                   ) : null}
                   <div>
                     <label className="mb-1 block text-xs font-medium text-white/45">
-                      سبب الرفض <span className="text-rose-300">(إلزامي عند الرفض)</span>
+                      {tx("agent.transactionsReview.rejectReasonLabel")}{" "}
+                      <span className="text-rose-300">{tx("agent.transactionsReview.rejectRequiredNote")}</span>
                     </label>
                     <textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       rows={3}
                       className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30"
-                      placeholder="اشرح سبب الرفض بوضوح…"
+                      placeholder={tx("agent.transactionsReview.rejectPlaceholder")}
                     />
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -530,7 +646,7 @@ export function AgentTransactionsReviewExperience({
                       onClick={() => onRejectClick(selected)}
                     >
                       {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      رفض الطلب
+                      {tx("agent.transactionsReview.rejectAction")}
                     </DangerButton>
                     <PrimaryButton
                       type="button"
@@ -539,7 +655,7 @@ export function AgentTransactionsReviewExperience({
                       onClick={() => onApproveClick(selected)}
                     >
                       {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      تأكيد الشحن
+                      {tx("agent.transactionsReview.approveAction")}
                     </PrimaryButton>
                   </div>
                 </div>
@@ -547,11 +663,11 @@ export function AgentTransactionsReviewExperience({
                 <div className="mt-6 border-t border-white/10 pt-4 text-sm text-white/55">
                   {selected.status === RECHARGE_PROOF_STATUS.AGENT_REJECTED && selected.agentRejectReason ? (
                     <p>
-                      <span className="text-white/40">سبب الرفض: </span>
+                      <span className="text-white/40">{tx("agent.transactionsReview.rejectReasonDisplay")} </span>
                       {selected.agentRejectReason}
                     </p>
                   ) : (
-                    <p>تمت معالجة هذا الطلب أو هو خارج مرحلة المراجعة المباشرة.</p>
+                    <p>{tx("agent.transactionsReview.processedOutsideReview")}</p>
                   )}
                 </div>
               )}

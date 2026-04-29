@@ -164,6 +164,8 @@ function resolveGosportUsername(body: Body): string {
       body["gosportusername"] ??
       body.gosport365_username ??
       body.gosport365Username ??
+      body.targetUsername ??
+      body.target_username ??
       ""
   ).trim();
 }
@@ -173,6 +175,8 @@ function resolveConfirmGosportUsername(body: Body): string {
     body.confirm_gosport365_username ??
       body.confirmGosport365Username ??
       body.confirmGosportUsername ??
+      body.confirmTargetUsername ??
+      body.confirm_target_username ??
       ""
   ).trim();
 }

@@ -86,7 +86,7 @@ export function DeviceSettingsCard() {
           <div>
             <p className="text-sm font-medium text-white">{tx("pwa.device.pushLabel")}</p>
             <p className="mt-1 text-sm text-white/55">
-              Get important updates from your agent and the platform on this device.
+              {tx("pwa.device.description")}
             </p>
           </div>
         </div>

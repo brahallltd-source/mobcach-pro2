@@ -32,6 +32,8 @@ export async function GET() {
     const formattedRequests = requests.map((req: any) => ({
       ...req,
       agentUsername: agentMap[req.agentId]?.username || (req.agentEmail ? req.agentEmail.split("@")[0] : "N/A"),
+      gosport365Username: String(req.gosport365Username ?? "").trim() || null,
+      targetUsername: String(req.gosport365Username ?? "").trim() || null,
     }));
 
     return NextResponse.json({ requests: formattedRequests });

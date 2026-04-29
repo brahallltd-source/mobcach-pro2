@@ -31,6 +31,7 @@ import { formatShortPlayerId } from "@/lib/format-player-id";
 import { useAgentTranslation } from "@/hooks/useTranslation";
 import { useTranslation } from "@/lib/i18n";
 import { agentT } from "@/lib/i18n/dictionaries/agent";
+import { PushEngagementAlert } from "@/components/pwa/PushEngagementAlert";
 
 type AgentUser = MobcashUser & {
   agentId?: string;
@@ -299,6 +300,7 @@ export default function AgentDashboardPage() {
         })}
         subtitle={t("dashboard_subtitle")}
       />
+      <PushEngagementAlert role="agent" />
 
       <div className="mt-8 space-y-10">
         {/* Section 1 */}

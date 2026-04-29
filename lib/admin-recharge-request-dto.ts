@@ -73,6 +73,8 @@ export function toAdminRechargeRequestJson(r: AdminRechargeRequestWithRelations)
     status: r.status,
     flags,
     gosport365Username: r.gosport365Username,
+    /** Legacy-compatible alias for consumers still reading `targetUsername`. */
+    targetUsername: r.gosport365Username,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     agent: user

@@ -31,6 +31,7 @@ export type RechargeRequestRow = {
   createdAt: string;
   updatedAt?: string;
   gosport365Username?: string | null;
+  targetUsername?: string | null;
   agent: {
     username: string;
     email: string;

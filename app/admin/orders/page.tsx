@@ -7,6 +7,7 @@ type Order = {
   id: string;
   agentId: string;
   playerEmail: string;
+  gosportUsername?: string;
   amount: number;
   status: string;
   createdAt: string;
@@ -80,6 +81,12 @@ export default function AdminOrdersPage() {
                 <div>
                   <p className="text-sm text-white/40">{order.playerEmail}</p>
                   <h3 className="mt-1 text-xl font-semibold">Order {order.id}</h3>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    اسم مستخدم GoSport365:{" "}
+                    <span className="font-semibold text-white" dir="ltr">
+                      {String(order.gosportUsername || "—").trim() || "—"}
+                    </span>
+                  </p>
                   <p className="mt-2 text-sm text-white/55">
                     Agent {order.agentId} • Created {new Date(order.createdAt).toLocaleString()}
                   </p>

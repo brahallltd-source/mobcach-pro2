@@ -462,6 +462,9 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
         confirm_gosport365_username: String(
           form.confirm_gosport365_username || ""
         ).trim(),
+        // Backward-compatible alias used by some legacy admin views/APIs.
+        targetUsername: String(form.gosport365_username || "").trim(),
+        confirmTargetUsername: String(form.confirm_gosport365_username || "").trim(),
       };
 
       if (!crypto && !proofTrim) {
@@ -480,6 +483,8 @@ export function RechargeForm(_props: RechargeFormProps = {}) {
             confirm_gosport365_username: String(
               form.confirm_gosport365_username || ""
             ).trim(),
+            targetUsername: String(form.gosport365_username || "").trim(),
+            confirmTargetUsername: String(form.confirm_gosport365_username || "").trim(),
           }
         : payload;
       const res = await fetch(endpoint, {

@@ -96,6 +96,7 @@ export async function GET() {
       return {
         id: r.id,
         amount: r.amount,
+        gosportUsername: String(r.gosportUsername ?? "").trim(),
         senderName: playerName || playerEmail || "—",
         senderPhone: r.player?.phone ?? null,
         // UI expects this lifecycle key for the "pending review" bucket.

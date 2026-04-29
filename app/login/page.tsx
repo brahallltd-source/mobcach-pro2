@@ -153,6 +153,7 @@ export default function LoginPage() {
                 {t("becomeAgent")}
               </Link>
             </div>
+
           </GlassCard>
         </div>
       </div>

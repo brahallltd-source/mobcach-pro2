@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { GS365_GLOW } from "@/lib/ui/gs365-glow";
+import { usePlayerTx } from "@/hooks/usePlayerTx";
 
 type Msg = {
   senderRole: string;
@@ -72,6 +73,7 @@ function lastMessageFromOtherParty(messages?: Msg[]) {
 }
 
 export default function PlayerOrdersPage() {
+  const tp = usePlayerTx();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadHint, setLoadHint] = useState<string | null>(null);
@@ -107,14 +109,14 @@ export default function PlayerOrdersPage() {
       } else {
         setOrders([]);
         if (res.status === 401 || res.status === 403) {
-          setLoadHint("تعذّر التحقق من الجلسة لهذه الصفحة. جرّب تحديث الصفحة.");
+          setLoadHint(tp("orders.sessionErrorHint"));
         } else {
-          setLoadHint("تعذّر تحميل الطلبات. حاول مرة أخرى لاحقاً.");
+          setLoadHint(tp("orders.loadErrorHint"));
         }
       }
       setLoading(false);
     })();
-  }, []);
+  }, [tp]);
 
   const counts = useMemo(() => {
     const ongoing = orders.filter((order) => getMainTab(order) === "ongoing").length;
@@ -125,18 +127,18 @@ export default function PlayerOrdersPage() {
   const filterOptions = useMemo(() => {
     if (mainTab === "ongoing") {
       return [
-        { key: "all" as const, label: "All" },
-        { key: "unpaid" as const, label: "Unpaid" },
-        { key: "paid" as const, label: "Paid" },
+        { key: "all" as const, label: tp("orders.filterAll") },
+        { key: "unpaid" as const, label: tp("orders.filterUnpaid") },
+        { key: "paid" as const, label: tp("orders.filterPaid") },
       ];
     }
 
     return [
-      { key: "all" as const, label: "All" },
-      { key: "appeal" as const, label: "Completed (Appeal)" }, // توضيح لمعنى appeal في واجهتك
-      { key: "cancelled" as const, label: "Cancelled" },
+      { key: "all" as const, label: tp("orders.filterAll") },
+      { key: "appeal" as const, label: tp("orders.filterAppeal") },
+      { key: "cancelled" as const, label: tp("orders.filterCancelled") },
     ];
-  }, [mainTab]);
+  }, [mainTab, tp]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -157,7 +159,7 @@ export default function PlayerOrdersPage() {
   if (loading) {
     return (
       <SidebarShell role="player">
-        <LoadingCard text="Loading order history..." />
+        <LoadingCard text={tp("orders.loading")} />
       </SidebarShell>
     );
   }
@@ -165,11 +167,11 @@ export default function PlayerOrdersPage() {
   return (
     <SidebarShell role="player">
       <PageHeader
-        title="Order History"
-        subtitle="Track ongoing orders, completed recharges and cancelled operations from one place."
+        title={tp("orders.pageTitle")}
+        subtitle={tp("orders.pageSubtitle")}
         action={
           <Link href="/player/achat">
-            <PrimaryButton>New Recharge Request</PrimaryButton>
+            <PrimaryButton>{tp("orders.newRechargeRequest")}</PrimaryButton>
           </Link>
         }
       />
@@ -195,7 +197,7 @@ export default function PlayerOrdersPage() {
                 mainTab === "ongoing" ? "text-cyan-300" : "text-white/55"
               )}
             >
-              Ongoing Orders
+              {tp("orders.tabsOngoing")}
               {mainTab === "ongoing" ? (
                 <span className="absolute bottom-0 start-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
@@ -213,7 +215,7 @@ export default function PlayerOrdersPage() {
                 mainTab === "fulfilled" ? "text-cyan-300" : "text-white/55"
               )}
             >
-              Fulfilled
+              {tp("orders.tabsFulfilled")}
               {mainTab === "fulfilled" ? (
                 <span className="absolute bottom-0 start-0 h-[3px] w-full rounded-full bg-cyan-400" />
               ) : null}
@@ -249,7 +251,7 @@ export default function PlayerOrdersPage() {
                 <TextField
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by order, method or username"
+                  placeholder={tp("orders.searchPlaceholder")}
                   className="ps-11"
                 />
               </div>
@@ -265,17 +267,17 @@ export default function PlayerOrdersPage() {
 
           <div className="rounded-2xl border border-primary/20 bg-muted/10 px-4 py-3 text-sm text-white/65">
             {mainTab === "ongoing"
-              ? `${counts.ongoing} ongoing order(s)`
-              : `${counts.fulfilled} fulfilled order(s)`}
+              ? tp("orders.ongoingCount", { count: String(counts.ongoing) })
+              : tp("orders.fulfilledCount", { count: String(counts.fulfilled) })}
           </div>
 
           {filtered.length === 0 ? (
             <EmptyState
-              title="You have no order history."
+              title={tp("orders.emptyTitle")}
               subtitle={
                 mainTab === "ongoing"
-                  ? "No ongoing orders found in this filter."
-                  : "No fulfilled orders found in this filter."
+                  ? tp("orders.emptyOngoing")
+                  : tp("orders.emptyFulfilled")
               }
             />
           ) : (
@@ -299,50 +301,50 @@ export default function PlayerOrdersPage() {
                               {hasUnread ? (
                                 <span className="inline-flex items-center gap-2 rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200">
                                   <MessageCircleMore size={14} />
-                                  New message
+                                  {tp("orders.newMessage")}
                                 </span>
                               ) : null}
                             </div>
 
                             <p className="mt-3 text-sm text-slate-300">
                               <span className="font-medium text-white/80">
-                                {order.paymentMethodName || "Method pending"}
+                                {order.paymentMethodName || tp("orders.methodPending")}
                               </span>{" "}
-                              • {order.gosportUsername || "Username pending"}
+                              • {order.gosportUsername || tp("orders.usernamePending")}
                             </p>
 
                             <div className="mt-4 grid gap-2 text-sm text-slate-400 md:grid-cols-2 xl:grid-cols-2">
                               <p>
-                                <span className="text-slate-500">Order:</span> {order.id.split("-")[0]}
+                                <span className="text-slate-500">{tp("orders.labelOrder")}</span> {order.id.split("-")[0]}
                               </p>
                               <p>
-                                <span className="text-slate-500">Created:</span> {formatDate(order.createdAt)}
+                                <span className="text-slate-500">{tp("orders.labelCreated")}</span> {formatDate(order.createdAt)}
                               </p>
                               <p>
-                                <span className="text-slate-500">Updated:</span>{" "}
+                                <span className="text-slate-500">{tp("orders.labelUpdated")}</span>{" "}
                                 {formatDate(order.updatedAt || order.createdAt)}
                               </p>
                               <p className="capitalize">
-                                <span className="text-slate-500">Flow:</span>{" "}
+                                <span className="text-slate-500">{tp("orders.labelFlow")}</span>{" "}
                                 {getFilterTab(order).replaceAll("_", " ")}
                               </p>
                             </div>
 
                             {order.status === "pending_payment" ? (
                               <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-300">
-                                <Clock size={16} /> Waiting for your payment. Open to view details and upload receipt.
+                                <Clock size={16} /> {tp("orders.statusPendingPaymentHint")}
                               </div>
                             ) : null}
 
                             {order.status === "proof_uploaded" || order.status === "flagged_for_review" ? (
                               <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-                                <Clock size={16} /> Proof submitted. Waiting for agent to verify and release.
+                                <Clock size={16} /> {tp("orders.statusProofUploadedHint")}
                               </div>
                             ) : null}
 
                             {order.status === "agent_approved_waiting_player" ? (
                               <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                                <ShieldCheck size={16} /> Payment verified by agent. Open to confirm recharge receipt.
+                                <ShieldCheck size={16} /> {tp("orders.statusApprovedHint")}
                               </div>
                             ) : null}
                           </div>
@@ -351,7 +353,9 @@ export default function PlayerOrdersPage() {
                             <span
                               className={`rounded-2xl px-4 py-3 text-center text-sm font-semibold ${GS365_GLOW.ctaButton}`}
                             >
-                              {order.status === "pending_payment" ? "Pay Now" : "View Details"}
+                              {order.status === "pending_payment"
+                                ? tp("orders.ctaPayNow")
+                                : tp("orders.ctaViewDetails")}
                             </span>
                           </div>
                         </div>
