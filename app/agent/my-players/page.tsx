@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileText, MessageCircle, Search, UserCheck, UserPlus, Users } from "lucide-react";
 import { SidebarShell, GlassCard, PageHeader, LoadingCard, StatCard, DangerButton } from "@/components/ui";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { useAgentTranslation } from "@/hooks/useTranslation";
+import { toast } from "sonner";
 
 type PlayerRow = {
   id: string;
@@ -27,6 +29,7 @@ function waMeUrlForPhone(phone: string | undefined) {
 }
 
 export default function MyPlayersPage() {
+  const router = useRouter();
   const { t, am } = useAgentTranslation();
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,15 @@ export default function MyPlayersPage() {
       p.email.toLowerCase().includes(search.toLowerCase()) ||
       p.username.toLowerCase().includes(search.toLowerCase())
   );
+
+  const onChatClick = (player: PlayerRow) => {
+    const totalOrders = Number(player.totalOrders ?? 0);
+    if (!Number.isFinite(totalOrders) || totalOrders <= 0) {
+      toast.info("لا يمكن بدء المحادثة لعدم وجود طلب شحن مسبق مع هذا اللاعب.");
+      return;
+    }
+    router.push(`/agent/chat?playerEmail=${encodeURIComponent(player.email)}`);
+  };
 
   if (loading) {
     return (
@@ -170,13 +182,14 @@ export default function MyPlayersPage() {
                   >
                     <FileText className="size-[18px]" />
                   </Link>
-                  <Link
-                    href={`/agent/chat?playerEmail=${encodeURIComponent(player.email)}`}
+                  <button
+                    type="button"
+                    onClick={() => onChatClick(player)}
                     title={t("my_players_link_chat")}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/80 transition hover:border-cyan-500/40 hover:bg-white/10 hover:text-cyan-200"
                   >
                     <MessageCircle className="size-[18px]" />
-                  </Link>
+                  </button>
                   <a
                     href={waMeUrlForPhone(player.phone)}
                     target="_blank"

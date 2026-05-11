@@ -40,13 +40,13 @@ function RequestsHistoryBody({ locale }: { locale: string }) {
         const res = await fetch("/api/agent/requests-history", { credentials: "include", cache: "no-store" });
         const data = (await res.json()) as { success?: boolean; items?: AgentRequestHistoryRow[]; message?: string };
         if (!res.ok) {
-          setError(data.message || "Error");
+          setError(data.message || t("requests_error_generic"));
           setItems([]);
           return;
         }
         setItems(Array.isArray(data.items) ? data.items : []);
       } catch {
-        setError("Network error");
+        setError(t("requests_error_network"));
         setItems([]);
       } finally {
         setLoading(false);
@@ -98,13 +98,13 @@ function RequestsHistoryBody({ locale }: { locale: string }) {
                   </td>
                   <td className="px-4 py-3">
                     {row.status === "approved" ? (
-                      <Badge className="border-emerald-400/40 bg-emerald-500/15 text-emerald-100">Approved</Badge>
+                      <Badge className="border-emerald-400/40 bg-emerald-500/15 text-emerald-100">{t("requests_status_approved")}</Badge>
                     ) : (
-                      <Badge variant="destructive">Rejected</Badge>
+                      <Badge variant="destructive">{t("requests_status_rejected")}</Badge>
                     )}
                   </td>
                   <td className="max-w-xs px-4 py-3 text-white/50">
-                    {row.status === "rejected" && row.rejectionReason ? row.rejectionReason : "—"}
+                    {row.status === "rejected" && row.rejectionReason ? row.rejectionReason : t("requests_dash")}
                   </td>
                 </tr>
               ))

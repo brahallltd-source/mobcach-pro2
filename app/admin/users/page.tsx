@@ -90,6 +90,10 @@ export default function AdminUsersManagementPage() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [freezeBusyId, setFreezeBusyId] = useState<string | null>(null);
   const [passwordModalUser, setPasswordModalUser] = useState<UserRow | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferUser, setTransferUser] = useState<UserRow | null>(null);
+  const [selectedAgentUserId, setSelectedAgentUserId] = useState("");
+  const [transferBusy, setTransferBusy] = useState(false);
   /** Manual-adjust bonus % (platform default from System settings). */
   const [systemBonusPct, setSystemBonusPct] = useState(10);
 
@@ -170,6 +174,11 @@ export default function AdminUsersManagementPage() {
       return true;
     });
   }, [users, searchQuery, roleFilter, statusFilter]);
+
+  const agentOptions = useMemo(
+    () => users.filter((u) => u.role.trim().toUpperCase() === "AGENT"),
+    [users]
+  );
 
   const patchUser = async (payload: {
     userId: string;
@@ -268,6 +277,47 @@ export default function AdminUsersManagementPage() {
     setSaveBusy(false);
     setModalTab("edit");
     setBalanceHistory([]);
+  };
+
+  const closeTransfer = () => {
+    setTransferOpen(false);
+    setTransferUser(null);
+    setSelectedAgentUserId("");
+    setTransferBusy(false);
+  };
+
+  const submitTransfer = async () => {
+    if (!transferUser?.id) {
+      toast.error("تعذر تحديد اللاعب.");
+      return;
+    }
+    if (!selectedAgentUserId) {
+      toast.error("يرجى اختيار الوكيل الجديد.");
+      return;
+    }
+
+    setTransferBusy(true);
+    try {
+      const res = await fetch("/api/admin/users/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          playerUserId: transferUser.id,
+          newAgentUserId: selectedAgentUserId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(String(data.message || "فشل نقل اللاعب."));
+        return;
+      }
+      toast.success(String(data.message || "تم نقل اللاعب بنجاح."));
+      closeTransfer();
+      await load();
+    } finally {
+      setTransferBusy(false);
+    }
   };
 
   const adjustmentParsed = useMemo(() => {
@@ -496,6 +546,19 @@ export default function AdminUsersManagementPage() {
                       >
                         {tx("admin.users.edit")}
                       </button>
+                      {normRole(u.role) === "PLAYER" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTransferUser(u);
+                            setSelectedAgentUserId("");
+                            setTransferOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-500/25"
+                        >
+                          نقل الوكيل
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -781,6 +844,77 @@ export default function AdminUsersManagementPage() {
                   tx("admin.users.save")
                 )}
               </PrimaryButton>
+            </div>
+          </GlassCard>
+        </div>
+      ) : null}
+
+      {transferOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="transfer-user-title"
+        >
+          <GlassCard className="w-full max-w-lg p-6">
+            <h2 id="transfer-user-title" className="text-lg font-bold text-white">
+              نقل اللاعب إلى وكيل آخر
+            </h2>
+            <p className="mt-2 text-sm text-white/70">
+              {transferUser ? (
+                <>
+                  اللاعب:{" "}
+                  <span className="font-semibold text-white">
+                    {String(transferUser.username || transferUser.email)}
+                  </span>
+                </>
+              ) : (
+                "تعذر تحميل بيانات اللاعب."
+              )}
+            </p>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-medium text-white/60">
+                اختر الوكيل الجديد
+              </label>
+              <SelectField
+                value={selectedAgentUserId}
+                onChange={(e) => setSelectedAgentUserId(e.target.value)}
+                disabled={transferBusy}
+              >
+                <option value="">-- اختر وكيلاً --</option>
+                {agentOptions.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.username || agent.email}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeTransfer}
+                disabled={transferBusy}
+                className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-60"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitTransfer()}
+                disabled={transferBusy || !transferUser || !selectedAgentUserId}
+                className="inline-flex items-center justify-center rounded-xl border border-indigo-500/50 bg-indigo-500/25 px-4 py-2 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/35 disabled:opacity-60"
+              >
+                {transferBusy ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جاري النقل...
+                  </span>
+                ) : (
+                  "تأكيد النقل"
+                )}
+              </button>
             </div>
           </GlassCard>
         </div>

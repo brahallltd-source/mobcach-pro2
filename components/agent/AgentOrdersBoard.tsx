@@ -13,6 +13,7 @@ import {
   TextField,
 } from "@/components/ui";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
+import { useAgentTranslation } from "@/hooks/useTranslation";
 
 type Order = {
   id: string;
@@ -29,6 +30,7 @@ type FilterType = "all" | "new" | "waiting" | "completed";
 
 /** Orders list without `SidebarShell` (embedded in Add Requests tab, etc.). */
 export function AgentOrdersBoard() {
+  const { t, ta } = useAgentTranslation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -100,22 +102,22 @@ export function AgentOrdersBoard() {
   }, [orders, filter, query]);
 
   if (loading) {
-    return <LoadingCard text="Fetching orders..." />;
+    return <LoadingCard text={t("orders_board_loading")} />;
   }
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Orders Management"
-        subtitle="Manage recharge requests, chat with players, and verify payments in one place."
+        title={t("orders_board_title")}
+        subtitle={t("orders_board_subtitle")}
       />
 
       {/* بطاقات الإحصائيات */}
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Total Orders" value={String(orders.length)} hint="Lifetime history" />
-        <StatCard label="Action Needed" value={String(newOrders)} hint="Unprocessed requests" />
-        <StatCard label="Waiting Player" value={String(waitingPlayer)} hint="Pending player confirmation" />
-        <StatCard label="Successful" value={String(completed)} hint="Completed recharges" />
+        <StatCard label={t("orders_board_stat_total")} value={String(orders.length)} hint={t("orders_board_stat_total_hint")} />
+        <StatCard label={t("orders_board_stat_action")} value={String(newOrders)} hint={t("orders_board_stat_action_hint")} />
+        <StatCard label={t("orders_board_stat_waiting")} value={String(waitingPlayer)} hint={t("orders_board_stat_waiting_hint")} />
+        <StatCard label={t("orders_board_stat_success")} value={String(completed)} hint={t("orders_board_stat_success_hint")} />
       </div>
 
       {/* شريط البحث والفلترة */}
@@ -126,17 +128,17 @@ export function AgentOrdersBoard() {
             <TextField
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by email, username or order ID..."
+              placeholder={t("orders_board_search_placeholder")}
               className="pl-11"
             />
           </div>
 
           <div className="flex flex-wrap gap-2">
             {[
-              { key: "all", label: "All" },
-              { key: "new", label: `New (${newOrders})` },
-              { key: "waiting", label: "Waiting" },
-              { key: "completed", label: "Completed" },
+              { key: "all", label: t("orders_board_filter_all") },
+              { key: "new", label: ta("orders_board_filter_new_with_count", { count: String(newOrders) }) },
+              { key: "waiting", label: t("orders_board_filter_waiting") },
+              { key: "completed", label: t("orders_board_filter_completed") },
             ].map((item) => (
               <button
                 key={item.key}
@@ -168,11 +170,11 @@ export function AgentOrdersBoard() {
                       <StatusBadge status={order.status} />
                     </div>
                     <div className="mt-2 flex items-center gap-4 text-sm text-white/50">
-                      <p>Method: <span className="text-white/70">{order.paymentMethodName || "Pending"}</span></p>
-                      <p>User: <span className="text-cyan-400 font-medium">{order.gosportUsername || "Pending"}</span></p>
+                      <p>{t("orders_board_method_label")} <span className="text-white/70">{order.paymentMethodName || t("orders_board_pending")}</span></p>
+                      <p>{t("orders_board_user_label")} <span className="text-cyan-400 font-medium">{order.gosportUsername || t("orders_board_pending")}</span></p>
                     </div>
                     <p className="mt-1 text-xs text-white/30 uppercase tracking-widest">
-                      ID: {order.id.split('-')[0]} • {new Date(order.createdAt).toLocaleString()}
+                      {t("orders_board_id_label")} {order.id.split('-')[0]} • {new Date(order.createdAt).toLocaleString()}
                     </p>
                   </div>
                   
@@ -187,7 +189,7 @@ export function AgentOrdersBoard() {
             <Link
               href={`/agent/chat/${order.id}`}
               className="absolute right-4 top-1/2 -translate-y-1/2 p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all duration-300 shadow-xl"
-              title="Open Chat"
+              title={t("orders_board_open_chat")}
             >
               <MessageCircle size={22} />
               
@@ -205,8 +207,8 @@ export function AgentOrdersBoard() {
         {/* حالة عدم وجود طلبات */}
         {!filteredOrders.length && (
           <EmptyState
-            title="No orders found"
-            subtitle="Try adjusting your filters or search query to find specific records."
+            title={t("orders_board_empty_title")}
+            subtitle={t("orders_board_empty_subtitle")}
           />
         )}
       </div>

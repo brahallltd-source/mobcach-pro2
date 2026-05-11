@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { GlassCard, PrimaryButton, TextArea, TextField } from "@/components/ui";
 import { formatShortPlayerId } from "@/lib/format-player-id";
+import { useAgentTranslation } from "@/hooks/useTranslation";
 
 export type AgentPendingLinkRow = {
   id: string;
@@ -27,30 +28,33 @@ const emptyForm = (): ApproveForm => ({
   confirm_player_gosport_password: "",
 });
 
-function buildSuccessMessage(playerName: string, gosportUsername: string, plainPassword: string) {
-  return `مرحباً ${playerName}، تم تفعيل حسابك بنجاح في Gosport365! 🎉
-👤 اليوزر: ${gosportUsername}
-🔑 الباسورد: ${plainPassword}
-نتمنى لك حظاً موفقاً!`;
+function buildSuccessMessage(template: string, playerName: string, gosportUsername: string, plainPassword: string) {
+  return template
+    .split("{{playerName}}").join(playerName)
+    .split("{{gosportUsername}}").join(gosportUsername)
+    .split("{{plainPassword}}").join(plainPassword);
 }
 
-function validateClient(f: ApproveForm): string | null {
+function validateClient(
+  f: ApproveForm,
+  t: (key: import("@/lib/i18n/dictionaries/agent").AgentTranslationKey) => string,
+): string | null {
   const u = String(f.new_gosport_username ?? "").trim();
   const uc = String(f.confirm_new_gosport_username ?? "").trim();
   const p = String(f.player_gosport_password ?? "");
   const pc = String(f.confirm_player_gosport_password ?? "").trim();
 
   if (!u || !uc || !p || !pc) {
-    return "يرجى تعبئة جميع الحقول الأربعة.";
+    return t("link_row_error_all_fields_required");
   }
   if (u !== uc) {
-    return "تأكيد اسم المستخدم غير متطابق.";
+    return t("link_row_error_username_mismatch");
   }
   if (p !== pc) {
-    return "تأكيد كلمة المرور غير متطابق.";
+    return t("link_row_error_password_mismatch");
   }
   if (p.length < 6) {
-    return "كلمة المرور يجب أن تكون 6 أحرف على الأقل.";
+    return t("link_row_error_password_min");
   }
   return null;
 }
@@ -71,7 +75,8 @@ export function AgentLinkRequestApprovalRow({
   onResolved,
   acceptSetupButtonLabel,
 }: Props) {
-  const approveLabel = acceptSetupButtonLabel ?? "موافقة وإعداد";
+  const { t } = useAgentTranslation();
+  const approveLabel = acceptSetupButtonLabel ?? t("link_row_approve_setup");
   const [slideOpen, setSlideOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -121,14 +126,14 @@ export function AgentLinkRequestApprovalRow({
     if (!successMessage) return;
     try {
       await navigator.clipboard.writeText(successMessage);
-      toast.success("تم نسخ الرسالة");
+      toast.success(t("link_row_toast_message_copied"));
     } catch {
-      toast.error("تعذّر النسخ — انسخ يدوياً من الصندوق");
+      toast.error(t("link_row_toast_copy_failed_manual"));
     }
   };
 
   const submit = async () => {
-    const err = validateClient(form);
+    const err = validateClient(form, t);
     if (err) {
       setFormError(err);
       return;
@@ -151,10 +156,15 @@ export function AgentLinkRequestApprovalRow({
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.message || "فشلت الموافقة");
+        toast.error(data.message || t("link_row_toast_approve_failed"));
         return;
       }
-      const msg = buildSuccessMessage(row.username, u, p);
+      const msg = buildSuccessMessage(
+        t("link_row_success_message_template"),
+        row.username,
+        u,
+        p,
+      );
       successPendingRefreshRef.current = true;
       setSuccessMessage(msg);
     } finally {
@@ -165,7 +175,7 @@ export function AgentLinkRequestApprovalRow({
   const submitReject = async () => {
     const r = rejectReason.trim();
     if (r.length < 3) {
-      setRejectError("يرجى كتابة سبب الرفض (3 أحرف على الأقل).");
+      setRejectError(t("link_row_reject_reason_min"));
       return;
     }
     setRejectError(null);
@@ -179,10 +189,10 @@ export function AgentLinkRequestApprovalRow({
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.message || "فشل الرفض");
+        toast.error(data.message || t("link_row_toast_reject_failed"));
         return;
       }
-      toast.success(data.message || "تم الرفض");
+      toast.success(data.message || t("link_row_toast_reject_success"));
       setRejectOpen(false);
       setRejectReason("");
       await onResolved?.();
@@ -198,18 +208,18 @@ export function AgentLinkRequestApprovalRow({
           <button
             type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            aria-label="إغلاق"
+            aria-label={t("link_row_close")}
             onClick={() => !rejectBusy && setRejectOpen(false)}
           />
           <div className="relative z-[101] w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220] p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-white">رفض طلب الارتباط</h3>
+            <h3 className="text-lg font-semibold text-white">{t("link_row_reject_title")}</h3>
             <p className="mt-2 text-sm text-white/55">
-              اللاعب: <span className="font-semibold text-cyan-200">{row.username}</span> ({displayId})
+              {t("link_row_player_label")} <span className="font-semibold text-cyan-200">{row.username}</span> ({displayId})
             </p>
-            <label className="mt-4 block text-sm font-medium text-white/80">سبب الرفض</label>
+            <label className="mt-4 block text-sm font-medium text-white/80">{t("link_row_reject_reason_label")}</label>
             <TextArea
               className="mt-2 min-h-[120px]"
-              placeholder="اكتب سبب الرفض بوضوح…"
+              placeholder={t("link_row_reject_reason_placeholder")}
               value={rejectReason}
               onChange={(e) => {
                 setRejectError(null);
@@ -228,7 +238,7 @@ export function AgentLinkRequestApprovalRow({
                 disabled={rejectBusy}
                 onClick={() => setRejectOpen(false)}
               >
-                إلغاء
+                {t("link_row_cancel")}
               </button>
               <button
                 type="button"
@@ -236,7 +246,7 @@ export function AgentLinkRequestApprovalRow({
                 className="rounded-2xl border border-red-500/50 bg-red-500/20 px-4 py-2.5 text-sm font-bold text-red-200 transition hover:bg-red-500/40 disabled:opacity-50"
                 onClick={() => void submitReject()}
               >
-                {rejectBusy ? "جاري الإرسال..." : "تأكيد الرفض"}
+                {rejectBusy ? t("link_row_sending") : t("link_row_confirm_reject")}
               </button>
             </div>
           </div>
@@ -246,12 +256,12 @@ export function AgentLinkRequestApprovalRow({
       <GlassCard className="overflow-hidden p-0">
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">معرّف اللاعب</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">{t("table_player_id")}</p>
             <p className="font-mono text-base text-cyan-200 md:text-lg" dir="ltr">
               {displayId}
             </p>
             <p className="mt-1 text-sm text-white/55">
-              اسم المستخدم: <span className="font-semibold text-white">{row.username}</span>
+              {t("link_row_username_label")} <span className="font-semibold text-white">{row.username}</span>
             </p>
             {row.phone ? (
               <p className="mt-0.5 text-sm text-white/45" dir="ltr">
@@ -270,7 +280,7 @@ export function AgentLinkRequestApprovalRow({
                 setRejectOpen(true);
               }}
             >
-              رفض
+              {t("table_reject")}
             </button>
             <PrimaryButton type="button" disabled={busy || rejectBusy} onClick={openSlide}>
               {approveLabel}
@@ -281,13 +291,13 @@ export function AgentLinkRequestApprovalRow({
       {slideOpen ? (
         <GlassCard className="mt-3 space-y-4 p-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">{successMessage ? "تم التفعيل" : "إعداد حساب GoSport365"}</h3>
+            <h3 className="text-lg font-semibold text-white">{successMessage ? t("link_row_success_title") : t("link_row_setup_title")}</h3>
             <button
               type="button"
               className="rounded-lg px-2 py-1 text-sm text-white/60 hover:bg-white/10 hover:text-white"
               onClick={() => !busy && closeSlide()}
             >
-              إغلاق
+              {t("link_row_close")}
             </button>
           </div>
           {successMessage ? (
@@ -297,7 +307,7 @@ export function AgentLinkRequestApprovalRow({
               </pre>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <PrimaryButton type="button" className="w-full sm:flex-1" onClick={() => void copyMessage()}>
-                  نسخ الرسالة
+                  {t("link_row_copy_message")}
                 </PrimaryButton>
                 <a
                   href={shareUrl}
@@ -307,14 +317,14 @@ export function AgentLinkRequestApprovalRow({
                     "inline-flex w-full flex-1 items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:translate-y-[-1px] hover:brightness-110 sm:w-auto",
                   )}
                 >
-                  مشاركة عبر واتساب
+                  {t("link_row_share_whatsapp")}
                 </a>
               </div>
             </>
           ) : (
             <>
               <p className="text-sm text-white/55">
-                اللاعب: <span className="font-semibold text-cyan-200">{row.username}</span> — معرّف:{" "}
+                {t("link_row_player_label")} <span className="font-semibold text-cyan-200">{row.username}</span> — {t("table_player_id")}:{" "}
                 <span className="font-mono text-cyan-100" dir="ltr">
                   {displayId}
                 </span>
@@ -326,7 +336,7 @@ export function AgentLinkRequestApprovalRow({
               ) : null}
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs text-white/50">new_gosport_username</label>
+                  <label className="mb-1 block text-xs text-white/50">{t("link_row_new_gosport_username")}</label>
                   <TextField
                     autoComplete="off"
                     value={form.new_gosport_username}
@@ -334,7 +344,7 @@ export function AgentLinkRequestApprovalRow({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-white/50">confirm_new_gosport_username</label>
+                  <label className="mb-1 block text-xs text-white/50">{t("link_row_confirm_new_gosport_username")}</label>
                   <TextField
                     autoComplete="off"
                     value={form.confirm_new_gosport_username}
@@ -342,7 +352,7 @@ export function AgentLinkRequestApprovalRow({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-white/50">player_gosport_password</label>
+                  <label className="mb-1 block text-xs text-white/50">{t("link_row_player_gosport_password")}</label>
                   <TextField
                     type="password"
                     autoComplete="new-password"
@@ -351,7 +361,7 @@ export function AgentLinkRequestApprovalRow({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-white/50">confirm_player_gosport_password</label>
+                  <label className="mb-1 block text-xs text-white/50">{t("link_row_confirm_player_gosport_password")}</label>
                   <TextField
                     type="password"
                     autoComplete="new-password"
@@ -361,7 +371,7 @@ export function AgentLinkRequestApprovalRow({
                 </div>
               </div>
               <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-200/90">Preview</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-200/90">{t("link_row_preview_title")}</p>
                 {credentialsPreview ? (
                   <>
                     <pre className="whitespace-pre-wrap font-mono text-xs text-cyan-50">{credentialsPreview}</pre>
@@ -371,21 +381,21 @@ export function AgentLinkRequestApprovalRow({
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(credentialsPreview);
-                          toast.success("تم نسخ بيانات الحساب");
+                          toast.success(t("link_row_toast_credentials_copied"));
                         } catch {
-                          toast.error("تعذّر النسخ");
+                          toast.error(t("link_row_toast_copy_failed"));
                         }
                       }}
                     >
-                      Copy to Clipboard
+                      {t("link_row_copy_to_clipboard")}
                     </button>
                   </>
                 ) : (
-                  <p className="text-xs text-white/60">املأ اسم المستخدم وكلمة المرور لعرض المعاينة.</p>
+                  <p className="text-xs text-white/60">{t("link_row_preview_empty")}</p>
                 )}
               </div>
               <PrimaryButton type="button" disabled={busy} className="w-full" onClick={() => void submit()}>
-                {busy ? "جاري الحفظ..." : approveLabel}
+                {busy ? t("link_row_saving") : approveLabel}
               </PrimaryButton>
             </>
           )}
