@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   const orderId = body.orderId != null ? String(body.orderId).trim() : "";
   const action = body.action != null ? String(body.action).trim() : "";
 
-  if (orderId && (action === "resolve" || action === "reopen")) {
+  if (orderId && (action === "resolve" || action === "reopen" || action === "force_approve" || action === "reject")) {
     try {
       await applyFraudFlagOrderAction(prisma, {
         orderId,
@@ -110,7 +110,12 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({
         success: true,
-        message: action === "resolve" ? "تم حل المشكلة بنجاح" : "تم إعادة فتح المشكلة",
+        message:
+          action === "reject"
+            ? "تم رفض الطلب المشبوه."
+            : action === "force_approve" || action === "resolve"
+              ? "تم اعتماد الطلب المشبوه بالقوة (Force Approve)."
+              : "تم إعادة فتح المشكلة",
       });
     } catch (e) {
       console.error("POST /api/admin/fraud (flag action):", e);

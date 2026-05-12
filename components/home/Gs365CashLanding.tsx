@@ -4,15 +4,19 @@ import { useMemo, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
-  BadgeCheck,
   ChevronLeft,
+  Cpu,
+  CreditCard,
   Handshake,
-  Landmark,
-  Send,
+  Lock,
   Shield,
   ShieldCheck,
+  Search,
+  ThumbsUp,
+  UploadCloud,
+  UserCheck,
+  UserPlus,
   UserRound,
-  UserSearch,
   Wallet,
 } from "lucide-react";
 import { AgentProfileCard, type AgentProfileCardAgent } from "@/components/AgentProfileCard";
@@ -21,6 +25,11 @@ import { Shell } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Footer } from "@/components/Footer";
+import { LivePayouts } from "@/components/marketing/LivePayouts";
+import { PlatformFeatures } from "@/components/marketing/PlatformFeatures";
+import { SimulatedStats } from "@/components/marketing/SimulatedStats";
+import { PlayerFAQSection } from "@/components/marketing/PlayerFAQSection";
+import { PlayerSecuritySection } from "@/components/marketing/PlayerSecuritySection";
 import { useTranslation } from "@/lib/i18n";
 
 const TRUST_MARQUEE = ["CIH", "Attijari", "Cash Plus", "Wafacash", "USDT"] as const;
@@ -79,26 +88,23 @@ function TransactionRoadmapSection() {
   const steps = useMemo(
     () =>
       [
+        { Icon: UserPlus, label: tx("home.playerFlow.steps.0.title"), hint: tx("home.playerFlow.steps.0.description") },
+        { Icon: Search, label: tx("home.playerFlow.steps.1.title"), hint: tx("home.playerFlow.steps.1.description") },
         {
-          Icon: UserSearch,
-          label: tx("home.roadmap.step1Label"),
-          hint: tx("home.roadmap.step1Hint"),
+          Icon: ShieldCheck,
+          label: tx("home.playerFlow.steps.2.title"),
+          hint: tx("home.playerFlow.steps.2.description"),
         },
+        { Icon: Wallet, label: tx("home.playerFlow.steps.3.title"), hint: tx("home.playerFlow.steps.3.description") },
         {
-          Icon: Landmark,
-          label: tx("home.roadmap.step2Label"),
-          hint: tx("home.roadmap.step2Hint"),
+          Icon: Cpu,
+          label: tx("home.playerFlow.steps.4.title"),
+          hint: tx("home.playerFlow.steps.4.description"),
         },
-        {
-          Icon: BadgeCheck,
-          label: tx("home.roadmap.step3Label"),
-          hint: tx("home.roadmap.step3Hint"),
-        },
-        {
-          Icon: Send,
-          label: tx("home.roadmap.step4Label"),
-          hint: tx("home.roadmap.step4Hint"),
-        },
+        { Icon: CreditCard, label: tx("home.playerFlow.steps.5.title"), hint: tx("home.playerFlow.steps.5.description") },
+        { Icon: UploadCloud, label: tx("home.playerFlow.steps.6.title"), hint: tx("home.playerFlow.steps.6.description") },
+        { Icon: UserCheck, label: tx("home.playerFlow.steps.7.title"), hint: tx("home.playerFlow.steps.7.description") },
+        { Icon: ThumbsUp, label: tx("home.playerFlow.steps.8.title"), hint: tx("home.playerFlow.steps.8.description") },
       ] as const,
     [tx],
   );
@@ -131,15 +137,13 @@ function TransactionRoadmapSection() {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,211,238,0.08),transparent_55%)]"
           aria-hidden
         />
-        <div className="relative mb-6 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-white/35">
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">{tx("home.roadmap.rolePlayer")}</span>
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" aria-hidden />
-          <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200/90">
-            {tx("home.roadmap.roleAgent")}
-          </span>
+        <div className="mb-6 rounded-2xl border border-emerald-300/25 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-emerald-500/10 p-3 shadow-[0_0_26px_rgba(16,185,129,0.2)]">
+          <p className="flex items-center gap-2 text-sm font-semibold text-emerald-100 md:text-base">
+            <Lock className="h-4 w-4 animate-pulse text-emerald-300" aria-hidden />
+            {tx("home.playerFlow.securityBanner")}
+          </p>
         </div>
 
-        {/* Mobile: vertical stack */}
         <div className="relative flex flex-col items-center md:hidden">
           {steps.map((step, i) => {
             const Icon = step.Icon;
@@ -164,37 +168,40 @@ function TransactionRoadmapSection() {
           })}
         </div>
 
-        {/* Desktop: horizontal flowchart (order follows RTL/LTR from document dir) */}
-        <div className="relative hidden w-full items-start md:flex">
-          {steps.flatMap((step, i) => {
-            const Icon = step.Icon;
-            const block = (
-              <motion.div
-                key={`d-${step.label}`}
-                className="flex min-w-0 flex-1 flex-col items-center text-center"
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.25 }}
-                transition={{ duration: 0.4, delay: i * 0.07 }}
-              >
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/15 to-transparent text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.2)]">
-                  <Icon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
-                </div>
-                <p className="mt-3 text-sm font-bold text-white lg:text-base">{step.label}</p>
-                <p className="mt-1 text-[11px] text-white/40">{step.hint}</p>
-              </motion.div>
-            );
-            if (i >= steps.length - 1) return [block];
-            return [
-              block,
-              <div
-                key={`dh-${step.label}`}
-                className="flex min-w-[1.5rem] max-w-[5rem] flex-1 items-center self-start pt-8"
-              >
-                <RoadmapConnectorHorizontal />
-              </div>,
-            ];
-          })}
+        <div className="relative hidden md:block">
+          <div className="overflow-x-auto pb-2">
+            <div className={cn("flex items-start", steps.length > 6 ? "min-w-[1400px]" : "min-w-[900px]")}>
+              {steps.flatMap((step, i) => {
+                const Icon = step.Icon;
+                const block = (
+                  <motion.div
+                    key={`d-${step.label}`}
+                    className="flex min-w-0 flex-1 flex-col items-center px-1 text-center"
+                    initial={{ opacity: 0, y: 14 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.4, delay: i * 0.07 }}
+                  >
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/15 to-transparent text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.2)]">
+                      <Icon className="h-8 w-8" strokeWidth={1.75} aria-hidden />
+                    </div>
+                    <p className="mt-3 text-sm font-bold text-white lg:text-base">{step.label}</p>
+                    <p className="mt-1 text-[11px] text-white/40">{step.hint}</p>
+                  </motion.div>
+                );
+                if (i >= steps.length - 1) return [block];
+                return [
+                  block,
+                  <div
+                    key={`dh-${step.label}`}
+                    className="flex min-w-[1.5rem] max-w-[5rem] flex-1 items-center self-start pt-8"
+                  >
+                    <RoadmapConnectorHorizontal />
+                  </div>,
+                ];
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </RevealSection>
@@ -250,8 +257,10 @@ function MutualSecuritySection() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-cyan-200">
             <Shield className="h-6 w-6" aria-hidden />
           </div>
-          <h3 className="text-lg font-bold text-white">{tx("home.security.agentTitle")}</h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">{tx("home.security.agentBody")}</p>
+          <h3 className="text-lg font-bold text-white">{tx("home.security.doubleConfirmTitle")}</h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {tx("home.security.doubleConfirmBody")}
+          </p>
         </motion.div>
       </div>
     </RevealSection>
@@ -420,9 +429,9 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                   variant="outline"
                   size="lg"
                   className="border-cyan-500/30 bg-white/[0.04] text-white shadow-none backdrop-blur-md hover:border-cyan-400/50 hover:bg-cyan-500/10"
-                  onClick={() => document.getElementById("become-agent")?.scrollIntoView({ behavior: "smooth" })}
+                  onClick={() => document.getElementById("featured-agents")?.scrollIntoView({ behavior: "smooth" })}
                 >
-                  {tx("home.hero.agent_btn")}
+                  {tx("home.hero.exploreAgents")}
                 </Button>
               </FadeIn>
             </div>
@@ -432,6 +441,10 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
             </FadeIn>
           </div>
         </motion.section>
+
+        <LivePayouts />
+
+        <SimulatedStats />
 
         {/* Trust marquee */}
         <RevealSection
@@ -501,26 +514,25 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
           </StaggerContainer>
         </RevealSection>
 
+        <PlayerSecuritySection />
+
+        <PlatformFeatures />
+
         <TransactionRoadmapSection />
 
         <MutualSecuritySection />
 
-        {/* Become an agent — spotlight cards */}
-        <RevealSection id="become-agent" className="scroll-mt-28 space-y-8">
+        {/* Featured agents */}
+        <RevealSection id="featured-agents" className="scroll-mt-28 space-y-8">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white md:text-3xl">{tx("home.spotlight.title")}</h2>
+              <h2 className="text-2xl font-bold text-white md:text-3xl">{tx("home.spotlightPlayers.title")}</h2>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                {tx("home.spotlight.subtitle")}
+                {tx("home.spotlightPlayers.subtitle")}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              className="self-start text-cyan-300 hover:bg-white/10 hover:text-cyan-200"
-              onClick={() => router.push("/register/agent")}
-            >
-              {tx("home.spotlight.ctaLink")}
+            <Button type="button" variant="ghost" className="self-start text-cyan-300 hover:bg-white/10 hover:text-cyan-200" onClick={() => router.push("/register")}>
+              {tx("home.spotlightPlayers.cta")}
             </Button>
           </div>
 
@@ -537,8 +549,8 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
                       agent={{ ...agent, isOnline: true }}
                       actionType="join"
                       headerLabel={tx("home.spotlight.onlineLabel")}
-                      actionButtonLabel={tx("home.spotlight.joinCta")}
-                      onAction={() => router.push("/register/agent")}
+                      actionButtonLabel={tx("home.spotlightPlayers.cardCta")}
+                      onAction={() => router.push("/register")}
                     />
                   </div>
                 </motion.div>
@@ -547,35 +559,13 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
           </StaggerContainer>
         </RevealSection>
 
-        {/* Agent recruitment */}
-        <RevealSection>
-          <motion.div
-            className="relative overflow-hidden rounded-[28px] border border-white/[0.07] bg-[#050812]/85 p-8 shadow-2xl backdrop-blur-2xl md:p-12"
-            initial={{ opacity: 0, scale: 0.98 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(34,211,238,0.12),transparent_50%),radial-gradient(ellipse_at_100%_100%,rgba(139,92,246,0.08),transparent_45%)]"
-              aria-hidden
-            />
-            <div className="relative mx-auto max-w-2xl text-center">
-              <h3 className="text-xl font-bold text-white md:text-2xl">{tx("home.recruit.title")}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">{tx("home.recruit.subtitle")}</p>
-              <div className="mt-8">
-                <Button
-                  size="lg"
-                  type="button"
-                  className="bg-cyan-500 px-8 text-base font-bold text-[#0B0F19] shadow-[0_0_36px_rgba(34,211,238,0.4)] hover:bg-cyan-400"
-                  onClick={() => router.push("/register/agent")}
-                >
-                  {tx("home.recruit.cta")}
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        </RevealSection>
+        <PlayerFAQSection />
+
+        <div className="text-center">
+          <a href="/become-agent" className="text-xs font-semibold text-white/45 transition hover:text-cyan-200">
+            {tx("home.spotlightPlayers.agentLink")}
+          </a>
+        </div>
 
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
           <Footer />

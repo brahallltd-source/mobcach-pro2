@@ -65,6 +65,27 @@
     "historyArchive": "History / Archive",
     "affiliateNetwork": "Affiliate network"
   },
+  "global": {
+    "footer": {
+      "branding": "© 2026 GS365 Cash — secure top-ups, verified agents, ongoing support. | gsp365cash by gosport365"
+    }
+  },
+  "security": {
+    "title": "Play with Confidence.. Your Money is Completely Safe",
+    "subtitle": "GoSport365 guarantees a risk-free experience with comprehensive protection of your rights.",
+    "fraud": {
+      "title": "Anti-Fraud Protection System",
+      "description": "All your transfers are encrypted and secured. We operate a strict Fraud System that monitors transactions to protect you from manipulation and ensure your funds arrive safely."
+    },
+    "guarantee": {
+      "title": "Direct Payout Guarantee",
+      "description": "Never worry about your winnings or deposits. GoSport365 is the actual guarantor and primarily responsible for delivering all your financial dues on time."
+    },
+    "support": {
+      "title": "24/7 Technical Support & Disputes",
+      "description": "Our team is available around the clock. If you face any issues or delays, you can open a dispute ticket and we will intervene immediately to resolve it and restore your rights."
+    }
+  },
   "player": {
     "dashboard": {
       "loading": "Loading your data…",
@@ -322,6 +343,7 @@
       "title": "Top-up and withdraw your earnings in seconds",
       "description": "Connect with verified agents for secure top-ups and withdrawals via Moroccan banks and digital wallets — hassle-free, with instant tracking.",
       "start_btn": "Start for free",
+      "exploreAgents": "Explore agents",
       "agent_btn": "Become an agent",
       "subtitle": "GS365 Cash connects you with verified agents for secure top-ups and withdrawals via Moroccan banks and digital wallets — simple, live tracking, and a modern experience.",
       "ctaStart": "Start for free",
@@ -358,8 +380,15 @@
       "subtitle": "Mutual safeguards for both sides of every transaction.",
       "playerTitle": "Player protection",
       "playerBody": "Transfers through fully verified and trusted agents.",
+      "doubleConfirmTitle": "Dual confirmation to protect your funds",
       "agentTitle": "Agent protection",
-      "agentBody": "Advanced anti-fraud checks block duplicate payment proofs and protect your balance."
+      "agentBody": "Advanced anti-fraud checks block duplicate payment proofs and protect your balance.",
+      "doubleConfirmBody": "The transaction is not finalized until you personally confirm the balance receipt, securing your full rights in every transfer."
+    },
+    "navbar": {
+      "features": "Features",
+      "faq": "FAQ",
+      "register": "Register"
     },
     "heroCard": {
       "headerLabel": "Live preview",
@@ -380,6 +409,91 @@
     "footer": {
       "line1": "© 2026 GS365 Cash — secure top-ups, verified agents, ongoing support.",
       "line2": "gsp365cash by gosport365"
+    },
+    "spotlightPlayers": {
+      "title": "Choose your verified agent now",
+      "subtitle": "Our agents are available to secure your top-ups and winnings withdrawals within seconds.",
+      "cta": "Start now",
+      "cardCta": "Start as a player partner",
+      "agentLink": "Are you an agent? Join us"
+    },
+    "playerFlow": {
+      "steps": [
+        { "title": "Registration", "description": "Create a secure account on the platform to start your journey." },
+        { "title": "Choose agent", "description": "Select a verified agent from our network for a secure transaction." },
+        { "title": "Receive GoSport365 credentials", "description": "The agent provides a compliant, secure account to protect your winnings and rights." },
+        { "title": "Request balance", "description": "Specify the amount you want to top up." },
+        { "title": "Automated system check", "description": "Our advanced system verifies the agent has sufficient liquidity before processing." },
+        { "title": "Payment method", "description": "Choose the most suitable payment method from available agent options." },
+        { "title": "Upload proof", "description": "Upload the payment receipt image securely." },
+        { "title": "Agent confirmation", "description": "The agent reviews the proof and approves the balance transfer." },
+        { "title": "Player confirmation", "description": "You confirm receiving the credited balance to close the transaction successfully." }
+      ],
+      "securityBanner": "The process is fully monitored end-to-end by our advanced system to guarantee your safety."
+    },
+    "playerFaq": {
+      "title": "Frequently Asked Questions (FAQ)",
+      "subtitle": "Everything you need to start with confidence.",
+      "items": [
+        {
+          "question": "How long does account top-up or winnings withdrawal take?",
+          "answerPrefix": "Transactions are near-instant. After payment proof upload and agent confirmation, credit is released within",
+          "answerHighlight": "1 to 5 minutes",
+          "answerSuffix": "at maximum.",
+          "badge": "Verified: 1-5 min"
+        },
+        {
+          "question": "Are there any hidden fees on top-up operations?",
+          "answer": "Absolutely not. GoSport365 is free for players. The amount you send is exactly what gets credited to your account with no extra fees."
+        },
+        {
+          "question": "What happens if I transfer funds and the agent does not send the balance?",
+          "answer": "Your funds remain protected. Our system validates agent liquidity before the process starts, and if any delay occurs, you can open a dispute in one click for immediate intervention and rights protection.",
+          "badge": "Verified: instant rights recovery"
+        },
+        {
+          "question": "How can I withdraw my winnings after a win?",
+          "answerPrefix": "Simply open the Earnings page and submit your withdrawal details. Amounts between",
+          "answerAmountRange": "100 and 60,000 MAD",
+          "answerMiddle": "are transferred in less than",
+          "answerTime": "24 hours",
+          "answerSuffix": "from request time. Larger payouts are processed within one week due to international settlement controls."
+        },
+        {
+          "question": "Which payment and withdrawal methods are supported?",
+          "answer": "Our verified agents support major banks (CIH, Attijari, BMCE), digital wallets, and cash channels (Cash Plus, Wafacash)."
+        }
+      ]
+    },
+    "platformFeatures": {
+      "title": "Why GoSport365 is the first choice",
+      "subtitle": "A leading Arabic platform with global standards, deep technology, and institutional-grade financial reliability.",
+      "items": {
+        "arabLeadership": { "title": "Arab market leadership", "description": "The #1 Arabic platform, competing globally with transparent and neutral operational metrics." },
+        "sportsCoverage": { "title": "Full sports coverage", "description": "All bets across major global leagues and sports categories." },
+        "hugeWinnings": { "title": "Huge winnings", "description": "High-payout opportunities with full support for major prize scenarios." },
+        "highOdds": { "title": "High Odds", "description": "Top-tier global odds engineered to maximize player return potential.", "badge": "World Rank #1" },
+        "casino": { "title": "Premium casino", "description": "Online casino experience aligned with international performance standards." },
+        "fastPay": { "title": "Fast Pay", "description": "Fast Pay with strict financial governance and continuous compliance controls." },
+        "strictFinance": { "title": "Strict financial control", "description": "A tightly monitored financial system that secures fairness in every transfer and settlement." },
+        "aiSystem": { "title": "AI protection system", "description": "Advanced AI-driven supervision to protect payment operations and detect abuse patterns early." },
+        "support": { "title": "24/7 support", "description": "Dedicated technical support team available around the clock." }
+      }
+    },
+    "livePayouts": {
+      "title": "Recent Winners",
+      "liveBadge": "Live",
+      "minutesAgo": "{{minutes}} minutes ago",
+      "hoursAgo": "{{hours}} hours ago",
+      "yesterday": "Yesterday",
+      "daysAgo": "{{days}} days ago"
+    },
+    "liveStats": {
+      "ariaLabel": "Live registration statistics",
+      "today": "Today",
+      "week": "This week",
+      "month": "This month",
+      "live": "Live"
     }
   },
   "auth": {
@@ -407,6 +521,9 @@
     }
   },
   "agent": {
+    "system": {
+      "maintenanceBanner": "Maintenance mode is active — some actions (such as top-ups or adding players) are temporarily blocked until admin disables maintenance mode."
+    },
     "bonus": {
       "promotion": "Promotion bonus",
       "recurring": "Recharge bonus ({{pct}}%)"
@@ -499,7 +616,151 @@
       "countdownExpired": "Execution window expired — approving now may apply a late penalty (once).",
       "previewHelp": "Receipt preview (zoom with wheel or buttons)",
       "zoomOutAria": "Zoom out",
-      "zoomInAria": "Zoom in"
+      "zoomInAria": "Zoom in",
+      "flagAction": "Flag suspicious transaction",
+      "flagActionFailed": "Failed to submit fraud flag",
+      "flagActionSuccess": "Request moved to investigation and admins were alerted",
+      "flagReasonRequired": "Flag reason is required (at least 5 characters).",
+      "flagModalTitle": "Report suspicious transaction",
+      "flagModalSubtitle": "Choose a fraud category and provide a clear reason.",
+      "flagCategoryLabel": "Fraud category",
+      "flagCategoryFakeReceipt": "Receipt looks forged",
+      "flagCategoryNonReceipt": "Funds not received",
+      "flagCategorySuspicious": "Suspicious activity",
+      "flagReasonLabel": "Flag reason",
+      "flagReasonPlaceholder": "Example: No transfer appears in my banking app despite uploaded proof...",
+      "flagConfirmAction": "Submit flag",
+      "flagSecurityHint": "Fraud System monitors this flow. False reports may lead to account suspension."
+    },
+    "landing": {
+      "hero": {
+        "title": "Become a verified agent and unlock predictable profitability",
+        "subtitle": "Join the GoSport365 agent network with advanced control tools, direct margin economics, and a scalable Master Agent growth model.",
+        "ctaRegister": "Join as an agent",
+        "ctaLogin": "Agent sign-in"
+      },
+      "usdtNotice": {
+        "badge": "T",
+        "title": "Agent balance top-up",
+        "prefix": "Notice: the minimum agent top-up is",
+        "minAmount": "1,000 DH",
+        "middle": "Agent balances are funded exclusively via",
+        "network": "USDT (TRC20)",
+        "suffix": "to guarantee faster settlement and stronger financial security."
+      },
+      "flow": {
+        "title": "Agent onboarding roadmap (7 steps)",
+        "subtitle": "A clear operational sequence from registration to secure player credential delivery.",
+        "stepLabel": "Step {{number}}",
+        "securityBanner": "The process is fully monitored end-to-end by our advanced system to guarantee your safety.",
+        "steps": [
+          { "title": "Create account", "description": "Submit your core profile details through the registration form." },
+          { "title": "Administrative approval", "description": "Wait for GoSport365 operations team to review and approve your application." },
+          { "title": "Activate interfaces", "description": "Receive SMS credentials for both portals: GoSport365 and GS365Cash." },
+          { "title": "Banking setup", "description": "Link your banking accounts and payment rails to receive player funds." },
+          { "title": "Top up balance", "description": "Fund your wallet with the 10% agent margin model to start operations." },
+          { "title": "Register players", "description": "Receive player requests and register them manually in your GoSport365 Agent interface." },
+          { "title": "Send credentials", "description": "Provide players with their access credentials in one click via our system." }
+        ]
+      },
+      "depositFlow": {
+        "title": "Deposit operation flow (Agent vs Player)",
+        "subtitle": "From request alert to verified transfer release in a secure, high-speed workflow.",
+        "steps": [
+          { "title": "Payment request", "description": "Receive a new player deposit alert." },
+          { "title": "AI validation", "description": "Validate proof with AI assistance and ops review to block manipulated receipts." },
+          { "title": "Approval", "description": "Approve the request after confirming funds arrival in your account." },
+          { "title": "Balance transfer", "description": "Release balance instantly to the player inside GoSport365 Agent." }
+        ]
+      },
+      "earnings": {
+        "title": "Fair and high-yield profit model",
+        "subtitle": "Our commission architecture is designed to maximize sustainable agent growth per transaction.",
+        "items": {
+          "directMargin": { "title": "Direct margin (10%)", "description": "No waiting for withdrawal cycles. You secure a direct 10% margin when buying liquidity, keeping profit realized at resale time." },
+          "masterAgent": { "title": "Master Agent model", "description": "Scale your revenue by onboarding partner agents under your network." },
+          "subAgentCommission": { "title": "Sub-agent commission (2%)", "description": "Earn an immediate 2% commission on every recharge made by agents referred through your network." },
+          "playerCommission": { "title": "Player referral commission (3%)", "description": "Earn an immediate 3% commission on every player deposit generated through your referral structure." },
+          "instantSettlement": { "title": "Instant Settlement", "description": "All commissions are calculated and credited to your balance automatically at recharge execution." }
+        }
+      },
+      "dashboardFeatures": {
+        "title": "Professional management tools at your fingertips",
+        "items": {
+          "playersManagement": { "title": "Player management", "description": "Track player activity and performance metrics in one streamlined workspace." },
+          "embeddedChat": { "title": "Integrated chat system", "description": "Communicate with players directly inside the platform for faster coordination." },
+          "instantWithdrawals": { "title": "Instant withdrawal requests", "description": "Request withdrawal of personal earnings with one click and receive settlement in under 12 hours." },
+          "realtimeNotifications": { "title": "Real-time notifications", "description": "Receive instant system alerts whenever new player requests are created." }
+        }
+      },
+      "benefits": {
+        "title": "Agent benefits inside GoSport365",
+        "items": {
+          "dashboard": { "title": "Professional dashboard", "description": "Manage players and transaction lifecycles with enterprise-grade visibility." },
+          "directProfit": { "title": "Direct profit, no waiting", "description": "Capture immediate 10% margin value on each balance resale operation." },
+          "support": { "title": "Dedicated agent support", "description": "Priority partner support for operational and financial continuity." }
+        }
+      },
+      "whyFirstChoice": {
+        "title": "Why GoSport365 is the first choice for partners",
+        "subtitle": "Institutional-grade betting infrastructure built for partner profitability, operational speed, and risk-controlled growth.",
+        "items": {
+          "partnerOdds": {
+            "title": "High-performance odds engine",
+            "description": "Premium market depth and competitive pricing help partners drive stronger conversion and retention."
+          },
+          "instantSettlement": {
+            "title": "Instant settlement rails",
+            "description": "Fast top-up and payout execution with transparent settlement states for finance-grade control."
+          },
+          "aiFraud": {
+            "title": "AI Fraud Sentinel",
+            "description": "Automated fraud scoring and Flag workflows reduce fake-proof exposure and secure partner balances."
+          },
+          "partnerDashboard": {
+            "title": "Partner command dashboard",
+            "description": "Real-time player operations, transaction visibility, and analytics in a single operational cockpit."
+          }
+        }
+      },
+      "faq": {
+        "title": "Agent FAQ",
+        "subtitle": "Direct answers on profitability, operations, and security to launch with full confidence.",
+        "items": [
+          { "question": "How do I generate direct profit as an agent?", "answer": "When you top up your agent wallet, you benefit from an immediate 10% margin. Profit is realized directly when you resell balance to players." },
+          { "question": "How does the Master Agent model work?", "answer": "You can onboard new partners under your network and receive automatic extra commissions: 2% on referred sub-agent recharges and 3% on referred player deposits." },
+          { "question": "Why is agent wallet funding limited to USDT (TRC20)?", "answer": "USDT (TRC20) delivers faster settlement, clearer transfer traceability, and stronger liquidity consistency across operations." },
+          { "question": "What is the dual-interface model (GoSport365 and GS365Cash)?", "answer": "GoSport365 is used to operate player accounts and handle operational balance, while GS365Cash is dedicated to top-up workflow, tracking, and financial process management." },
+          { "question": "How does the platform protect agents from proof manipulation?", "answer": "The platform combines AI-driven validation and operational review to detect suspicious behavior and reduce fraud exposure before approval." },
+          { "question": "Can I run my agent business from mobile while on the move?", "answer": "Yes. The interface is optimized for both mobile and desktop, with real-time alerts for fast request handling anywhere." },
+          {
+            "question": "How does the system protect me from fake receipts or false transfer claims?",
+            "answerPrefix": "Our platform includes an advanced",
+            "systemFraud": "System Fraud",
+            "answerMiddle": "engine powered by AI for data and image analysis to detect tampering attempts automatically. If any risk appears, you can use the",
+            "flagButton": "Flag Button",
+            "answerSuffix": "next to each request; once triggered, the operation is frozen instantly and escalated to financial control for manual verification and permanent suspension of suspicious accounts."
+          },
+          {
+            "question": "What if I do not currently have enough USDT to fund my agent wallet?",
+            "answerPrefix": "No worries. If USDT is unavailable, you can contact agent support through",
+            "whatsapp": "WhatsApp",
+            "answerSuffix": "immediately after account approval. Our team will guide you with practical options to complete your first funding cycle smoothly. The direct support link is shown inside the Agent Dashboard after approval."
+          }
+        ]
+      },
+      "liveStats": {
+        "liveTracking": "Live Tracking",
+        "daily": "Today",
+        "weekly": "This week",
+        "monthly": "This month",
+        "actions": [
+          "Agent m***1 completed a 5,000 DH top-up and received an instant commission.",
+          "Agent r***9 just onboarded 3 new players.",
+          "Agent k***4 received a 2% Master Agent commission."
+        ]
+      },
+      "footerBranding": "© 2026 GS365 Cash — secure top-ups, verified agents, ongoing support. | gsp365cash by gosport365"
     }
   },
   "admin": {

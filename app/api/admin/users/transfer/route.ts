@@ -101,25 +101,11 @@ export async function POST(request: Request) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      // Prefer the old-link row; fallback to the oldest link for this player.
-      const oldLink = await tx.agentCustomer.findFirst({
-        where: oldAgentId ? { playerId, agentId: oldAgentId } : { playerId },
+      const existingLink = await tx.agentCustomer.findFirst({
+        where: { playerId },
         orderBy: { createdAt: "asc" },
         select: { id: true, agentId: true },
       });
-
-      if (!oldLink) {
-        throw new Error("Existing AgentCustomer link not found for this player");
-      }
-
-      // Guard against unique(agentId, playerId) collision before re-pointing the row.
-      const existingForTarget = await tx.agentCustomer.findFirst({
-        where: { playerId, agentId: targetAgent.id },
-        select: { id: true },
-      });
-      if (existingForTarget && existingForTarget.id !== oldLink.id) {
-        throw new Error("Player already has an AgentCustomer record for the target agent");
-      }
 
       await tx.user.update({
         where: { id: playerUserId },
@@ -134,23 +120,33 @@ export async function POST(request: Request) {
         data: { assignedAgentId: targetAgent.id },
       });
 
-      await tx.agentCustomer.update({
-        where: { id: oldLink.id },
-        data: { agentId: targetAgent.id },
-      });
+      const agentCustomer = existingLink
+        ? await tx.agentCustomer.update({
+            where: { id: existingLink.id },
+            data: { agentId: targetAgent.id },
+            select: { id: true, agentId: true },
+          })
+        : await tx.agentCustomer.create({
+            data: {
+              playerId,
+              agentId: targetAgent.id,
+              status: "APPROVED",
+            },
+            select: { id: true, agentId: true },
+          });
 
       await tx.auditLog.create({
         data: {
           userId: auth.user.id,
           action: "ADMIN_TRANSFER_PLAYER_TO_AGENT",
           entityType: "AgentCustomer",
-          entityId: oldLink.id,
+          entityId: agentCustomer.id,
           meta: {
             playerUserId,
             playerId,
             playerEmail: playerUser.email,
             playerUsername: playerUser.username,
-            oldAgentId: oldAgentId ?? oldLink.agentId ?? null,
+            oldAgentId: oldAgentId ?? existingLink?.agentId ?? null,
             newAgentId: targetAgent.id,
             newAgentUserId: targetAgent.userId,
             newAgentUsername: targetAgent.username,
@@ -160,7 +156,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Transfer failed";
-    const status = /already has an AgentCustomer record/i.test(message) ? 409 : 400;
+    const status = 400;
     return NextResponse.json({ success: false, message }, { status });
   }
 

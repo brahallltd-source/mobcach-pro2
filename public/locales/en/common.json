@@ -1,0 +1,47 @@
+{
+  "features": {
+    "title": "Why GoSport365 is the first choice",
+    "subtitle": "A high-trust platform built for global standards, execution speed, and strict financial governance.",
+    "items": {
+      "leadership": {
+        "title": "Regional Leadership",
+        "description": "A leading regional platform with enterprise-grade operational standards."
+      },
+      "globalCompetitor": {
+        "title": "Global Competitor",
+        "description": "A product and operations model designed to compete at international level."
+      },
+      "allSports": {
+        "title": "All Sports Coverage",
+        "description": "Broad coverage across major leagues and sports verticals."
+      },
+      "hugeWinnings": {
+        "title": "Huge Winnings",
+        "description": "High payout potential supported by a reliable transaction experience."
+      },
+      "highOdds": {
+        "title": "High Odds",
+        "description": "Optimized odds designed to maximize player return potential."
+      },
+      "casino": {
+        "title": "Premium Casino",
+        "description": "A casino experience aligned with international quality standards."
+      },
+      "fastPay": {
+        "title": "Fast Pay",
+        "description": "Fast settlement cycles with dependable transfer execution."
+      },
+      "strictControl": {
+        "title": "Strict Financial Control",
+        "description": "Tight financial controls that protect each transfer and settlement."
+      },
+      "aiSupport": {
+        "title": "AI Security + 24/7 Support",
+        "description": "AI-powered transaction monitoring with around-the-clock support."
+      }
+    }
+  },
+  "footer": {
+    "branding": "© 2026 GS365 Cash — secure top-ups, verified agents, ongoing support. | gsp365cash by gosport365"
+  }
+}

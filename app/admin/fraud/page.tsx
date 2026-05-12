@@ -90,7 +90,7 @@ export default function AdminFraudPage() {
     return items;
   }, [filter, items]);
 
-  const runAction = async (action: "resolve" | "reopen") => {
+  const runAction = async (action: "force_approve" | "reject" | "reopen") => {
     if (!selected) return;
     setBusy(true);
     try {
@@ -207,8 +207,9 @@ export default function AdminFraudPage() {
                 <p className="text-sm font-semibold text-white">قرار الإدارة (Admin Action)</p>
                 <TextArea rows={3} value={actionNote} onChange={(e) => setActionNote(e.target.value)} placeholder="اكتب قرارك هنا (مثال: تم قبول الوصل، تم إلغاء الطلب...)" className="mt-3" />
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <PrimaryButton onClick={() => runAction("resolve")} disabled={busy}>إغلاق البلاغ (Resolve)</PrimaryButton>
-                  <button onClick={() => runAction("reopen")} disabled={busy} className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-rose-400 disabled:opacity-60">إعادة الفتح (Reopen)</button>
+                  <PrimaryButton onClick={() => runAction("force_approve")} disabled={busy}>اعتماد إجباري (Force Approve)</PrimaryButton>
+                  <button onClick={() => runAction("reject")} disabled={busy} className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-rose-400 disabled:opacity-60">رفض نهائي (Reject)</button>
+                  <button onClick={() => runAction("reopen")} disabled={busy} className="rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">إعادة الفتح</button>
                 </div>
               </div>
             </div>

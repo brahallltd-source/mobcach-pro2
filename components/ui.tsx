@@ -158,8 +158,11 @@ export function PageHeader({
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { dir, t } = useTranslation();
+  const { dir, t, tx } = useTranslation();
   const { brandName } = usePublicBrandingSwr();
+  const pathname = usePathname();
+  const isPlayerLanding = pathname === "/";
+  const showBecomeAgentCta = false;
   return (
     <main dir={dir} className="min-h-screen bg-transparent px-6 py-8 text-white md:px-8">
       <Navbar className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4">
@@ -168,17 +171,62 @@ export function Shell({ children }: { children: ReactNode }) {
             <DynamicLogo heightClass="h-10 md:h-12" alt={brandName} />
           </Link>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <NotificationBell active />
-          <LanguageSwitcher />
-          <Link
-            href="/login"
-            className={cn(
-              "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-            )}
-          >
-            {t("login")}
-          </Link>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="shrink-0">
+            <LanguageSwitcher />
+          </div>
+          {isPlayerLanding ? (
+            <>
+              <Link
+                href="/#platform-features"
+                className="hidden md:inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/10"
+              >
+                {tx("home.navbar.features")}
+              </Link>
+              <Link
+                href="/#player-faq"
+                className="hidden md:inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/10"
+              >
+                {tx("home.navbar.faq")}
+              </Link>
+              <Link
+                href="/login"
+                className={cn(
+                  "hidden sm:inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                )}
+              >
+                {t("login")}
+              </Link>
+              <Link
+                href="/register"
+                className="hidden sm:inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 via-emerald-400 to-cyan-300 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.28)] transition hover:brightness-110"
+              >
+                {tx("home.navbar.register")}
+              </Link>
+            </>
+          ) : (
+            <>
+              <NotificationBell active />
+              {showBecomeAgentCta ? (
+                <Link
+                  href="/become-agent"
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-2xl border border-cyan-400/35 bg-cyan-500/[0.08] px-4 py-2.5 text-sm font-semibold text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)] backdrop-blur-sm transition hover:bg-cyan-500/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60",
+                  )}
+                >
+                  {t("becomeAgent")}
+                </Link>
+              ) : null}
+              <Link
+                href="/login"
+                className={cn(
+                  "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                )}
+              >
+                {t("login")}
+              </Link>
+            </>
+          )}
         </div>
       </Navbar>
       {children}
@@ -444,7 +492,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
               type="button"
               onClick={() => setOpen(true)}
               className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white/90 transition hover:bg-white/10"
-              aria-label="القائمة"
+              aria-label={tx("navShell.openMenu")}
             >
               <Menu size={20} strokeWidth={1.5} />
             </button>
@@ -541,8 +589,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
               className="mb-8 rounded-2xl border border-amber-500/45 bg-amber-500/15 px-5 py-4 text-sm font-semibold text-amber-50 shadow-lg shadow-amber-950/30 md:px-6"
               role="alert"
             >
-              وضع الصيانة نشط — لا يمكن تنفيذ بعض الإجراءات (مثل الشحن أو إضافة لاعبين) حتى يعطل المسؤول وضع
-              الصيانة.
+              {tx("agent.system.maintenanceBanner")}
             </div>
           ) : null}
           {children}

@@ -1,6 +1,8 @@
 import { UserAccountStatus } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 import type { AgentProfileCardAgent } from "@/components/AgentProfileCard";
+import { parseAgentPaymentMethodsJson } from "@/lib/agent-payment-settings";
+import { paymentMethodTitle } from "@/lib/constants/payment-methods";
 
 const MOCK_AGENTS: AgentProfileCardAgent[] = [
   {
@@ -37,6 +39,33 @@ const MOCK_AGENTS: AgentProfileCardAgent[] = [
 
 const LINKABLE = ["ACTIVE", "active", "account_created", "pending"] as const;
 
+function mergedPublicPaymentMethods(input: {
+  relational: Array<{ id: string; methodName: string }>;
+  userPaymentMethodsRaw: unknown;
+}) {
+  const names = new Map<string, string>();
+  const out: Array<{ id: string; methodName: string }> = [];
+
+  for (const m of input.relational) {
+    const name = String(m.methodName ?? "").trim();
+    if (!name || names.has(name.toLowerCase())) continue;
+    names.set(name.toLowerCase(), m.id);
+    out.push({ id: m.id, methodName: name });
+  }
+
+  const parsed = parseAgentPaymentMethodsJson(input.userPaymentMethodsRaw);
+  for (const m of parsed) {
+    if (!m.isActive) continue;
+    const title = paymentMethodTitle(m.id);
+    const normalized = String(title).trim().toLowerCase();
+    if (!normalized || names.has(normalized)) continue;
+    names.set(normalized, `user-${m.id}`);
+    out.push({ id: `user-${m.id}`, methodName: title });
+  }
+
+  return out;
+}
+
 /**
  * Up to `limit` agents marked `online` for the public home spotlight.
  * Falls back to {@link MOCK_AGENTS} when DB is off or no rows match.
@@ -57,7 +86,7 @@ export async function getHomeSpotlightAgents(limit = 3): Promise<AgentProfileCar
       take: limit,
       orderBy: [{ rating: "desc" }, { updatedAt: "desc" }],
       include: {
-        user: { select: { likes: true, dislikes: true } },
+        user: { select: { likes: true, dislikes: true, paymentMethods: true } },
         paymentMethods: {
           where: { active: true },
           take: 6,
@@ -74,6 +103,10 @@ export async function getHomeSpotlightAgents(limit = 3): Promise<AgentProfileCar
       const dislikes = Number(a.user.dislikes ?? 0) || 0;
       const votes = likes + dislikes;
       const ratingPercent = votes > 0 ? Math.round((likes / votes) * 100) : Math.round(Number(a.rating) || 0);
+      const paymentMethods = mergedPublicPaymentMethods({
+        relational: a.paymentMethods.map((m) => ({ id: m.id, methodName: m.methodName })),
+        userPaymentMethodsRaw: a.user.paymentMethods,
+      });
 
       return {
         id: a.id,
@@ -81,10 +114,7 @@ export async function getHomeSpotlightAgents(limit = 3): Promise<AgentProfileCar
         username: a.username,
         isOnline: true,
         rating: Number.isFinite(ratingPercent) ? ratingPercent : Math.round(Number(a.rating) || 0),
-        paymentMethods: a.paymentMethods.map((m) => ({
-          id: m.id,
-          methodName: m.methodName,
-        })),
+        paymentMethods,
       } satisfies AgentProfileCardAgent;
     });
   } catch {

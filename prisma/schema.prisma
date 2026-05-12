@@ -294,6 +294,9 @@ model Order {
   paymentMethodName String?
   proofUrl          String?
   proofHash         String?
+  isFlagged         Boolean        @default(false)
+  flagReason        String?
+  fraudCategory     FraudCategory  @default(SUSPICIOUS_ACTIVITY)
   reviewRequired    Boolean        @default(false)
   reviewReason      String?
   walletDeducted    Boolean        @default(false)
@@ -717,6 +720,12 @@ enum NotificationType {
   RECHARGE_REQUEST
   SUCCESS
   ALERT
+}
+
+enum FraudCategory {
+  FAKE_RECEIPT
+  NON_RECEIPT
+  SUSPICIOUS_ACTIVITY
 }
 
 enum Status {

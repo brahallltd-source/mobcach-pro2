@@ -55,6 +55,8 @@ type FilterTab =
   | typeof RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED
   | typeof RECHARGE_PROOF_STATUS.DISPUTED;
 
+type FraudCategory = "FAKE_RECEIPT" | "NON_RECEIPT" | "SUSPICIOUS_ACTIVITY";
+
 function statusBadgeClass(status: string) {
   return gs365StatusBadgeClass(status);
 }
@@ -225,6 +227,9 @@ export function AgentTransactionsReviewExperience({
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+  const [flagCategory, setFlagCategory] = useState<FraudCategory>("SUSPICIOUS_ACTIVITY");
 
   const tabs = useMemo<{ key: FilterTab; label: string }[]>(
     () => [
@@ -267,6 +272,9 @@ export function AgentTransactionsReviewExperience({
       setRejectReason("");
       setActionError(null);
       setShowChat(false);
+      setShowFlagModal(false);
+      setFlagReason("");
+      setFlagCategory("SUSPICIOUS_ACTIVITY");
       return;
     }
     const onKey = (e: KeyboardEvent) => {
@@ -325,6 +333,42 @@ export function AgentTransactionsReviewExperience({
       return;
     }
     void patchStatus(row, "reject", r);
+  };
+
+  const onSubmitFlag = async (row: AgentPaymentProofRow) => {
+    const reason = flagReason.trim();
+    if (reason.length < 5) {
+      setActionError(tx("agent.transactionsReview.flagReasonRequired"));
+      return;
+    }
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/agent/flag-order", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: row.id,
+          reason,
+          fraudCategory: flagCategory,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || tx("agent.transactionsReview.flagActionFailed"));
+      }
+      toast.success(tx("agent.transactionsReview.flagActionSuccess"));
+      setShowFlagModal(false);
+      setFlagReason("");
+      setFlagCategory("SUSPICIOUS_ACTIVITY");
+      setSelected(null);
+      await load();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : tx("agent.transactionsReview.genericError"));
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const onCopyGosportUsername = useCallback(async (raw: string) => {
@@ -639,6 +683,17 @@ export function AgentTransactionsReviewExperience({
                     />
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      className="order-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/60 bg-gradient-to-r from-rose-600/85 via-red-500/80 to-rose-600/85 px-4 py-3 text-sm font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.45)] transition hover:brightness-110 hover:shadow-[0_0_26px_rgba(239,68,68,0.58)] sm:w-auto"
+                      disabled={actionBusy}
+                      onClick={() => {
+                        setActionError(null);
+                        setShowFlagModal(true);
+                      }}
+                    >
+                      {tx("agent.transactionsReview.flagAction")}
+                    </button>
                     <DangerButton
                       type="button"
                       className="order-2 flex w-full items-center justify-center gap-2 py-3 sm:order-1 sm:w-auto"
@@ -658,6 +713,9 @@ export function AgentTransactionsReviewExperience({
                       {tx("agent.transactionsReview.approveAction")}
                     </PrimaryButton>
                   </div>
+                  <p className="text-xs text-rose-200/90">
+                    {tx("agent.transactionsReview.flagSecurityHint")}
+                  </p>
                 </div>
               ) : (
                 <div className="mt-6 border-t border-white/10 pt-4 text-sm text-white/55">
@@ -673,6 +731,79 @@ export function AgentTransactionsReviewExperience({
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {selected && showFlagModal ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="flag-dialog-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !actionBusy) setShowFlagModal(false);
+          }}
+        >
+          <GlassCard className="w-full max-w-md border border-rose-500/40 bg-[#180b12]/95 p-5 shadow-[0_0_30px_rgba(244,63,94,0.32)]">
+            <h3 id="flag-dialog-title" className="text-base font-bold text-rose-100">
+              {tx("agent.transactionsReview.flagModalTitle")}
+            </h3>
+            <p className="mt-1 text-xs text-rose-100/75">{tx("agent.transactionsReview.flagModalSubtitle")}</p>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-medium text-white/70">
+                {tx("agent.transactionsReview.flagCategoryLabel")}
+                <select
+                  value={flagCategory}
+                  onChange={(e) => setFlagCategory(e.target.value as FraudCategory)}
+                  disabled={actionBusy}
+                  className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white outline-none ring-rose-500/20 focus:ring-2"
+                >
+                  <option value="FAKE_RECEIPT">{tx("agent.transactionsReview.flagCategoryFakeReceipt")}</option>
+                  <option value="NON_RECEIPT">{tx("agent.transactionsReview.flagCategoryNonReceipt")}</option>
+                  <option value="SUSPICIOUS_ACTIVITY">
+                    {tx("agent.transactionsReview.flagCategorySuspicious")}
+                  </option>
+                </select>
+              </label>
+
+              <label className="block text-xs font-medium text-white/70">
+                {tx("agent.transactionsReview.flagReasonLabel")}
+                <textarea
+                  rows={3}
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value)}
+                  disabled={actionBusy}
+                  className="mt-1.5 w-full resize-none rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                  placeholder={tx("agent.transactionsReview.flagReasonPlaceholder")}
+                />
+              </label>
+            </div>
+
+            <p className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-100/90">
+              {tx("agent.transactionsReview.flagSecurityHint")}
+            </p>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+                disabled={actionBusy}
+                onClick={() => setShowFlagModal(false)}
+              >
+                {tx("admin.actions.close")}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-300/60 bg-rose-500 px-3 py-2 text-xs font-bold text-black shadow-[0_0_16px_rgba(244,63,94,0.45)] transition hover:bg-rose-400 disabled:opacity-60"
+                disabled={actionBusy}
+                onClick={() => void onSubmitFlag(selected)}
+              >
+                {actionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {tx("agent.transactionsReview.flagConfirmAction")}
+              </button>
+            </div>
+          </GlassCard>
         </div>
       ) : null}
     </>

@@ -122,6 +122,7 @@ export default function AdminDashboardPage() {
     complaints: 0,
     pendingAgents: 0,
     disputes: 0,
+    flaggedOrders: 0,
     withdrawals: 0,
     notifications: 0,
   });
@@ -368,12 +369,22 @@ export default function AdminDashboardPage() {
         if (cancelled) return;
 
         const appRows = apps.data || apps.applications || [];
+        const orderRows = Array.isArray(orders.orders) ? orders.orders : [];
+        const flaggedOrders = orderRows.filter((item: { status?: string; reviewRequired?: boolean; isFlagged?: boolean }) =>
+          Boolean(
+            item.isFlagged ||
+              item.reviewRequired ||
+              item.status === "flagged_for_review" ||
+              item.status === "UNDER_INVESTIGATION"
+          )
+        ).length;
         setCounts({
-          orders: (orders.orders || []).length,
+          orders: orderRows.length,
           complaints: (complaints.complaints || []).length,
           pendingAgents: appRows.filter((item: { status?: string }) => item.status === "pending_agent_review")
             .length,
           disputes: (disputes.disputes || []).length + (fraud.summary?.pendingFlags || 0),
+          flaggedOrders,
           withdrawals: (withdrawals.withdrawals || []).filter(
             (item: { status?: string }) => item.status === "agent_approved"
           ).length,
@@ -536,7 +547,18 @@ export default function AdminDashboardPage() {
             <Card className="mb-8 border border-white/10 bg-[#0B0F19]/80 shadow-lg backdrop-blur-xl">
               <CardContent className="p-0">
                 <div className="border-b border-white/10 px-5 py-4 md:px-6">
-                  <h2 className="text-lg font-semibold text-white">{tx("dashboard.actionCenterTitle")}</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-lg font-semibold text-white">{tx("dashboard.actionCenterTitle")}</h2>
+                    <Link
+                      href="/admin/orders?filter=flagged_requests"
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-400/45 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                    >
+                      Flagged Requests
+                      <span className="rounded-full bg-rose-500/30 px-2 py-0.5 text-[11px]" dir="ltr">
+                        {counts.flaggedOrders}
+                      </span>
+                    </Link>
+                  </div>
                   <p className="mt-1 text-xs text-white/45">{tx("dashboard.pendingRechargeQueueSub")}</p>
                 </div>
                 <div className="overflow-x-auto">

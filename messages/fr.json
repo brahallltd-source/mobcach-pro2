@@ -65,6 +65,11 @@
     "historyArchive": "Historique / Archives",
     "affiliateNetwork": "Réseau d’affiliation"
   },
+  "global": {
+    "footer": {
+      "branding": "© 2026 GS365 Cash — recharges sécurisées, agents vérifiés, support continu. | gsp365cash by gosport365"
+    }
+  },
   "player": {
     "dashboard": {
       "loading": "Chargement de vos données…",
@@ -322,6 +327,7 @@
       "title": "Rechargez et retirez vos gains en quelques secondes",
       "description": "Connectez-vous avec des agents agréés pour des transactions sécurisées via les banques marocaines et soldes numériques — sans complication, avec suivi instantané.",
       "start_btn": "Commencez gratuitement",
+      "exploreAgents": "Explorer les agents",
       "agent_btn": "Devenez notre agent",
       "subtitle": "GS365 Cash vous connecte à des agents vérifiés pour des retraits et recharges sécurisés via banques marocaines et portefeuilles numériques — simple, suivi en direct, interface moderne.",
       "ctaStart": "Commencer gratuitement",
@@ -358,8 +364,15 @@
       "subtitle": "Des protections réciproques pour chaque transaction.",
       "playerTitle": "Protection du joueur",
       "playerBody": "Transferts via des agents entièrement vérifiés et de confiance.",
+      "doubleConfirmTitle": "Double confirmation pour protéger vos fonds",
       "agentTitle": "Protection de l’agent",
-      "agentBody": "Anti-fraude avancé : doublons de preuves bloqués, solde protégé."
+      "agentBody": "Anti-fraude avancé : doublons de preuves bloqués, solde protégé.",
+      "doubleConfirmBody": "La transaction n’est finalisée qu’après votre confirmation explicite de réception du solde."
+    },
+    "navbar": {
+      "features": "Fonctionnalités",
+      "faq": "FAQ",
+      "register": "Inscription"
     },
     "heroCard": {
       "headerLabel": "Aperçu en direct",
@@ -380,6 +393,91 @@
     "footer": {
       "line1": "© 2026 GS365 Cash — recharges sécurisées, agents vérifiés, support continu.",
       "line2": "gsp365cash by gosport365"
+    },
+    "spotlightPlayers": {
+      "title": "Choisissez votre agent vérifié maintenant",
+      "subtitle": "Nos agents sont disponibles pour sécuriser vos recharges et retraits de gains en quelques secondes.",
+      "cta": "Commencer",
+      "cardCta": "Commencer en tant que joueur",
+      "agentLink": "Vous êtes agent ? Rejoignez-nous"
+    },
+    "playerFlow": {
+      "steps": [
+        { "title": "Inscription", "description": "Créez un compte sécurisé sur la plateforme pour démarrer." },
+        { "title": "Choix de l’agent", "description": "Sélectionnez un agent vérifié pour garantir une transaction sûre." },
+        { "title": "Réception des accès GoSport365", "description": "L’agent vous fournit un compte sécurisé pour protéger vos droits et vos gains." },
+        { "title": "Demande de solde", "description": "Définissez le montant que vous souhaitez créditer." },
+        { "title": "Vérification système", "description": "Notre moteur vérifie la liquidité suffisante de l’agent avant traitement." },
+        { "title": "Méthode de paiement", "description": "Choisissez la méthode la plus adaptée parmi celles de votre agent." },
+        { "title": "Upload de la preuve", "description": "Téléversez votre preuve de paiement en toute sécurité." },
+        { "title": "Validation agent", "description": "L’agent vérifie la preuve et valide le transfert du solde." },
+        { "title": "Confirmation joueur", "description": "Vous confirmez la réception du solde pour clôturer l’opération." }
+      ],
+      "securityBanner": "Le processus est surveillé de bout en bout par notre système avancé pour garantir votre sécurité."
+    },
+    "playerFaq": {
+      "title": "Questions fréquentes (FAQ)",
+      "subtitle": "Tout ce qu’il faut savoir pour commencer en toute confiance.",
+      "items": [
+        {
+          "question": "Combien de temps prend une recharge ou un retrait de gains ?",
+          "answerPrefix": "Les opérations sont quasi instantanées. Après preuve de paiement et validation agent, le crédit est effectué en",
+          "answerHighlight": "1 à 5 minutes",
+          "answerSuffix": "au maximum.",
+          "badge": "Vérifié : 1-5 min"
+        },
+        {
+          "question": "Y a-t-il des frais cachés sur les recharges ?",
+          "answer": "Aucun frais caché. Le montant envoyé est exactement celui crédité sur votre compte."
+        },
+        {
+          "question": "Que se passe-t-il si je paie mais l’agent ne crédite pas ?",
+          "answer": "Vos fonds sont protégés. En cas de retard, vous pouvez ouvrir un litige en un clic et obtenir une intervention immédiate.",
+          "badge": "Vérifié : récupération immédiate du droit"
+        },
+        {
+          "question": "Comment retirer mes gains après une victoire ?",
+          "answerPrefix": "Depuis la page Earnings, renseignez vos informations de retrait. Les montants entre",
+          "answerAmountRange": "100 et 60 000 MAD",
+          "answerMiddle": "sont transférés en moins de",
+          "answerTime": "24 heures",
+          "answerSuffix": "après demande. Les montants élevés sont traités sous une semaine selon les contrôles internationaux."
+        },
+        {
+          "question": "Quels moyens de paiement et retrait sont pris en charge ?",
+          "answer": "Les agents vérifiés prennent en charge les principales banques, portefeuilles digitaux et canaux cash."
+        }
+      ]
+    },
+    "platformFeatures": {
+      "title": "Pourquoi GoSport365 est le premier choix",
+      "subtitle": "Une plateforme de référence avec standards mondiaux, puissance technologique et fiabilité financière.",
+      "items": {
+        "arabLeadership": { "title": "Leadership régional", "description": "Une plateforme de référence sur le marché arabe, avec transparence et standards mondiaux." },
+        "sportsCoverage": { "title": "Couverture multi-sports", "description": "Paris sur les grandes ligues et disciplines internationales." },
+        "hugeWinnings": { "title": "Gains élevés", "description": "Fort potentiel de gains avec support complet des scénarios premium." },
+        "highOdds": { "title": "High Odds", "description": "Des cotes compétitives pour maximiser la performance des joueurs.", "badge": "World Rank #1" },
+        "casino": { "title": "Casino premium", "description": "Expérience casino en ligne alignée sur des standards internationaux." },
+        "fastPay": { "title": "Fast Pay", "description": "Exécution rapide des paiements avec gouvernance financière stricte." },
+        "strictFinance": { "title": "Contrôle strict", "description": "Système financier hautement contrôlé pour une équité totale des flux." },
+        "aiSystem": { "title": "Sécurité IA", "description": "Surveillance intelligente des opérations pour prévenir les comportements frauduleux." },
+        "support": { "title": "Support 24/7", "description": "Équipe support disponible en continu." }
+      }
+    },
+    "livePayouts": {
+      "title": "Gagnants récents",
+      "liveBadge": "Live",
+      "minutesAgo": "il y a {{minutes}} min",
+      "hoursAgo": "il y a {{hours}} h",
+      "yesterday": "Hier",
+      "daysAgo": "il y a {{days}} jours"
+    },
+    "liveStats": {
+      "ariaLabel": "Statistiques d’inscription en direct",
+      "today": "Aujourd’hui",
+      "week": "Cette semaine",
+      "month": "Ce mois-ci",
+      "live": "Live"
     }
   },
   "auth": {
@@ -407,6 +505,9 @@
     }
   },
   "agent": {
+    "system": {
+      "maintenanceBanner": "Le mode maintenance est actif — certaines actions (comme la recharge ou l’ajout de joueurs) sont temporairement bloquées jusqu’à désactivation par l’administration."
+    },
     "bonus": {
       "promotion": "Bonus promotion",
       "recurring": "Bonus de recharge ({{pct}} %)"
@@ -499,7 +600,138 @@
       "countdownExpired": "La fenêtre d'exécution est expirée — approuver maintenant peut appliquer une pénalité de retard (une seule fois).",
       "previewHelp": "Aperçu du reçu (zoom molette ou boutons)",
       "zoomOutAria": "Zoom arrière",
-      "zoomInAria": "Zoom avant"
+      "zoomInAria": "Zoom avant",
+      "flagAction": "Signaler une transaction suspecte",
+      "flagActionFailed": "Échec de l'envoi du signalement fraude",
+      "flagActionSuccess": "La demande passe en investigation et les admins sont alertés",
+      "flagReasonRequired": "Le motif du signalement est obligatoire (au moins 5 caractères).",
+      "flagModalTitle": "Signaler une suspicion de fraude",
+      "flagModalSubtitle": "Choisissez une catégorie de fraude et décrivez clairement le motif.",
+      "flagCategoryLabel": "Catégorie de fraude",
+      "flagCategoryFakeReceipt": "Le reçu semble falsifié",
+      "flagCategoryNonReceipt": "Fonds non reçus",
+      "flagCategorySuspicious": "Activité suspecte",
+      "flagReasonLabel": "Motif du signalement",
+      "flagReasonPlaceholder": "Exemple : aucun virement visible dans mon application bancaire malgré la preuve envoyée...",
+      "flagConfirmAction": "Confirmer le signalement",
+      "flagSecurityHint": "Le Fraud System surveille ce processus. Les faux signalements peuvent entraîner la suspension du compte."
+    },
+    "landing": {
+      "hero": {
+        "title": "Devenez un agent vérifié et développez des revenus prévisibles",
+        "subtitle": "Rejoignez le réseau d’agents GoSport365 avec des outils pro, une marge directe et un modèle Master Agent scalable.",
+        "ctaRegister": "Rejoindre comme agent",
+        "ctaLogin": "Connexion agent"
+      },
+      "usdtNotice": {
+        "badge": "T",
+        "title": "Recharge du solde agent",
+        "prefix": "Alerte : le minimum de recharge agent est de",
+        "minAmount": "1,000 DH",
+        "middle": "Le solde agent est alimenté exclusivement via",
+        "network": "USDT (TRC20)",
+        "suffix": "pour garantir rapidité de règlement et sécurité financière."
+      },
+      "flow": {
+        "title": "Feuille de route agent (7 étapes)",
+        "subtitle": "Un parcours opérationnel clair de l’inscription jusqu’à l’envoi sécurisé des accès joueurs.",
+        "stepLabel": "Step {{number}}",
+        "securityBanner": "Le processus est surveillé de bout en bout par notre système avancé pour garantir votre sécurité.",
+        "steps": [
+          { "title": "Création du compte", "description": "Renseignez vos informations de base via le formulaire d’inscription." },
+          { "title": "Validation administrative", "description": "Attendez la revue et l’approbation de votre dossier par GoSport365." },
+          { "title": "Activation SMS", "description": "Recevez par SMS les accès GoSport365 et GS365Cash." },
+          { "title": "Données bancaires", "description": "Reliez vos comptes bancaires et moyens de paiement pour encaisser les joueurs." },
+          { "title": "Recharge du solde", "description": "Alimentez votre wallet selon le modèle agent à marge directe (10%)." },
+          { "title": "Enregistrement joueurs", "description": "Recevez les demandes et enregistrez les joueurs dans votre interface agent." },
+          { "title": "Envoi des données", "description": "Transmettez les accès joueur en un clic via notre système." }
+        ]
+      },
+      "depositFlow": {
+        "title": "Flux opérationnel de dépôt (Agent vs Player)",
+        "subtitle": "Du signal de demande à la libération de solde avec contrôle sécurisé.",
+        "steps": [
+          { "title": "Demande de paiement", "description": "Réception d’une nouvelle demande de dépôt joueur." },
+          { "title": "Validation IA", "description": "Vérification de la preuve avec assistance IA et revue opérationnelle." },
+          { "title": "Approbation", "description": "Validation après confirmation de réception des fonds." },
+          { "title": "Transfert de solde", "description": "Crédit immédiat du joueur depuis l’interface GoSport365 Agent." }
+        ]
+      },
+      "earnings": {
+        "title": "Modèle de profit clair et compétitif",
+        "subtitle": "Une architecture de commissions orientée performance et croissance durable.",
+        "items": {
+          "directMargin": { "title": "Marge directe (10 %)", "description": "Marge immédiate à l’achat de liquidité, sans attente de cycle de retrait." },
+          "masterAgent": { "title": "Modèle Master Agent", "description": "Développez vos revenus via un réseau de partenaires sous-agents." },
+          "subAgentCommission": { "title": "Commission sous-agent (2 %)", "description": "2 % sur chaque recharge des agents enregistrés via votre réseau." },
+          "playerCommission": { "title": "Commission joueurs (3 %)", "description": "3 % sur les dépôts des joueurs issus de votre structure." },
+          "instantSettlement": { "title": "Règlement instantané", "description": "Commissions calculées et créditées automatiquement lors de l’exécution." }
+        }
+      },
+      "dashboardFeatures": {
+        "title": "Outils de gestion professionnels",
+        "items": {
+          "playersManagement": { "title": "Gestion des joueurs", "description": "Suivez activité et indicateurs joueurs depuis un tableau unifié." },
+          "embeddedChat": { "title": "Messagerie intégrée", "description": "Coordination directe avec les joueurs depuis la plateforme." },
+          "instantWithdrawals": { "title": "Retrait instantané", "description": "Demandez le retrait de vos gains personnels en un clic." },
+          "realtimeNotifications": { "title": "Notifications temps réel", "description": "Alertes instantanées lors des nouvelles demandes joueurs." }
+        }
+      },
+      "benefits": {
+        "title": "Avantages agent sur GoSport365",
+        "items": {
+          "dashboard": { "title": "Dashboard professionnel", "description": "Pilotage complet des joueurs et des transactions." },
+          "directProfit": { "title": "Profit direct sans attente", "description": "Monétisez immédiatement votre marge sur chaque opération." },
+          "support": { "title": "Support dédié agents", "description": "Assistance prioritaire pour assurer continuité opérationnelle." }
+        }
+      },
+      "faq": {
+        "title": "FAQ Agents",
+        "subtitle": "Réponses claires sur la rentabilité, l’exploitation et la sécurité.",
+        "items": [
+          { "question": "Comment générer un profit direct en tant qu’agent ?", "answer": "Le modèle agent vous donne une marge immédiate à la recharge, réalisée dès la revente de solde aux joueurs." },
+          { "question": "Comment fonctionne le modèle Master Agent ?", "answer": "Vous pouvez structurer un réseau de partenaires et percevoir des commissions automatiques sur leur activité." },
+          { "question": "Pourquoi le financement est limité à USDT (TRC20) ?", "answer": "USDT TRC20 assure rapidité de règlement, meilleure traçabilité et stabilité de liquidité." },
+          { "question": "Que signifient les interfaces GoSport365 et GS365Cash ?", "answer": "GoSport365 gère l’opérationnel joueur ; GS365Cash gère le workflow financier, le suivi et les validations." },
+          { "question": "Comment le système protège-t-il contre les preuves falsifiées ?", "answer": "Validation IA + contrôle opérationnel pour détecter les anomalies avant approbation." },
+          { "question": "Puis-je gérer mon activité agent depuis mobile ?", "answer": "Oui. Interface optimisée mobile/desktop avec alertes en temps réel." },
+          {
+            "question": "Comment suis-je protégé contre les fausses preuves ou faux envois ?",
+            "answerPrefix": "Notre plateforme intègre un",
+            "systemFraud": "System Fraud",
+            "answerMiddle": "avancé qui analyse données et images pour détecter les tentatives de falsification. En cas de risque, utilisez le",
+            "flagButton": "Flag Button",
+            "answerSuffix": "pour geler instantanément l’opération et l’escalader à la cellule de contrôle financier."
+          },
+          {
+            "question": "Que faire si je n’ai pas de USDT disponible immédiatement ?",
+            "answerPrefix": "Aucun souci. Vous pouvez contacter le support agent via",
+            "whatsapp": "WhatsApp",
+            "answerSuffix": "dès l’approbation de votre compte. Le lien direct apparaît dans votre tableau agent après validation."
+          }
+        ]
+      },
+      "liveStats": {
+        "liveTracking": "Live Tracking",
+        "daily": "Aujourd’hui",
+        "weekly": "Cette semaine",
+        "monthly": "Ce mois-ci",
+        "actions": [
+          "L’agent m***1 a rechargé 5 000 DH et reçu une commission instantanée.",
+          "L’agent r***9 vient d’enregistrer 3 nouveaux joueurs.",
+          "L’agent k***4 a reçu une commission Master Agent de 2 %."
+        ]
+      },
+      "whyFirstChoice": {
+        "title": "Pourquoi GoSport365 est le premier choix des partenaires",
+        "subtitle": "Une infrastructure betting-fintech orientée rentabilité partenaire, vitesse d’exécution et contrôle du risque.",
+        "items": {
+          "partnerOdds": { "title": "Moteur de cotes haute performance", "description": "Des cotes compétitives pour améliorer conversion et rétention." },
+          "instantSettlement": { "title": "Règlement instantané", "description": "Exécution rapide des flux avec état de règlement transparent." },
+          "aiFraud": { "title": "AI Fraud Sentinel", "description": "Scoring anti-fraude et logique Flag pour réduire l’exposition aux faux reçus." },
+          "partnerDashboard": { "title": "Dashboard de pilotage partenaire", "description": "Vision temps réel des joueurs, transactions et performances." }
+        }
+      }
     }
   },
   "admin": {
