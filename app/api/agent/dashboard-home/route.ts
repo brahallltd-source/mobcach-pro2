@@ -61,7 +61,7 @@ export async function GET() {
       prisma.agentCustomer.findMany({
         where: {
           agentId,
-          OR: [{ status: "PENDING" }, { status: "REQUESTED" }],
+          status: "PENDING",
         },
         take: 5,
         orderBy: { createdAt: "desc" },

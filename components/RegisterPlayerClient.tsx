@@ -22,6 +22,7 @@ import { COUNTRY_OPTIONS, getDialCode } from "@/lib/countries";
 import { fetchSessionUser } from "@/lib/client-session";
 import { REGISTER_AR, REGISTRATION_PENDING_SUCCESS_AR } from "@/lib/constants/i18n";
 import { registerPlayerApiSchema, type RegisterPlayerApiValues } from "@/lib/validations/auth";
+import { syncPushSubscriptionWithServer } from "@/hooks/usePushNotifications";
 
 const AGENT_PICKER_SUCCESS_AR =
   "تم إنشاء حسابك وإرسال طلب الربط بالوكيل. عند الموافقة يمكنك تسجيل الدخول ومتابعة حالة الطلب من لوحة اللاعب.";
@@ -230,6 +231,7 @@ export function RegisterPlayerClient({
           };
           if (loginRes.ok && loginJson.success === true && loginJson.user && typeof loginJson.user === "object") {
             localStorage.setItem("mobcash_user", JSON.stringify(loginJson.user));
+            void syncPushSubscriptionWithServer();
           } else if (data.user) {
             localStorage.setItem("mobcash_user", JSON.stringify(data.user));
           }
@@ -286,6 +288,7 @@ export function RegisterPlayerClient({
         } else if (data.user && typeof data.user === "object") {
           localStorage.setItem("mobcash_user", JSON.stringify(data.user));
         }
+        void syncPushSubscriptionWithServer();
         router.push(targetDashboard);
         return;
       }

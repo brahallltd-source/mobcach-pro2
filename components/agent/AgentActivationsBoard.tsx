@@ -14,7 +14,9 @@ export function AgentActivationsBoard() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = async (email: string) => {
     const res = await fetch(`/api/agent/activations?email=${encodeURIComponent(email)}`, { cache: "no-store" });
@@ -32,36 +34,51 @@ export function AgentActivationsBoard() {
   }, []);
 
   const activate = async (playerUserId: string) => {
-    setBusyId(playerUserId);
+    if (!playerUserId) {
+      alert(t("activations_error_activate"));
+      return;
+    }
+    setActivatingId(playerUserId);
     const res = await fetch("/api/agent/activations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerUserId, action: "activate" }),
     });
     const data = await res.json();
-    if (!res.ok) return alert(data.message || t("activations_error_activate"));
+    if (!res.ok) {
+      setActivatingId(null);
+      return alert(data.message || t("activations_error_activate"));
+    }
     const saved = localStorage.getItem("mobcash_user");
     if (saved) {
       const user = JSON.parse(saved);
       await load(user.email);
     }
-    setBusyId(null);
+    setActivatingId(null);
     alert(data.message || t("activations_success_activated"));
   };
 
   const markDone = async (playerUserId: string) => {
+    if (!playerUserId) {
+      alert(t("activations_error_activate"));
+      return;
+    }
+    setSendingId(playerUserId);
     const res = await fetch("/api/agent/activations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerUserId, action: "done" }),
     });
     const data = await res.json();
+    setSendingId(null);
     alert(data.message || t("activations_success_updated"));
   };
 
-  const copyMessage = async (messageText: string) => {
+  const copyMessage = async (messageText: string, playerUserId: string) => {
     await navigator.clipboard.writeText(messageText);
     setSelectedMessage(messageText);
+    setCopiedId(playerUserId);
+    window.setTimeout(() => setCopiedId((prev) => (prev === playerUserId ? null : prev)), 1200);
     toast.success(t("activations_copy_success_title"), {
       description: t("activations_copy_success_body"),
     });
@@ -76,6 +93,7 @@ export function AgentActivationsBoard() {
         <div className="space-y-4">
           {rows.map((row) => {
             const status = row.status === "active" ? "approved" : "pending";
+            const rowUserId = String(row.id ?? row.userId ?? row.playerUserId ?? "").trim();
             return (
               <GlassCard key={String(row.id ?? row.playerUserId ?? row.userId)} className="p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -88,14 +106,17 @@ export function AgentActivationsBoard() {
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     {row.status !== "active" ? (
-                      <PrimaryButton onClick={() => activate(row.user_id)} disabled={busyId === row.user_id}>
-                        {busyId === row.user_id ? t("activations_action_activating") : t("activations_action_activate")}
+                      <PrimaryButton onClick={() => activate(rowUserId)} disabled={activatingId === rowUserId || !rowUserId}>
+                        {activatingId === rowUserId ? t("activations_action_activating") : t("activations_action_activate")}
                       </PrimaryButton>
                     ) : null}
-                    <PrimaryButton onClick={() => copyMessage(row.messageText)}> <Copy size={16} className="mr-2 inline-block" />{t("activations_action_copy_message")}</PrimaryButton>
+                    <PrimaryButton onClick={() => copyMessage(row.messageText, rowUserId)} disabled={copiedId === rowUserId || !rowUserId}>
+                      <Copy size={16} className="mr-2 inline-block" />
+                      {t("activations_action_copy_message")}
+                    </PrimaryButton>
                     <a href={`https://wa.me/${String(row.phone || "").replace(/\D/g, "")}?text=${encodeURIComponent(row.messageText)}`} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"><MessageCircle size={16} className="mr-2 inline-block" />{t("activations_action_whatsapp")}</a>
                     <a href={`mailto:${encodeURIComponent(row.playerEmail)}?subject=${encodeURIComponent(t("activations_email_subject"))}&body=${encodeURIComponent(row.messageText)}`} className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"><Mail size={16} className="mr-2 inline-block" />{t("activations_action_email")}</a>
-                    <button onClick={() => markDone(row.user_id)} className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20">{t("activations_action_done_sending")}</button>
+                    <button onClick={() => markDone(rowUserId)} disabled={sendingId === rowUserId || !rowUserId} className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:opacity-60">{sendingId === rowUserId ? t("activations_action_activating") : t("activations_action_done_sending")}</button>
                   </div>
                 </div>
               </GlassCard>

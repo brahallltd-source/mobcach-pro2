@@ -15,6 +15,26 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 export type PushSupport = "unsupported" | "unsupported_api" | "ready";
 
+export async function syncPushSubscriptionWithServer(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const sub = await registration.pushManager.getSubscription();
+    if (!sub) return false;
+    const res = await fetch("/api/web-push/subscribe", {
+      method: "POST",
+      credentials: "include",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>(() =>
     typeof Notification !== "undefined" ? Notification.permission : "default",
@@ -40,6 +60,9 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
       setIsSubscribed(Boolean(sub));
+      if (sub) {
+        await syncPushSubscriptionWithServer();
+      }
     } catch {
       setIsSubscribed(false);
     }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { GlassCard, PrimaryButton, Shell, TextField } from "@/components/ui";
 import { useTranslation } from "@/lib/i18n";
+import { syncPushSubscriptionWithServer } from "@/hooks/usePushNotifications";
 
 type LoginJson = {
   success?: boolean;
@@ -60,6 +61,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("mobcash_user", JSON.stringify(data.user));
+      void syncPushSubscriptionWithServer();
       toast.success(tx("auth.login.toastSuccess"));
 
       const redirect =

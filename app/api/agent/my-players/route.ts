@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId");
     const prisma = getPrisma();
+    const session = await getSessionUserFromCookies();
+    const agentId =
+      session && String(session.role ?? "").trim().toUpperCase() === "AGENT"
+        ? session.agentProfile?.id ?? null
+        : null;
 
-    if (!agentId) {
-      return NextResponse.json({ players: [] }, { status: 400 });
+    if (!session || !agentId) {
+      return NextResponse.json({ message: "Unauthorized", players: [] }, { status: 401 });
     }
 
     /** Same filter as dashboard `totalPlayers`: linked to this agent and active only. */

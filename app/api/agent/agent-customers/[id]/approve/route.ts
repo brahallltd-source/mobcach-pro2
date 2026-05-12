@@ -114,6 +114,7 @@ export async function POST(
       await tx.player.update({
         where: { id: row.playerId },
         data: {
+          assignedAgentId: agentId,
           gosportUsername: u,
           gosportPassword: p,
           status: "active",

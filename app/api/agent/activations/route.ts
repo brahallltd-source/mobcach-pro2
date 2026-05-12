@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { USER_SELECT_SAFE_RELATION } from "@/lib/prisma-user-safe-select";
 import { createNotification } from "@/lib/notifications";
+import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 
@@ -76,6 +77,14 @@ export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
     const { playerUserId, action } = await req.json();
+    const session = await getSessionUserFromCookies();
+    const currentAgentId =
+      session && String(session.role ?? "").trim().toUpperCase() === "AGENT"
+        ? session.agentProfile?.id ?? null
+        : null;
+    if (!session || !currentAgentId) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     if (action === "done") {
       await createNotification({
@@ -94,7 +103,10 @@ export async function POST(req: Request) {
       }),
       prisma.player.update({
         where: { userId: playerUserId },
-        data: { status: "active" }
+        data: {
+          status: "active",
+          assignedAgentId: currentAgentId,
+        }
       })
     ]);
 
