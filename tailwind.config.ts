@@ -51,9 +51,20 @@ const config: Config = {
           from: { opacity: "0.65", transform: "scale(0.92)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
+        "golden-breathe": {
+          "0%, 100%": {
+            boxShadow:
+              "0 0 0 1px rgba(245, 158, 11, 0.35), 0 0 12px 2px rgba(255, 215, 0, 0.24), inset 0 0 18px rgba(245, 158, 11, 0.08)",
+          },
+          "50%": {
+            boxShadow:
+              "0 0 0 1px rgba(245, 158, 11, 0.58), 0 0 22px 6px rgba(255, 215, 0, 0.42), inset 0 0 28px rgba(245, 158, 11, 0.14)",
+          },
+        },
       },
       animation: {
         "player-nav-active": "player-nav-active 0.35s ease-out both",
+        "golden-glow-pulse": "golden-breathe 3.2s ease-in-out infinite",
       },
     }
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { GlassCard, PageHeader, SidebarShell, StatCard, StatusBadge } from "@/components/ui";
@@ -49,7 +49,7 @@ const FILTER_LABEL: Record<(typeof FILTERS)[number], string> = {
   flagged_requests: "flagged requests",
 };
 
-export default function AdminOrdersPage() {
+function AdminOrdersContent() {
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,5 +174,13 @@ export default function AdminOrdersPage() {
         </div>
       )}
     </SidebarShell>
+  );
+}
+
+export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AdminOrdersContent />
+    </Suspense>
   );
 }

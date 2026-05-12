@@ -143,7 +143,11 @@ export function LivePayouts() {
           {visibleWinners.map((winner) => (
             <div
               key={winner.id}
-              className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+              className={
+                winner.isTop
+                  ? "animate-golden-glow-pulse flex items-center justify-between rounded-xl border border-amber-300/55 bg-gradient-to-r from-amber-500/12 via-yellow-400/8 to-amber-500/12 px-3 py-2"
+                  : "flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+              }
             >
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-white/90">
