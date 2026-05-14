@@ -20,13 +20,27 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: b.platformName,
     description: "Modern recharge workflow for players, agents and admins",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "GoSport365",
+    },
+    other: {
+      "mobile-web-app-capable": "yes",
+    },
     ...(b.faviconUrl
       ? {
           icons: {
             icon: [{ url: b.faviconUrl }],
+            apple: [{ url: "/icon-192x192.png" }],
           },
         }
-      : {}),
+      : {
+          icons: {
+            apple: [{ url: "/icon-192x192.png" }],
+          },
+        }),
   };
 }
 
@@ -43,14 +57,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       className={`min-h-screen bg-[#0B0F19] ${tajawal.variable}`}
       style={htmlStyle}
     >
-      <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="GoSport365" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-      </head>
       <body className="relative min-h-screen overflow-x-hidden bg-[#0B0F19] text-white">
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
           <div className="absolute -left-[20%] top-[-15%] h-[min(70vh,640px)] w-[min(95vw,920px)] rounded-full bg-primary/10 blur-[120px]" />

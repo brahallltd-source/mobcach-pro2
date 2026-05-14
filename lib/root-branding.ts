@@ -13,19 +13,28 @@ export type RootBranding = {
 };
 
 export const getRootBranding = cache(async (): Promise<RootBranding> => {
-  const prisma = getPrisma();
-  if (!prisma) {
+  try {
+    const prisma = getPrisma();
+    if (!prisma) {
+      return {
+        platformName: DEFAULT_PLATFORM,
+        primaryColor: DEFAULT_PRIMARY,
+        faviconUrl: null,
+      };
+    }
+    const s = await getOrCreateSystemSettings(prisma);
+    const primary = String(s.primaryColor || "").trim();
+    return {
+      platformName: s.platformName?.trim() || DEFAULT_PLATFORM,
+      primaryColor: /^#[0-9A-Fa-f]{3,8}$/.test(primary) ? primary : DEFAULT_PRIMARY,
+      faviconUrl: s.faviconUrl?.trim() ? s.faviconUrl.trim() : null,
+    };
+  } catch {
+    // Never crash app shell rendering for branding/DB issues.
     return {
       platformName: DEFAULT_PLATFORM,
       primaryColor: DEFAULT_PRIMARY,
       faviconUrl: null,
     };
   }
-  const s = await getOrCreateSystemSettings(prisma);
-  const primary = String(s.primaryColor || "").trim();
-  return {
-    platformName: s.platformName?.trim() || DEFAULT_PLATFORM,
-    primaryColor: /^#[0-9A-Fa-f]{3,8}$/.test(primary) ? primary : DEFAULT_PRIMARY,
-    faviconUrl: s.faviconUrl?.trim() ? s.faviconUrl.trim() : null,
-  };
 });

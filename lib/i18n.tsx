@@ -560,12 +560,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   useLayoutEffect(() => {
-    const saved = localStorage.getItem("app_lang") as Lang | null;
-    const initial: Lang =
-      saved && ["fr", "ar", "en"].includes(saved) ? (saved as Lang) : defaultLang;
-    setLangState(initial);
-    syncHtmlAttributes(initial);
-    setMounted(true);
+    try {
+      const saved = localStorage.getItem("app_lang") as Lang | null;
+      const initial: Lang =
+        saved && ["fr", "ar", "en"].includes(saved) ? (saved as Lang) : defaultLang;
+      setLangState(initial);
+      syncHtmlAttributes(initial);
+    } catch {
+      // Fallback to defaults if storage/DOM access is blocked.
+      setLangState(defaultLang);
+      try {
+        syncHtmlAttributes(defaultLang);
+      } catch {
+        // ignore
+      }
+    } finally {
+      // Never keep the entire app hidden on hydration/runtime issues.
+      setMounted(true);
+    }
   }, []);
 
   const setLang = useCallback((l: Lang) => {
