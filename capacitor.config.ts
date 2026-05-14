@@ -8,13 +8,15 @@ const config: CapacitorConfig & {
     cleartext?: boolean;
   };
 } = {
-  appId: 'com.gosport365.app',
+  // تحديث معرف التطبيق ليتوافق مع الهوية الجديدة
+  appId: 'com.gs365cash.app',
   appName: 'GS365 Cash',
   webDir: 'public',
   bundledWebRuntime: false,
   server: {
-    url: 'https://gosport365.com/login',
-    allowNavigation: ['gosport365.com', '*.gosport365.com'],
+    // الرابط الصحيح للمنصة الجديدة
+    url: 'https://gs365cash.com/login',
+    allowNavigation: ['gs365cash.com', '*.gs365cash.com'],
     cleartext: true,
   },
 };
