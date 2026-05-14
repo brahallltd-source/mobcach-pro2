@@ -30,6 +30,7 @@ import { PlatformFeatures } from "@/components/marketing/PlatformFeatures";
 import { SimulatedStats } from "@/components/marketing/SimulatedStats";
 import { PlayerFAQSection } from "@/components/marketing/PlayerFAQSection";
 import { PlayerSecuritySection } from "@/components/marketing/PlayerSecuritySection";
+import { DownloadSection } from "@/components/marketing/DownloadSection";
 import { useTranslation } from "@/lib/i18n";
 
 const TRUST_MARQUEE = ["CIH", "Attijari", "Cash Plus", "Wafacash", "USDT"] as const;
@@ -521,6 +522,8 @@ export function Gs365CashLanding({ agents }: Gs365CashLandingProps) {
         <TransactionRoadmapSection />
 
         <MutualSecuritySection />
+
+        <DownloadSection audience="player" />
 
         {/* Featured agents */}
         <RevealSection id="featured-agents" className="scroll-mt-28 space-y-8">

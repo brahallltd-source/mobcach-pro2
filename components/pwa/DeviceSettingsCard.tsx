@@ -16,11 +16,10 @@ export function DeviceSettingsCard() {
     isSubscribed,
     isLoading,
     error,
+    vapidConfigured,
     subscribe,
     unsubscribeLocal,
   } = usePushNotifications();
-
-  const vapidConfigured = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim());
   const denied = permission === "denied";
   const unsupported = support !== "ready";
   const switchDisabled =

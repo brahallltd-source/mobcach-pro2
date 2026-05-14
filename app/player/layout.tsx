@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { hasAuthCookiePresence } from "@/lib/auth-cookie-presence";
 import { PlayerWaitingRoomGate } from "@/components/player/PlayerWaitingRoomGate";
+import { PlayerHeartbeat } from "@/components/player/PlayerHeartbeat";
 import { getPrisma } from "@/lib/db";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
@@ -35,7 +36,12 @@ export default async function PlayerLayout({
   const role = String(user.role).trim().toUpperCase();
   if (role === "PLAYER") {
     if (!prisma) {
-      return <>{children}</>;
+      return (
+        <>
+          <PlayerHeartbeat />
+          {children}
+        </>
+      );
     }
 
     const player = await prisma.player.findUnique({
@@ -53,7 +59,12 @@ export default async function PlayerLayout({
     if (!assignedAgentId) {
       // Avoid header-based path detection loops: when no agent is selected yet,
       // let the underlying page handle the onboarding UI/redirect.
-      return <>{children}</>;
+      return (
+        <>
+          <PlayerHeartbeat />
+          {children}
+        </>
+      );
     }
 
     const latestLinkRequest = player
@@ -115,14 +126,22 @@ export default async function PlayerLayout({
         new Date();
       const deadline = new Date(linkCreatedAt.getTime() + 24 * 60 * 60 * 1000);
       return (
-        <PlayerWaitingRoomGate
-          deadlineIso={deadline.toISOString()}
-          agentName={latestLinkRequest?.agent?.fullName ?? null}
-        />
+        <>
+          <PlayerHeartbeat />
+          <PlayerWaitingRoomGate
+            deadlineIso={deadline.toISOString()}
+            agentName={latestLinkRequest?.agent?.fullName ?? null}
+          />
+        </>
       );
     }
 
-    return <>{children}</>;
+    return (
+      <>
+        <PlayerHeartbeat />
+        {children}
+      </>
+    );
   }
   if (role === "AGENT") {
     redirect("/agent/dashboard");

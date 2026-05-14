@@ -163,6 +163,14 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isPlayerLanding = pathname === "/";
   const showBecomeAgentCta = false;
+  const scrollToDownloadSection = () => {
+    const target = document.getElementById("download-app");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.location.href = "/#download-app";
+  };
   return (
     <main dir={dir} className="min-h-screen bg-transparent px-6 py-8 text-white md:px-8">
       <Navbar className="mx-auto mb-4 flex max-w-7xl items-center justify-between gap-4">
@@ -189,10 +197,17 @@ export function Shell({ children }: { children: ReactNode }) {
               >
                 {tx("home.navbar.faq")}
               </Link>
+              <button
+                type="button"
+                onClick={scrollToDownloadSection}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-400/[0.08] px-3 py-2 text-xs font-bold text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.18)] backdrop-blur-sm transition hover:bg-amber-400/[0.14] hover:shadow-[0_0_22px_rgba(251,191,36,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 sm:px-4 sm:py-2.5 sm:text-sm"
+              >
+                {tx("home.navbar.downloadApp")}
+              </button>
               <Link
                 href="/login"
                 className={cn(
-                  "hidden sm:inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                  "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:px-4 sm:py-2.5 sm:text-sm",
                 )}
               >
                 {t("login")}
@@ -217,10 +232,17 @@ export function Shell({ children }: { children: ReactNode }) {
                   {t("becomeAgent")}
                 </Link>
               ) : null}
+              <button
+                type="button"
+                onClick={scrollToDownloadSection}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-400/[0.08] px-3 py-2 text-xs font-bold text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.18)] backdrop-blur-sm transition hover:bg-amber-400/[0.14] hover:shadow-[0_0_22px_rgba(251,191,36,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 sm:px-4 sm:py-2.5 sm:text-sm"
+              >
+                {tx("home.navbar.downloadApp")}
+              </button>
               <Link
                 href="/login"
                 className={cn(
-                  "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                  "inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white shadow-none backdrop-blur-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:px-4 sm:py-2.5 sm:text-sm",
                 )}
               >
                 {t("login")}

@@ -13,9 +13,6 @@ function getVapidSubject(): string {
   const s = process.env.VAPID_SUBJECT?.trim();
   if (s && (s.startsWith("mailto:") || s.startsWith("https:"))) return s;
   if (s?.includes("@")) return s.startsWith("mailto:") ? s : `mailto:${s}`;
-  const legacy = process.env.VAPID_MAILTO?.trim();
-  if (legacy?.startsWith("mailto:")) return legacy;
-  if (legacy?.includes("@")) return `mailto:${legacy}`;
   return "mailto:noreply@localhost";
 }
 
@@ -27,7 +24,7 @@ function tryConfigureVapid(): boolean {
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
   if (!publicKey || !privateKey) {
     console.error(
-      "[web-push] VAPID not configured: set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (and VAPID_SUBJECT or VAPID_MAILTO mailto:... for subject)."
+      "[web-push] VAPID not configured: set VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY."
     );
     return false;
   }

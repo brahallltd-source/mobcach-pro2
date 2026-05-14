@@ -17,6 +17,7 @@
     "security:rehash": "node scripts/rehash-legacy-passwords.mjs"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.4",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^5.22.0",
@@ -40,6 +41,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

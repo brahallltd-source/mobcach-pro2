@@ -372,7 +372,23 @@
     "navbar": {
       "features": "Fonctionnalités",
       "faq": "FAQ",
-      "register": "Inscription"
+      "register": "Inscription",
+      "downloadApp": "Télécharger l'App"
+    },
+    "downloadSection": {
+      "mobileExperience": "Expérience mobile",
+      "appTitle": "Application GS365 Cash",
+      "appSubtitle": "Rechargez plus vite, suivez les validations en direct et gardez votre compte dans votre poche.",
+      "quickMobileAccess": "Accès mobile rapide",
+      "scanHint": "Scannez avec votre téléphone pour ouvrir l’application instantanément.",
+      "directApk": "APK direct",
+      "downloadAndroid": "Télécharger pour Android",
+      "pwaInstall": "Installation PWA",
+      "installIphone": "Installer sur iPhone",
+      "iosInstallSubtitle": "Transformez GoSport365 en application native-like en deux étapes :",
+      "iosStepOne": "1) Appuyez sur l’icône Partager dans Safari",
+      "iosStepTwoPrefix": "2) Choisissez",
+      "iosStepTwoStrong": "Ajouter à l’écran d’accueil"
     },
     "heroCard": {
       "headerLabel": "Aperçu en direct",

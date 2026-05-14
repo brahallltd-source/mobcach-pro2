@@ -83,6 +83,8 @@ model User {
   /// Agent (or future roles) presence — updated on login, heartbeat, logout.
   isOnline          Boolean  @default(false)
   lastSeen          DateTime @default(now())
+  /// Universal heartbeat timestamp (updated by `/api/user/heartbeat`) for online/offline indicators.
+  lastActiveAt      DateTime @default(now())
   broadcastsCreated Broadcast[] @relation("BroadcastCreatedBy")
   /// Latest Web Push `PushSubscription` JSON for this user (single device; replace on re-subscribe).
   pushSubscription  Json?

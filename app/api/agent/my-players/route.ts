@@ -17,18 +17,19 @@ export async function GET(_req: Request) {
       return NextResponse.json({ message: "Unauthorized", players: [] }, { status: 401 });
     }
 
-    /** Same filter as dashboard `totalPlayers`: linked to this agent and active only. */
+    /** Fetch all players linked to this agent (active + pending + other states). */
     const players = await prisma.player.findMany({
       where: {
         assignedAgentId: agentId,
-        status: { in: ["active", "ACTIVE"] },
       },
       include: {
         user: {
           select: {
             email: true,
             username: true,
-            createdAt: true
+            createdAt: true,
+            lastSeen: true,
+            isOnline: true,
           }
         },
         // جلب آخر طلب شحن باش نعرفو النشاط ديال اللاعب
@@ -54,6 +55,8 @@ export async function GET(_req: Request) {
         displayName,
         phone: p.phone,
         status: p.status,
+        lastSeen: p.user.lastSeen,
+        isOnline: p.user.isOnline,
         joinedAt: p.createdAt,
         lastOrderAmount: p.orders[0]?.amount || 0,
         totalOrders: p.orders.length,

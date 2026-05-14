@@ -39,7 +39,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: "GS365",
     short_name: "GS365",
     description: "Modern recharge workflow for players, agents and admins",
-    start_url: "/",
+    start_url: "/login",
     display: "standalone",
     background_color: backgroundColor,
     theme_color: themeColor,

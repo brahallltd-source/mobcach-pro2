@@ -42,6 +42,9 @@ export function usePushNotifications() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vapidPublicKey, setVapidPublicKey] = useState<string>(
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || "",
+  );
 
   const support = useMemo((): PushSupport => {
     if (typeof window === "undefined") return "unsupported";
@@ -80,6 +83,29 @@ export function usePushNotifications() {
     return () => document.removeEventListener("visibilitychange", syncPerm);
   }, []);
 
+  useEffect(() => {
+    if (vapidPublicKey) return;
+    const loadRuntimeVapidPublicKey = async () => {
+      try {
+        const res = await fetch("/api/web-push/public-key", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          success?: boolean;
+          publicKey?: string;
+        };
+        const runtimeKey = String(data.publicKey ?? "").trim();
+        if (res.ok && data.success && runtimeKey) {
+          setVapidPublicKey(runtimeKey);
+        }
+      } catch {
+        // Keep hook resilient; subscribe() will surface "vapid" if still missing.
+      }
+    };
+    void loadRuntimeVapidPublicKey();
+  }, [vapidPublicKey]);
+
   const subscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
     if (support !== "ready") {
@@ -87,7 +113,7 @@ export function usePushNotifications() {
       return false;
     }
 
-    const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+    const vapidPublic = vapidPublicKey || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
     if (!vapidPublic) {
       setError("vapid");
       return false;
@@ -136,7 +162,7 @@ export function usePushNotifications() {
     } finally {
       setIsLoading(false);
     }
-  }, [support]);
+  }, [support, vapidPublicKey]);
 
   const unsubscribeLocal = useCallback(async (): Promise<void> => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -156,6 +182,7 @@ export function usePushNotifications() {
     isSubscribed,
     isLoading,
     error,
+    vapidConfigured: Boolean(vapidPublicKey || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()),
     subscribe,
     unsubscribeLocal,
     refreshSubscription: syncSubscription,

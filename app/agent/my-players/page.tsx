@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, MessageCircle, Search, UserCheck, UserPlus, Users } from "lucide-react";
 import { SidebarShell, GlassCard, PageHeader, LoadingCard, StatCard, DangerButton } from "@/components/ui";
-import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { useAgentTranslation } from "@/hooks/useTranslation";
 import { toast } from "sonner";
@@ -17,6 +16,8 @@ type PlayerRow = {
   username: string;
   phone?: string;
   status: string;
+  lastSeen?: string;
+  isOnline?: boolean;
   joinedAt?: string;
   lastOrderAmount?: number;
   totalOrders?: number;
@@ -33,6 +34,7 @@ export default function MyPlayersPage() {
   const { t, am } = useAgentTranslation();
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -44,19 +46,29 @@ export default function MyPlayersPage() {
           redirectToLogin();
           return;
         }
-        const mu = u as MobcashUser;
-        const agentProfileId = mu.agentProfile?.id;
-        if (!agentProfileId) {
+        setLoadError(null);
+        const res = await fetch("/api/agent/my-players", {
+          credentials: "include",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          players?: PlayerRow[];
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          const message =
+            data.message ||
+            data.error ||
+            `Request failed with status ${res.status}`;
+          setLoadError(`HTTP ${res.status}: ${message}`);
           setPlayers([]);
           return;
         }
-        const res = await fetch(`/api/agent/my-players?agentId=${encodeURIComponent(agentProfileId)}`, {
-          credentials: "include",
-        });
-        const data = await res.json();
         setPlayers(data.players || []);
       } catch (err) {
         console.error("Error loading players:", err);
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setLoadError(`Network/Runtime: ${message}`);
       } finally {
         setLoading(false);
       }
@@ -110,6 +122,13 @@ export default function MyPlayersPage() {
     <SidebarShell role="agent">
       <PageHeader title={t("my_players_title")} subtitle={t("my_players_subtitle")} />
 
+      {loadError ? (
+        <GlassCard className="mb-4 border border-rose-500/40 bg-rose-500/10 p-4">
+          <p className="text-sm font-semibold text-rose-200">My Players API Error</p>
+          <p className="mt-1 break-words text-xs text-rose-100/90">{loadError}</p>
+        </GlassCard>
+      ) : null}
+
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <StatCard label={t("my_players_stat_total")} value={String(players.length)} icon={<Users className="text-cyan-400" />} />
         <StatCard
@@ -139,7 +158,15 @@ export default function MyPlayersPage() {
 
       <div className="grid gap-3">
         {filtered.length > 0 ? (
-          filtered.map((player) => (
+          filtered.map((player) => {
+            const lastSeenDate = player.lastSeen ? new Date(player.lastSeen) : null;
+            const lastSeenMs = lastSeenDate instanceof Date ? lastSeenDate.getTime() : 0;
+            const isOnline =
+              Boolean(player.isOnline) ||
+              Number.isFinite(lastSeenMs) &&
+              lastSeenMs > 0 &&
+              Date.now() - lastSeenMs < 5 * 60 * 1000;
+            return (
             <GlassCard
               key={player.id}
               className="flex flex-col gap-4 p-4 transition-all hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
@@ -164,6 +191,9 @@ export default function MyPlayersPage() {
                   >
                     {player.status === "active" ? t("my_players_status_active") : t("my_players_status_pending")}
                   </span>
+                  <p className={`mt-1 text-[11px] font-semibold ${isOnline ? "text-emerald-300" : "text-white/50"}`}>
+                    {isOnline ? "Online 🟢" : "Offline ⚪"}
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -204,7 +234,8 @@ export default function MyPlayersPage() {
                 </div>
               </div>
             </GlassCard>
-          ))
+          );
+          })
         ) : (
           <div className="py-20 text-center italic opacity-40">{t("my_players_empty")}</div>
         )}

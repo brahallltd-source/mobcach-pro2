@@ -26,6 +26,7 @@ import { AgentFAQSection } from "@/components/marketing/AgentFAQSection";
 import { AgentLiveStats } from "@/components/marketing/AgentLiveStats";
 import { Footer } from "@/components/Footer";
 import { PlatformFeatures } from "@/components/marketing/PlatformFeatures";
+import { DownloadSection } from "@/components/marketing/DownloadSection";
 import { useTranslation } from "@/lib/i18n";
 
 export default function BecomeAgentPage() {
@@ -225,6 +226,8 @@ export default function BecomeAgentPage() {
             ))}
           </div>
         </section>
+
+        <DownloadSection audience="agent" />
 
         <AgentFAQSection />
 
