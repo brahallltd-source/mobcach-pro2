@@ -1,4 +1,4 @@
-package com.gosport365.app;
+package com.gs365cash.app;
 
 import com.getcapacitor.BridgeActivity;
 
