@@ -156,13 +156,23 @@ export function RegisterPlayerClient({
   };
 
   const logoutExistingSession = async () => {
+    const nativePushToken =
+      typeof window !== "undefined" ? localStorage.getItem("native_push_token") ?? "" : "";
     try {
-      await fetch("/api/logout", { method: "POST", credentials: "include" });
+      await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nativePushToken: nativePushToken || undefined,
+        }),
+      });
     } catch {
       /* ignore */
     }
     try {
       localStorage.removeItem("mobcash_user");
+      localStorage.removeItem("native_push_token");
     } catch {
       /* ignore */
     }

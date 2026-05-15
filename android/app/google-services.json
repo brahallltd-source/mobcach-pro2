@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049223154625",
+    "project_id": "gs365-cash",
+    "storage_bucket": "gs365-cash.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049223154625:android:f0c9e451540e3225e5bd40",
+        "android_client_info": {
+          "package_name": "com.gs365cash.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArm2x7GSriFIzMUGqmL4Xn5FrGbSXyT0g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

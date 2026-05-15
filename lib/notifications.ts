@@ -1,6 +1,6 @@
 import { getPrisma } from "@/lib/db";
 import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/constants/i18n";
-import { sendPushNotification } from "@/lib/web-push";
+import { dispatchUnifiedPush } from "@/lib/push-dispatcher";
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
@@ -61,13 +61,14 @@ export async function createNotification(payload: {
 
   const link = payload.link ?? undefined;
   try {
-    await sendPushNotification(user.id, {
+    await dispatchUnifiedPush({
+      userId: user.id,
       title,
-      message,
+      body: message,
       ...(link ? { url: link } : {}),
     });
   } catch (e) {
-    console.error("[notifications] sendPushNotification after createNotification:", e);
+    console.error("[notifications] dispatchUnifiedPush after createNotification:", e);
   }
 
   return created;

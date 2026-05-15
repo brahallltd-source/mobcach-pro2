@@ -270,8 +270,18 @@ export default function PlayerProfilePage() {
   };
 
   const logout = () => {
-    fetch("/api/logout", { method: "POST", credentials: "include" }).finally(() => {
+    const nativePushToken =
+      typeof window !== "undefined" ? localStorage.getItem("native_push_token") ?? "" : "";
+    fetch("/api/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nativePushToken: nativePushToken || undefined,
+      }),
+    }).finally(() => {
       localStorage.removeItem("mobcash_user");
+      localStorage.removeItem("native_push_token");
       window.location.href = "/login";
     });
   };

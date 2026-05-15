@@ -80,7 +80,16 @@ export default function PendingApplicationPage() {
 
   function handleLogout() {
     const deadlineKey = typeof window !== "undefined" ? deadlineStorageKey() : "";
-    fetch("/api/logout", { method: "POST", credentials: "include" }).finally(() => {
+    const nativePushToken =
+      typeof window !== "undefined" ? localStorage.getItem("native_push_token") ?? "" : "";
+    fetch("/api/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nativePushToken: nativePushToken || undefined,
+      }),
+    }).finally(() => {
       if (typeof window === "undefined") return;
       try {
         sessionStorage.removeItem(deadlineKey);
@@ -89,6 +98,7 @@ export default function PendingApplicationPage() {
       }
       try {
         localStorage.removeItem("mobcash_user");
+        localStorage.removeItem("native_push_token");
       } catch {
         /* ignore */
       }

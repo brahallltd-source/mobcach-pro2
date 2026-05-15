@@ -1,7 +1,7 @@
 import { UserAccountStatus } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 import { localizeNotificationMessage, localizeNotificationTitle } from "@/lib/constants/i18n";
-import { sendPushNotification } from "@/lib/web-push";
+import { dispatchUnifiedPush } from "@/lib/push-dispatcher";
 
 type AppNotificationType = "INFO" | "RECHARGE_REQUEST" | "SUCCESS" | "ALERT";
 
@@ -52,9 +52,10 @@ export async function notifyAllActiveAdmins(opts: {
         read: false,
       },
     });
-    void sendPushNotification(id, {
+    void dispatchUnifiedPush({
+      userId: id,
       title,
-      message,
+      body: message,
       ...(link ? { url: link } : {}),
     });
   }
@@ -98,9 +99,10 @@ export async function notifyAllAdminsOfNewRechargeRequest(opts: {
         read: false,
       },
     });
-    void sendPushNotification(a.id, {
+    void dispatchUnifiedPush({
+      userId: a.id,
       title,
-      message,
+      body: message,
       ...(link ? { url: link } : {}),
     });
   }
@@ -143,7 +145,7 @@ export async function notifyAllAdminsNewAgentApplication(opts: {
         read: false,
       },
     });
-    void sendPushNotification(a.id, { title, message, url: link });
+    void dispatchUnifiedPush({ userId: a.id, title, body: message, url: link });
   }
 }
 
@@ -175,9 +177,10 @@ export async function notifyAgentRechargeDecision(opts: {
     },
   });
 
-  void sendPushNotification(opts.agentUserId, {
+  void dispatchUnifiedPush({
+    userId: opts.agentUserId,
     title,
-    message,
+    body: message,
     ...(link ? { url: link } : {}),
   });
 }
@@ -222,7 +225,7 @@ export async function notifyAllAdminsNewSupportTicket(opts: {
         read: false,
       },
     });
-    void sendPushNotification(a.id, { title, message, url: link });
+    void dispatchUnifiedPush({ userId: a.id, title, body: message, url: link });
   }
 }
 
@@ -251,5 +254,5 @@ export async function notifyAgentSupportTicketReplied(opts: {
     },
   });
 
-  void sendPushNotification(opts.agentUserId, { title, message, url: link });
+  void dispatchUnifiedPush({ userId: opts.agentUserId, title, body: message, url: link });
 }

@@ -88,6 +88,8 @@ model User {
   broadcastsCreated Broadcast[] @relation("BroadcastCreatedBy")
   /// Latest Web Push `PushSubscription` JSON for this user (single device; replace on re-subscribe).
   pushSubscription  Json?
+  /// Native mobile push tokens (FCM/APNs) for Capacitor builds.
+  nativePushDevices NativePushDevice[]
 
   @@index([deletedAt])
   @@index([referredById])
@@ -442,6 +444,23 @@ model Notification {
 
   @@index([userId, read])
   @@index([userId, createdAt])
+}
+
+/// Device-scoped native push token (FCM/APNs) linked to a signed-in user.
+model NativePushDevice {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String   // android | ios
+  appId     String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastSeenAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, enabled])
+  @@index([lastSeenAt])
 }
 
 model Withdrawal {

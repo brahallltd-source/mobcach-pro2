@@ -5,6 +5,9 @@ const withPWA = withPWAInit({
   disable: false,
   register: true,
   skipWaiting: true,
+  // Avoid persisting stale startup HTML between deployments.
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
   customWorkerSrc: "worker",
   buildExcludes: [/middleware-manifest\.json$/],
   // Prevent worker minification hangs during build (terser/renderChunk).

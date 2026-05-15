@@ -24,10 +24,18 @@ function clearAuthCookieOptions() {
   };
 }
 
-export async function POST() {
+type LogoutBody = {
+  nativePushToken?: string;
+};
+
+export async function POST(req: Request) {
   try {
     const session = await getSessionUserFromCookies();
     const prisma = getPrisma();
+
+    const body = (await req.json().catch(() => null)) as LogoutBody | null;
+    const nativePushToken = String(body?.nativePushToken ?? "").trim();
+
     if (session && prisma) {
       await prisma.user
         .update({
@@ -35,6 +43,23 @@ export async function POST() {
           data: { isOnline: false, lastSeen: new Date() },
         })
         .catch(() => {});
+
+      if (nativePushToken) {
+        await prisma.nativePushDevice
+          .updateMany({
+            where: {
+              userId: session.id,
+              token: nativePushToken,
+              enabled: true,
+            },
+            data: {
+              enabled: false,
+              lastSeenAt: new Date(),
+            },
+          })
+          .catch(() => {});
+      }
+
       if (String(session.role ?? "").trim().toUpperCase() === "AGENT") {
         await prisma.agent.updateMany({
           where: { userId: session.id },
