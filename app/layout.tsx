@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const b = await getRootBranding();
   return {
     title: b.platformName,
-    description: "Modern recharge workflow for players, agents and admins",
+    description: "المنصة رفم واحد في العالم العربي  والمسؤول الأول عن تسليم كافة مستحقاتك المالية في وقتها وتحميكك من اي تلاعب.'",
     manifest: "/manifest.webmanifest",
     appleWebApp: {
       capable: true,
