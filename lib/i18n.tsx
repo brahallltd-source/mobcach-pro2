@@ -550,7 +550,6 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(defaultLang);
-  const [mounted, setMounted] = useState(false);
 
   // دالة لتحديث خصائص الـ HTML tag (مهمة جداً للـ RTL والـ Scrollbars)
   const syncHtmlAttributes = (l: Lang) => {
@@ -574,9 +573,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore
       }
-    } finally {
-      // Never keep the entire app hidden on hydration/runtime issues.
-      setMounted(true);
     }
   }, []);
 
@@ -614,11 +610,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     () => ({ lang, setLang, t, tx, dir }),
     [lang, setLang, t, tx, dir],
   );
-
-  // Never intentionally blank the app shell while waiting for client hydration.
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <LanguageContext.Provider value={contextValue}>
