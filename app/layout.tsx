@@ -13,7 +13,7 @@ const tajawal = Tajawal({
 import { Toaster } from "sonner";
 import { BrandingStyleVars } from "@/components/BrandingStyleVars";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
-import { OneTimePwaReset } from "@/components/pwa/OneTimePwaReset";
+import { CacheBuster } from "@/components/pwa/CacheBuster";
 import { getRootBranding } from "@/lib/root-branding";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -67,7 +67,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <BrandingStyleVars primaryColor={b.primaryColor} />
         <div className="relative z-0">
           <LanguageProvider>
-            <OneTimePwaReset />
+            <CacheBuster />
             <Toaster richColors position="top-center" closeButton />
             <InstallBanner />
             {children}
