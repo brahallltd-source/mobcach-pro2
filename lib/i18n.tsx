@@ -615,9 +615,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [lang, setLang, t, tx, dir],
   );
 
-  // لمنع الـ Hydration Mismatch والـ Flicker
+  // Never intentionally blank the app shell while waiting for client hydration.
   if (!mounted) {
-    return <div style={{ visibility: "hidden" }}>{children}</div>;
+    return <>{children}</>;
   }
 
   return (
