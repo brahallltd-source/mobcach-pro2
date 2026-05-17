@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { GlassCard, PrimaryButton, Shell, TextField } from "@/components/ui";
 import { useTranslation } from "@/lib/i18n";
+import { saveClientSession } from "@/lib/client-session";
 import { syncPushSubscriptionWithServer } from "@/hooks/usePushNotifications";
 
 type LoginJson = {
@@ -18,6 +19,7 @@ type LoginJson = {
     applicationStatus?: string;
     player?: { assignedAgentId?: string | null };
   };
+  sessionToken?: string;
   role?: string;
 };
 
@@ -60,7 +62,7 @@ export default function LoginPage() {
         return;
       }
 
-      localStorage.setItem("mobcash_user", JSON.stringify(data.user));
+      saveClientSession(data.user, data.sessionToken);
       void syncPushSubscriptionWithServer();
       toast.success(tx("auth.login.toastSuccess"));
 

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui";
 import { useTranslation } from "@/lib/i18n";
 import { usePlayerTx } from "@/hooks/usePlayerTx";
-import { fetchSessionUser, redirectToLogin } from "@/lib/client-session";
+import { clearClientSession, fetchSessionUser, redirectToLogin } from "@/lib/client-session";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 
 type CurrentUser = { id: string; email: string; role: string };
@@ -280,7 +280,7 @@ export default function PlayerProfilePage() {
         nativePushToken: nativePushToken || undefined,
       }),
     }).finally(() => {
-      localStorage.removeItem("mobcash_user");
+      clearClientSession();
       localStorage.removeItem("native_push_token");
       window.location.href = "/login";
     });

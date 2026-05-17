@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import type { MobcashUser } from "@/lib/mobcash-user-types";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
@@ -18,7 +19,14 @@ export async function GET() {
         { status: 401 }
       );
     }
-    return NextResponse.json({ success: true, user });
+    const store = await cookies();
+    const token =
+      store.get("mobcash_session")?.value ??
+      store.get("token")?.value ??
+      store.get("auth_token")?.value ??
+      store.get("mobcash_token")?.value ??
+      undefined;
+    return NextResponse.json({ success: true, user, sessionToken: token });
   } catch {
     return NextResponse.json(
       { success: false, message: "Not authenticated" },

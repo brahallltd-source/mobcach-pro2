@@ -33,6 +33,8 @@ export type LoginSuccessResponse = {
   success: true;
   /** Same shape as `GET /api/auth/session` — uses Prisma field name `player`. */
   user: MobcashUser;
+  /** Mirrors the httpOnly session so native/webview clients can restore cookies if needed. */
+  sessionToken: string;
   /** Preferred first navigation after login (client may ignore and use role defaults). */
   redirectAfterLogin?: string;
 };
@@ -306,6 +308,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const payload: LoginSuccessResponse = {
       success: true,
       user: publicUser,
+      sessionToken: token,
       ...(redirectAfterLogin ? { redirectAfterLogin } : {}),
     };
 

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentProfileCard, type AgentProfilePaymentMethod } from "@/components/AgentProfileCard";
 import { GlassCard, LoadingCard, PageHeader, SelectField, SidebarShell, StatCard } from "@/components/ui";
 import { usePlayerTx } from "@/hooks/usePlayerTx";
+import { clearClientSession } from "@/lib/client-session";
 
 type DiscoveryAgent = {
   agentId: string;
@@ -58,7 +59,7 @@ export default function PlayerSelectAgentPage() {
       }
       setUser({ email: String(current.email || ""), role: "player" });
     } catch {
-      localStorage.removeItem("mobcash_user");
+      clearClientSession();
       window.location.href = "/login";
     }
   }, []);

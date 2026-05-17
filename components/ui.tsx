@@ -51,6 +51,7 @@ import { usePublicBrandingSwr } from "@/hooks/usePublicBrandingSwr";
 import { PlayerBottomNav } from "@/components/PlayerBottomNav";
 import { Navbar } from "@/components/Navbar";
 import { cn } from "@/lib/cn";
+import { clearClientSession } from "@/lib/client-session";
 
 // --- 1. Language Switcher (Built-in) ---
 export function LanguageSwitcher() {
@@ -428,7 +429,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
         nativePushToken: nativePushToken || undefined,
       }),
     }).finally(() => {
-      localStorage.removeItem("mobcash_user");
+      clearClientSession();
       localStorage.removeItem("native_push_token");
       window.location.href = "/login";
     });

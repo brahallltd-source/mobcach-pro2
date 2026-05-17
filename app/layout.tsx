@@ -12,6 +12,7 @@ const tajawal = Tajawal({
 });
 import { Toaster } from "sonner";
 import { BrandingStyleVars } from "@/components/BrandingStyleVars";
+import { AuthSessionRehydrator } from "@/components/auth/AuthSessionRehydrator";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { CacheBuster } from "@/components/pwa/CacheBuster";
 import { getRootBranding } from "@/lib/root-branding";
@@ -67,6 +68,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <BrandingStyleVars primaryColor={b.primaryColor} />
         <div className="relative z-0">
           <LanguageProvider>
+            <AuthSessionRehydrator />
             <CacheBuster />
             <Toaster richColors position="top-center" closeButton />
             <InstallBanner />

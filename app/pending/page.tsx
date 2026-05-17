@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DangerButton, GlassCard, Shell, StatCard } from "@/components/ui";
 import { useTranslation } from "@/lib/i18n";
+import { clearClientSession } from "@/lib/client-session";
 
 const REVIEW_WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -97,7 +98,7 @@ export default function PendingApplicationPage() {
         /* ignore */
       }
       try {
-        localStorage.removeItem("mobcash_user");
+        clearClientSession();
         localStorage.removeItem("native_push_token");
       } catch {
         /* ignore */
