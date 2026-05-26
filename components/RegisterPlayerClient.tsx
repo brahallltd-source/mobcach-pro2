@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { CheckCircle2 } from "lucide-react";
+import { type FieldErrors, useForm } from "react-hook-form";
+import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { AgentProfileCard, type AgentProfilePaymentMethod } from "@/components/AgentProfileCard";
-import { GlassCard, OutlineButton, PrimaryButton, SelectField, Shell } from "@/components/ui";
+import { GlassCard, OutlineButton, PrimaryButton, Shell } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -18,14 +18,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useLanguage } from "@/components/language";
-import { COUNTRY_OPTIONS, getDialCode } from "@/lib/countries";
 import { clearClientSession, fetchSessionUser, saveClientSession } from "@/lib/client-session";
-import { REGISTER_AR, REGISTRATION_PENDING_SUCCESS_AR } from "@/lib/constants/i18n";
+import { REGISTER_AR } from "@/lib/constants/i18n";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { registerPlayerApiSchema, type RegisterPlayerApiValues } from "@/lib/validations/auth";
 import { syncPushSubscriptionWithServer } from "@/hooks/usePushNotifications";
 
 const AGENT_PICKER_SUCCESS_AR =
-  "تم إنشاء حسابك وإرسال طلب الربط بالوكيل. عند الموافقة يمكنك تسجيل الدخول ومتابعة حالة الطلب من لوحة اللاعب.";
+  "تم إنشاء حسابك وتفعيله بنجاح وربطه بالوكيل بشكل فوري. يمكنك الآن تسجيل الدخول مباشرة.";
 
 type DiscoveryAgent = {
   agentId: string;
@@ -42,7 +42,7 @@ type RegisterPlayerClientProps = {
   pageSubtitle?: string;
   /**
    * When true (and no `?ref=` invite), registration is two steps: validated profile form,
-   * then horizontal agent list; final `POST` sends `selectedAgentId` for `AgentCustomer` `PENDING`.
+   * then horizontal agent list; final `POST` sends `selectedAgentId` for instant connected activation.
    */
   multiStepAgentSelection?: boolean;
 };
@@ -55,6 +55,34 @@ type RegisterUserPayload = {
   status?: string | null;
   assigned_agent_id?: string | null;
 };
+
+function sanitizeMoroccoLocal(raw: string): string {
+  let d = raw.replace(/\D/g, "");
+  d = d.replace(/^0+/, "");
+  if (d.length > 0 && d[0] !== "6" && d[0] !== "7") {
+    d = d.replace(/^[^67]+/, "");
+  }
+  return d.slice(0, 9);
+}
+
+function sanitizeInternationalLocal(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 12);
+}
+
+function validateLocalPhone(dialCode: string, local: string): string | null {
+  if (dialCode === "+212") {
+    // Matches +212[5-7]XXXXXXXX after server-side normalization.
+    if (!/^[5-7]\d{8}$/.test(local)) {
+      return "رقم الهاتف المغربي غير صالح. الصيغة الصحيحة مثال: +212612345678";
+    }
+    return null;
+  }
+
+  if (!/^\d{6,12}$/.test(local)) {
+    return "رقم الهاتف غير صالح. أدخل بين 6 و12 أرقام.";
+  }
+  return null;
+}
 
 function resolvePostRegistrationRedirect(args: {
   role: string;
@@ -85,12 +113,14 @@ export function RegisterPlayerClient({
   const [loading, setLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [sessionUser, setSessionUser] = useState<Record<string, unknown> | null>(null);
-  const [pendingAgentApproval, setPendingAgentApproval] = useState(false);
   const [step, setStep] = useState(1);
   const [agents, setAgents] = useState<DiscoveryAgent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [joiningAgentId, setJoiningAgentId] = useState<string | null>(null);
   const [agentPickerSuccess, setAgentPickerSuccess] = useState(false);
+  const [selectedDialCode, setSelectedDialCode] = useState("+212");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const form = useForm<RegisterPlayerApiValues>({
     resolver: zodResolver(registerPlayerApiSchema),
@@ -98,7 +128,7 @@ export function RegisterPlayerClient({
       name: "",
       username: "",
       email: "",
-      phone: "+212",
+      phone: "",
       password: "",
       confirmPassword: "",
       country: "Morocco",
@@ -108,8 +138,13 @@ export function RegisterPlayerClient({
       agent_code: "",
     },
   });
+  const {
+    formState: { errors },
+  } = form;
 
   const inviteTrim = inviteCodeFromUrl.trim();
+  const dialCodeOptions = Array.from(new Set(COUNTRY_OPTIONS.map((c) => c.dialCode)));
+  const typedAgentCode = form.watch("agent_code");
   /** Two-step profile + agent list when enabled and not registering via `?ref=` invite. */
   const isAgentPickerFlow = Boolean(multiStepAgentSelection) && !inviteTrim;
 
@@ -150,11 +185,6 @@ export function RegisterPlayerClient({
     })();
   }, []);
 
-  const syncPhoneDialFromCountry = (country: string) => {
-    const dial = getDialCode(country);
-    if (dial) form.setValue("phone", dial, { shouldValidate: true });
-  };
-
   const logoutExistingSession = async () => {
     const nativePushToken =
       typeof window !== "undefined" ? localStorage.getItem("native_push_token") ?? "" : "";
@@ -180,6 +210,16 @@ export function RegisterPlayerClient({
     toast.success("تم تسجيل الخروج — يمكنك الآن إنشاء حساب جديد.");
   };
 
+  const validatePhoneField = (phoneLocal: string): boolean => {
+    const msg = validateLocalPhone(selectedDialCode, phoneLocal);
+    if (msg) {
+      form.setError("phone", { type: "manual", message: msg });
+      return false;
+    }
+    form.clearErrors("phone");
+    return true;
+  };
+
   const postRegister = async (payload: Record<string, unknown>) => {
     const res = await fetch(registerApiPath, {
       method: "POST",
@@ -201,11 +241,21 @@ export function RegisterPlayerClient({
     values: RegisterPlayerApiValues,
     opts?: { selectedAgentId?: string }
   ) {
-    const fromSlider = Boolean(opts?.selectedAgentId);
     setLoading(true);
     try {
+      const phoneLocalRaw = String(values.phone ?? "");
+      const phoneLocal = phoneLocalRaw.replace(/\D/g, "");
+      const fullPhone = `${selectedDialCode}${phoneLocal}`;
+      const resolvedCountry =
+        COUNTRY_OPTIONS.find((c) => c.dialCode === selectedDialCode)?.value || "Morocco";
       const data = await postRegister({
         ...values,
+        name: values.username,
+        email: String(values.email ?? "").trim().toLowerCase(),
+        phone: fullPhone,
+        country: resolvedCountry,
+        city: "",
+        dateOfBirth: "",
         role: "PLAYER",
         inviteCode: inviteTrim || values.inviteCode || "",
         agent_code: (inviteTrim || opts?.selectedAgentId) ? "" : values.agent_code || "",
@@ -220,45 +270,6 @@ export function RegisterPlayerClient({
         );
       }
 
-      const userStatus = String(data.user?.status ?? "").toUpperCase();
-      const isPendingApproval = userStatus === "PENDING_APPROVAL";
-
-      if (isPendingApproval) {
-        toast.success(fromSlider ? "تم إنشاء الحساب — طلبك قيد المراجعة." : "تم إنشاء الحساب — قيد المراجعة لدى الوكيل.");
-        try {
-          const loginRes = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              identifier: values.email.trim(),
-              password: values.password,
-            }),
-          });
-          const loginJson = (await loginRes.json().catch(() => ({}))) as {
-            success?: boolean;
-            user?: unknown;
-            sessionToken?: string;
-          };
-          if (loginRes.ok && loginJson.success === true && loginJson.user && typeof loginJson.user === "object") {
-            saveClientSession(loginJson.user, loginJson.sessionToken);
-            void syncPushSubscriptionWithServer();
-          } else if (data.user) {
-            saveClientSession(data.user);
-          }
-        } catch {
-          if (data.user) {
-            saveClientSession(data.user);
-          }
-        }
-        if (fromSlider) {
-          setAgentPickerSuccess(true);
-        } else {
-          setPendingAgentApproval(true);
-        }
-        return;
-      }
-
       toast.success("تم إنشاء الحساب بنجاح!");
 
       const role = String(data.role || "PLAYER").toUpperCase();
@@ -270,7 +281,7 @@ export function RegisterPlayerClient({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          identifier: values.email.trim(),
+          identifier: values.username.trim(),
           password: values.password,
         }),
       });
@@ -321,13 +332,25 @@ export function RegisterPlayerClient({
     }
   }
 
-  const onSubmit = form.handleSubmit(async (values) => {
-    await registerAfterValidation(values);
-  });
+  const onFormInvalid = (errors: FieldErrors<RegisterPlayerApiValues>) => {
+    console.log("Form Errors:", errors);
+    toast.error("يرجى تصحيح الحقول المطلوبة قبل المتابعة.");
+  };
 
-  const onStep1Next = form.handleSubmit(() => {
+  const onSubmit = form.handleSubmit(async (values) => {
+    if (!validatePhoneField(values.phone)) return;
+    await registerAfterValidation(values);
+  }, onFormInvalid);
+
+  const onStep1Next = form.handleSubmit((values) => {
+    if (!validatePhoneField(values.phone)) return;
+    const hasAgentCode = String(values.agent_code ?? "").trim().length > 0;
+    if (hasAgentCode) {
+      void registerAfterValidation(values);
+      return;
+    }
     setStep(2);
-  });
+  }, onFormInvalid);
 
   async function handleSelectAgent(agentId: string) {
     const values = form.getValues();
@@ -350,10 +373,10 @@ export function RegisterPlayerClient({
   const subtitle =
     pageSubtitle ??
     (inviteTrim
-      ? "أنت تسجّل عبر رابط دعوة وكيل. سيُرسل طلبك للوكيل للموافقة قبل التفعيل الكامل."
+      ? "أنت تسجّل عبر رابط دعوة وكيل. سيتم تفعيل حسابك وربطه بالوكيل مباشرة."
       : isAgentPickerFlow
-        ? "الخطوة 1: بياناتك الشخصية. ثم اختر وكيلك من القائمة في الخطوة 2."
-        : "أنشئ حسابك الآن. إذا كان لديك كود وكيل سيتم ربط حسابك مباشرة، وإلا فستنتقل لاختيار وكيل بعد التسجيل.");
+        ? "الخطوة 1: بيانات الحساب. ثم اختر وكيلك من القائمة في الخطوة 2 للتفعيل الفوري."
+        : "أنشئ حسابك الآن. أدخل كود الوكيل لتفعيل الحساب وربطه مباشرة.");
 
   return (
     <Shell>
@@ -394,14 +417,6 @@ export function RegisterPlayerClient({
                 {REGISTER_AR.goLogin}
               </PrimaryButton>
             </div>
-          </GlassCard>
-        ) : pendingAgentApproval ? (
-          <GlassCard className="space-y-4 border-primary/25 bg-white/[0.04] p-6 shadow-xl backdrop-blur-md md:p-8">
-            <h2 className="text-xl font-semibold text-white">{REGISTER_AR.pendingTitle}</h2>
-            <p className="text-sm leading-7 text-white/80">{REGISTRATION_PENDING_SUCCESS_AR}</p>
-            <PrimaryButton type="button" onClick={() => router.push("/login")}>
-              {REGISTER_AR.goLogin}
-            </PrimaryButton>
           </GlassCard>
         ) : isAgentPickerFlow && step === 2 ? (
           <GlassCard className="border-primary/25 bg-white/[0.04] p-6 shadow-xl backdrop-blur-md md:p-8">
@@ -466,20 +481,6 @@ export function RegisterPlayerClient({
                 <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem className="md:col-span-2">
-                        <FormLabel>{REGISTER_AR.fullName} *</FormLabel>
-                        <FormControl>
-                          <Input placeholder={REGISTER_AR.fullName} autoComplete="name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="username"
                     render={({ field }) => (
                       <FormItem>
@@ -488,6 +489,9 @@ export function RegisterPlayerClient({
                           <Input placeholder={REGISTER_AR.username} autoComplete="username" {...field} />
                         </FormControl>
                         <FormMessage />
+                        {errors.username?.message ? (
+                          <p className="mt-1 text-xs text-rose-300">{String(errors.username.message)}</p>
+                        ) : null}
                       </FormItem>
                     )}
                   />
@@ -497,11 +501,19 @@ export function RegisterPlayerClient({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{REGISTER_AR.email} *</FormLabel>
+                        <FormLabel>* البريد الإلكتروني</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder={REGISTER_AR.email} autoComplete="email" {...field} />
+                          <Input
+                            type="email"
+                            placeholder="name@example.com"
+                            autoComplete="email"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
+                        {errors.email?.message ? (
+                          <p className="mt-1 text-xs text-rose-300">{String(errors.email.message)}</p>
+                        ) : null}
                       </FormItem>
                     )}
                   />
@@ -513,9 +525,28 @@ export function RegisterPlayerClient({
                       <FormItem>
                         <FormLabel>{REGISTER_AR.password} *</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder={REGISTER_AR.password} autoComplete="new-password" {...field} />
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder={REGISTER_AR.password}
+                              autoComplete="new-password"
+                              className="pr-12"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword((v) => !v)}
+                              className="absolute inset-y-0 right-3 inline-flex items-center text-white/45 transition hover:text-white/70"
+                              aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
+                        {errors.password?.message ? (
+                          <p className="mt-1 text-xs text-rose-300">{String(errors.password.message)}</p>
+                        ) : null}
                       </FormItem>
                     )}
                   />
@@ -527,9 +558,34 @@ export function RegisterPlayerClient({
                       <FormItem>
                         <FormLabel>تأكيد كلمة المرور *</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="أعد إدخال كلمة المرور" autoComplete="new-password" {...field} />
+                          <div className="relative">
+                            <Input
+                              type={showConfirmPassword ? "text" : "password"}
+                              placeholder="أعد إدخال كلمة المرور"
+                              autoComplete="new-password"
+                              className="pr-12"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword((v) => !v)}
+                              className="absolute inset-y-0 right-3 inline-flex items-center text-white/45 transition hover:text-white/70"
+                              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
+                        {errors.confirmPassword?.message ? (
+                          <p className="mt-1 text-xs text-rose-300">
+                            {String(errors.confirmPassword.message)}
+                          </p>
+                        ) : null}
                       </FormItem>
                     )}
                   />
@@ -541,77 +597,71 @@ export function RegisterPlayerClient({
                       <FormItem>
                         <FormLabel>{REGISTER_AR.phone} *</FormLabel>
                         <FormControl>
-                          <Input placeholder={REGISTER_AR.phone} autoComplete="tel" {...field} />
+                          <div className="flex overflow-hidden rounded-md border border-input bg-background">
+                            <span
+                              dir="ltr"
+                              className="inline-flex items-center rounded-l-md rounded-r-none border border-r-0 border-input bg-muted px-2 py-1.5 text-xs text-muted-foreground"
+                            >
+                              <select
+                                dir="ltr"
+                                value={selectedDialCode}
+                                onChange={(e) => {
+                                  const nextDial = e.target.value;
+                                  setSelectedDialCode(nextDial);
+                                  const current = String(form.getValues("phone") ?? "");
+                                  const cleaned =
+                                    nextDial === "+212"
+                                      ? sanitizeMoroccoLocal(current)
+                                      : sanitizeInternationalLocal(current);
+                                  form.setValue("phone", cleaned, { shouldDirty: true, shouldValidate: false });
+                                }}
+                                className="rounded-md border border-white/15 bg-background px-2 py-1 text-xs text-white outline-none"
+                                aria-label="Country code"
+                              >
+                                {dialCodeOptions.map((code) => (
+                                  <option key={code} value={code}>
+                                    {code}
+                                  </option>
+                                ))}
+                              </select>
+                            </span>
+                            <input
+                              dir="ltr"
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="tel-national"
+                              placeholder="612345678"
+                              className="min-w-0 flex-1 rounded-l-none rounded-r-md border-0 bg-background px-3 py-3 text-left text-sm text-white outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                              value={field.value}
+                              onChange={(e) => {
+                                const next =
+                                  selectedDialCode === "+212"
+                                    ? sanitizeMoroccoLocal(e.target.value)
+                                    : sanitizeInternationalLocal(e.target.value);
+                                field.onChange(next);
+                                if (errors.phone) form.clearErrors("phone");
+                              }}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
+                        {errors.phone?.message ? (
+                          <p className="mt-1 text-xs text-rose-300">{String(errors.phone.message)}</p>
+                        ) : null}
                       </FormItem>
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{REGISTER_AR.city} *</FormLabel>
-                        <FormControl>
-                          <Input placeholder={REGISTER_AR.city} autoComplete="address-level2" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="country"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>البلد *</FormLabel>
-                        <FormControl>
-                          <SelectField
-                            name={field.name}
-                            value={field.value}
-                            onBlur={field.onBlur}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              field.onChange(v);
-                              syncPhoneDialFromCountry(v);
-                            }}
-                          >
-                            {COUNTRY_OPTIONS.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label} ({item.dialCode})
-                              </option>
-                            ))}
-                          </SelectField>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{REGISTER_AR.birthDate} *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {!inviteTrim && !isAgentPickerFlow ? (
+                  {!inviteTrim ? (
                     <FormField
                       control={form.control}
                       name="agent_code"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                          <FormLabel>{REGISTER_AR.optionalAgentCode}</FormLabel>
+                          <FormLabel>رمز الوكيل (اختياري)</FormLabel>
                           <FormControl>
                             <Input {...field} className="border-cyan-500/30" />
                           </FormControl>
@@ -638,11 +688,11 @@ export function RegisterPlayerClient({
                   ) : isAgentPickerFlow ? (
                     <>
                       تسجيلك كـ <span className="font-semibold text-cyan-200">PLAYER</span> فقط. اختيار الوكيل في
-                      الخطوة التالية يرسل طلب ربط يحتاج موافقة الوكيل.
+                      الخطوة التالية يفعّل الحساب تلقائياً ويربطه بالوكيل مباشرة.
                     </>
                   ) : (
                     <>
-                      {REGISTER_AR.noteAgentCode} تسجيل اللاعبين دائماً بحساب{" "}
+                      {REGISTER_AR.noteAgentCode} يتم تفعيل اللاعب وربطه بالوكيل بشكل فوري عبر{" "}
                       <span className="font-semibold text-cyan-200">PLAYER</span> فقط.
                     </>
                   )}
@@ -652,7 +702,9 @@ export function RegisterPlayerClient({
                   {loading
                     ? t("processing")
                     : isAgentPickerFlow && step === 1
-                      ? "المتابعة — اختيار الوكيل"
+                      ? String(typedAgentCode ?? "").trim()
+                        ? "إنشاء الحساب وبدء اللعب"
+                        : "المتابعة — اختيار الوكيل"
                       : t("continueNext")}
                 </PrimaryButton>
               </form>

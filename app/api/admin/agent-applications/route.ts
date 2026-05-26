@@ -55,11 +55,18 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { agentId, action } = body as { agentId?: string; action?: "approve" | "reject" };
+    const { agentId, action, goSportUsername, goSportPassword } = body as {
+      agentId?: string;
+      action?: "approve" | "reject";
+      goSportUsername?: string;
+      goSportPassword?: string;
+    };
 
     if (!agentId || !action) {
       return NextResponse.json({ success: false, message: "Missing data" }, { status: 400 });
     }
+    const safeGoSportUsername = String(goSportUsername ?? "").trim();
+    const safeGoSportPassword = String(goSportPassword ?? "").trim();
 
     const application = await prisma.agentApplication.findUnique({
       where: { id: String(agentId) },
@@ -84,6 +91,9 @@ export async function POST(req: Request) {
       }
 
       // حالة القبول:
+      if (!safeGoSportUsername || !safeGoSportPassword) {
+        throw new Error("GoSport username and password are required for approval.");
+      }
       // 1. التأكد من وجود المستخدم أو إنشاؤه
       let user = await tx.user.findUnique({
         where: { id: application.userId },
@@ -123,6 +133,9 @@ export async function POST(req: Request) {
             applicationStatus: "APPROVED",
             status: "ACTIVE",
             frozen: false,
+            goSportUsername: safeGoSportUsername,
+            goSportPassword: safeGoSportPassword,
+            goSportIntegrationStatus: "ACTIVE",
           },
         });
       }
@@ -154,6 +167,9 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: {
           applicationStatus: "APPROVED",
+          goSportUsername: safeGoSportUsername,
+          goSportPassword: safeGoSportPassword,
+          goSportIntegrationStatus: "ACTIVE",
         },
       });
 

@@ -1,10 +1,36 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
-import { hashPassword } from "@/lib/security";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+async function readStoredGoSportId(
+  prisma: NonNullable<ReturnType<typeof getPrisma>>,
+  playerId: string,
+  gosportUsername: string | null | undefined,
+): Promise<string> {
+  const tryRead = async (column: string): Promise<string> => {
+    try {
+      const rows = (await prisma.$queryRawUnsafe(
+        `SELECT "${column}"::text AS value FROM "Player" WHERE "id" = $1 LIMIT 1`,
+        playerId,
+      )) as Array<{ value?: string | null }>;
+      const value = String(rows?.[0]?.value ?? "").trim();
+      return value;
+    } catch {
+      return "";
+    }
+  };
+
+  const fromDedicated =
+    (await tryRead("goSportId")) || (await tryRead("gosportId")) || (await tryRead("gosport_id"));
+  if (fromDedicated) return fromDedicated;
+
+  const fallback = String(gosportUsername ?? "").trim();
+  if (/^\d+$/.test(fallback)) return fallback;
+  return "";
+}
 
 // 🟢 جلب البيانات (GET)
 export async function GET(_req: Request) {
@@ -37,6 +63,8 @@ export async function GET(_req: Request) {
       return NextResponse.json({ message: "Player profile not found", profile: null }, { status: 404 });
     }
 
+    const goSportId = await readStoredGoSportId(prisma, user.player.id, user.player.gosportUsername);
+
     return NextResponse.json({
       profile: {
         user_id: user.id,
@@ -52,6 +80,7 @@ export async function GET(_req: Request) {
         date_of_birth: user.player.dateOfBirth || "—",
         status: user.player.status || user.playerStatus || "inactive",
         assigned_agent_id: user.player.assignedAgentId || "—",
+        goSportId,
         pendingAgentRequest: user.pendingAgentRequest,
       },
     });
@@ -62,7 +91,7 @@ export async function GET(_req: Request) {
   }
 }
 
-// 🔵 تحديث البيانات (POST) - كيشمل الإيميل، الهاتف، والباشورد
+// 🔵 تحديث البيانات (POST) - الإيميل والهاتف فقط
 export async function POST(req: Request) {
   try {
     const session = await getSessionUserFromCookies();
@@ -115,13 +144,18 @@ export async function POST(req: Request) {
       if (emailTaken) return NextResponse.json({ message: "هذا البريد مستخدم من قبل حساب آخر" }, { status: 400 });
     }
 
+    if (newPassword != null && String(newPassword).trim() !== "") {
+      return NextResponse.json(
+        {
+          message:
+            "تغيير كلمة المرور يتم فقط عبر المسار المتزامن الجديد من واجهة الملف الشخصي لضمان التزامن مع GoSport365.",
+        },
+        { status: 400 },
+      );
+    }
+
     // 3. تجهيز بيانات التحديث
     const userUpdateData: Record<string, unknown> = { email: newEmailClean };
-    const pwdStr =
-      typeof newPassword === "string" ? newPassword : newPassword != null ? String(newPassword) : "";
-    if (pwdStr.length >= 6) {
-      userUpdateData.passwordHash = await hashPassword(pwdStr);
-    }
 
     const playerUpdateData: Record<string, unknown> = {};
     const phoneStr = newPhone != null ? String(newPhone).trim() : "";

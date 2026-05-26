@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GlobalBanner } from "@/components/GlobalBanner";
 import {
   GlassCard,
@@ -18,6 +19,7 @@ import {
   Clock,
   Link2,
   Search,
+  Settings,
   ThumbsDown,
   ThumbsUp,
   Wallet,
@@ -36,6 +38,7 @@ import { PushEngagementAlert } from "@/components/pwa/PushEngagementAlert";
 type AgentUser = MobcashUser & {
   agentId?: string;
   username?: string;
+  goSportIntegrationStatus?: string;
 };
 
 type DashboardHome = {
@@ -69,6 +72,7 @@ function ratingTone(p: number, hasVotes: boolean): string {
 }
 
 export default function AgentDashboardPage() {
+  const searchParams = useSearchParams();
   const { lang } = useTranslation();
   const { t, ta } = useAgentTranslation();
   const dateLocale = lang === "ar" ? "ar-MA" : lang === "fr" ? "fr-FR" : "en-US";
@@ -82,6 +86,12 @@ export default function AgentDashboardPage() {
   const [rechargePlayerId, setRechargePlayerId] = useState("");
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeBusy, setRechargeBusy] = useState(false);
+  const [integrationOpen, setIntegrationOpen] = useState(false);
+  const [integrationUsername, setIntegrationUsername] = useState("");
+  const [integrationPassword, setIntegrationPassword] = useState("");
+  const [integrationBusy, setIntegrationBusy] = useState(false);
+  const [integrationError, setIntegrationError] = useState<string | null>(null);
+  const openedByQueryRef = useRef(false);
 
   const loadCustomers = useCallback(async () => {
     const res = await fetch("/api/agent/agent-customers", { credentials: "include", cache: "no-store" });
@@ -149,10 +159,16 @@ export default function AgentDashboardPage() {
           applicationStatus: fresh.applicationStatus,
           hasUsdtAccess: fresh.hasUsdtAccess,
           rejectionReason: fresh.rejectionReason,
+          goSportIntegrationStatus: fresh.goSportIntegrationStatus,
         };
         setUser(updatedUser);
         if (typeof window !== "undefined") {
           localStorage.setItem("mobcash_user", JSON.stringify(updatedUser));
+          void fetch("/api/whatsapp/init", {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+          }).catch(() => {});
         }
 
         const isStatusActive = profileData.status?.toUpperCase() === "ACTIVE";
@@ -182,6 +198,79 @@ export default function AgentDashboardPage() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [refreshHome]);
+
+  const openIntegrationModal = useCallback(async () => {
+    setIntegrationError(null);
+    setIntegrationPassword("");
+    setIntegrationOpen(true);
+    try {
+      const res = await fetch("/api/agent/integration/gosport", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        integration?: { goSportUsername?: string };
+      };
+      setIntegrationUsername(String(data.integration?.goSportUsername ?? ""));
+    } catch {
+      setIntegrationUsername("");
+    }
+  }, []);
+
+  const submitIntegrationRelink = useCallback(async () => {
+    const username = integrationUsername.trim();
+    const password = integrationPassword.trim();
+    if (!username || !password) {
+      setIntegrationError("Please enter GoSport username and password.");
+      return;
+    }
+    setIntegrationBusy(true);
+    setIntegrationError(null);
+    try {
+      const res = await fetch("/api/agent/integration/gosport", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goSportUsername: username,
+          goSportPassword: password,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setIntegrationError(String(data.message || "Failed to re-link integration."));
+        return;
+      }
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              goSportIntegrationStatus: "ACTIVE",
+            }
+          : prev,
+      );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("gosport-integration-status", {
+            detail: { status: "ACTIVE" },
+          }),
+        );
+      }
+      setIntegrationOpen(false);
+      alert(String(data.message || "Integration reactivated successfully."));
+    } catch {
+      setIntegrationError("Failed to re-link integration.");
+    } finally {
+      setIntegrationBusy(false);
+    }
+  }, [integrationPassword, integrationUsername]);
+
+  useEffect(() => {
+    const shouldOpen = searchParams.get("openIntegration") === "1";
+    if (!shouldOpen || openedByQueryRef.current) return;
+    openedByQueryRef.current = true;
+    void openIntegrationModal();
+  }, [openIntegrationModal, searchParams]);
 
   const searchHit = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -301,6 +390,19 @@ export default function AgentDashboardPage() {
         subtitle={t("dashboard_subtitle")}
       />
       <PushEngagementAlert role="agent" />
+      {String(user.goSportIntegrationStatus ?? "ACTIVE").toUpperCase() === "INACTIVE" ? (
+        <GlassCard className="mt-5 border border-amber-400/30 bg-amber-500/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm font-medium text-amber-100">
+              ⚠️ Secure Connection is inactive: your integration credentials were changed or became invalid.
+              Please re-link your account to reactivate automated player creation.
+            </p>
+            <PrimaryButton type="button" onClick={() => void openIntegrationModal()}>
+              <Settings className="mr-2 h-4 w-4" /> Re-link Integration
+            </PrimaryButton>
+          </div>
+        </GlassCard>
+      ) : null}
 
       <div className="mt-8 space-y-10">
         {/* Section 1 */}
@@ -564,6 +666,54 @@ export default function AgentDashboardPage() {
                 onClick={() => setRechargeOpen(false)}
               >
                 {t("dashboard_modal_cancel")}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      ) : null}
+
+      {integrationOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+        >
+          <GlassCard className="w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-white">Integration Settings</h3>
+            <p className="mt-1 text-sm text-white/60">
+              Update your GoSport credentials to reactivate the bot.
+            </p>
+            <label className="mt-4 block text-xs text-white/50">GoSport Username</label>
+            <TextField
+              dir="ltr"
+              value={integrationUsername}
+              onChange={(e) => setIntegrationUsername(e.target.value)}
+              placeholder="username"
+            />
+            <label className="mt-4 block text-xs text-white/50">GoSport Password</label>
+            <TextField
+              dir="ltr"
+              type="password"
+              value={integrationPassword}
+              onChange={(e) => setIntegrationPassword(e.target.value)}
+              placeholder="password"
+            />
+            {integrationError ? <p className="mt-3 text-sm text-rose-300">{integrationError}</p> : null}
+            <div className="mt-8 flex gap-4">
+              <PrimaryButton
+                type="button"
+                className="flex-1"
+                disabled={integrationBusy}
+                onClick={() => void submitIntegrationRelink()}
+              >
+                {integrationBusy ? "Saving..." : "Save & Reactivate"}
+              </PrimaryButton>
+              <button
+                type="button"
+                className="rounded-2xl border border-white/15 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
+                onClick={() => setIntegrationOpen(false)}
+              >
+                Cancel
               </button>
             </div>
           </GlassCard>

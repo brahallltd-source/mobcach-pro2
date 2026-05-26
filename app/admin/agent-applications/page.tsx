@@ -58,6 +58,7 @@ export default function AdminAgentsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [gosportDraft, setGosportDraft] = useState<Record<string, { username: string; password: string }>>({});
   const [selectedMessage, setSelectedMessage] = useState("");
   const [query, setQuery] = useState("");
 
@@ -103,12 +104,22 @@ export default function AdminAgentsPage() {
   const handleAction = async (agentId: string, action: "approve" | "reject") => {
     try {
       setBusyId(agentId);
+      const draft = gosportDraft[agentId] ?? { username: "", password: "" };
 
       const res = await fetch("/api/admin/agent-applications", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, action }),
+        body: JSON.stringify({
+          agentId,
+          action,
+          ...(action === "approve"
+            ? {
+                goSportUsername: draft.username,
+                goSportPassword: draft.password,
+              }
+            : {}),
+        }),
       });
 
       const data = await res.json();
@@ -124,6 +135,9 @@ export default function AdminAgentsPage() {
 
       await loadApplications();
       alert(data.message || "Updated successfully");
+      if (action === "approve") {
+        setGosportDraft((prev) => ({ ...prev, [agentId]: { username: "", password: "" } }));
+      }
     } catch (error) {
       console.error(error);
       alert("Network error");
@@ -197,6 +211,39 @@ export default function AdminAgentsPage() {
                     <p className="mt-2 text-sm text-white/45">Created: {createdValue ? new Date(createdValue).toLocaleString() : "—"}</p>
                     {agent.note ? <p className="mt-2 text-sm text-white/50">Note: {agent.note}</p> : null}
                     <div className="mt-3"><StatusBadge status={status} /></div>
+                    {status === "pending" ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <TextField
+                          dir="ltr"
+                          placeholder="GoSport username"
+                          value={gosportDraft[agent.id]?.username ?? ""}
+                          onChange={(e) =>
+                            setGosportDraft((prev) => ({
+                              ...prev,
+                              [agent.id]: {
+                                username: e.target.value,
+                                password: prev[agent.id]?.password ?? "",
+                              },
+                            }))
+                          }
+                        />
+                        <TextField
+                          dir="ltr"
+                          type="password"
+                          placeholder="GoSport password"
+                          value={gosportDraft[agent.id]?.password ?? ""}
+                          onChange={(e) =>
+                            setGosportDraft((prev) => ({
+                              ...prev,
+                              [agent.id]: {
+                                username: prev[agent.id]?.username ?? "",
+                                password: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">

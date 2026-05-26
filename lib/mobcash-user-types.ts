@@ -18,6 +18,7 @@ export type MobcashUser = {
   applicationStatus?: string;
   hasUsdtAccess?: boolean;
   rejectionReason?: string | null;
+  goSportIntegrationStatus?: string;
   /** Present for ADMIN / SUPER_ADMIN — canonical ids from `lib/permissions.ts`. */
   adminPermissions?: string[];
 };
@@ -34,6 +35,7 @@ export type MobcashUserCookiePayload = Pick<
   adminPermissions?: string[];
   applicationStatus?: string;
   hasUsdtAccess?: boolean;
+  goSportIntegrationStatus?: string;
 };
 
 export function toMobcashUserCookiePayload(user: MobcashUser): MobcashUserCookiePayload {
@@ -62,6 +64,7 @@ export function toMobcashUserCookiePayload(user: MobcashUser): MobcashUserCookie
       ...base,
       applicationStatus: user.applicationStatus ?? "NONE",
       hasUsdtAccess: Boolean(user.hasUsdtAccess),
+      goSportIntegrationStatus: user.goSportIntegrationStatus ?? "ACTIVE",
     };
   }
   if (roleU === "PLAYER") {

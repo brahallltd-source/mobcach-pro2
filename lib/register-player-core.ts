@@ -1,8 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 import { normalizePhoneWithCountry } from "@/lib/countries";
-import { assertAdultDateString, registerPlayerApiSchema } from "@/lib/validations/auth";
+import { registerPlayerApiSchema } from "@/lib/validations/auth";
 import { hashPassword } from "@/lib/security";
+import { createGoSportPlayer } from "@/lib/gosport-api";
+import { sendWhatsAppCredentials } from "@/lib/whatsapp";
 
 export type RegisterPlayerCoreSuccess = {
   ok: true;
@@ -64,50 +66,49 @@ export async function registerPlayerCore(
     password,
     country,
     city,
-    dateOfBirth,
     username,
     inviteCode: inviteParsed,
     agent_code: agentParsed,
     selectedAgentId: selectedAgentParsed,
   } = parsed.data;
 
-  if (!assertAdultDateString(dateOfBirth, 18)) {
-    return {
-      ok: false,
-      status: 400,
-      message: "عذراً، يجب أن يكون عمرك 18 عاماً أو أكثر للتسجيل",
-    };
-  }
-
   const inviteCodeRaw = String(inviteParsed ?? "").trim();
-  const nameParts = name.trim().split(/\s+/).filter(Boolean);
+  const safeCountry = String(country ?? "").trim() || "Morocco";
+  const safeCity = String(city ?? "").trim() || "—";
+  const safeName = String(name ?? "").trim() || username;
+  const nameParts = safeName.trim().split(/\s+/).filter(Boolean);
   const firstName = nameParts[0] ?? "";
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const safeEmail =
+    String(email ?? "").trim().toLowerCase() ||
+    `${username.toLowerCase().replace(/\s+/g, "_")}@gs365cash.local`;
 
-  const existingUser = await prisma.user.findFirst({
-    where: { OR: [{ email }, { username }] },
+  const existingUsername = await prisma.user.findUnique({
+    where: { username },
+    include: { player: true },
   });
-
-  if (existingUser) {
+  if (existingUsername && String(existingUsername.role ?? "").trim().toUpperCase() !== "PLAYER") {
     return {
       ok: false,
       status: 400,
-      message: "البريد الإلكتروني أو اسم المستخدم موجود مسبقاً",
+      message: "اسم المستخدم مستخدم بالفعل.",
+    };
+  }
+  if (existingUsername && !existingUsername.player) {
+    return {
+      ok: false,
+      status: 400,
+      message: "تعذر إكمال العملية: حساب اللاعب غير مكتمل.",
     };
   }
 
-  const passwordHash = await hashPassword(password);
-
   let assignedAgentId: string | null = null;
-  let playerStatus: string = "inactive";
-  let accountUserStatus = "ACTIVE";
-  let nextStep = "/player/select-agent";
-  /** When creating `AgentCustomer` in the same transaction. */
-  let agentCustomerLinkStatus: "REQUESTED" | "CONNECTED" | "PENDING" | null = null;
+  let assignedAgentUserId: string | null = null;
+  let nextStep = "/player/dashboard";
 
   const linkableAgentStatuses = ["ACTIVE", "active", "account_created", "pending"];
 
-  /** `?ref=` / `inviteCode` is the agent’s `User.inviteCode` — not the player’s username. */
+  /** Resolve agent strictly; no pending link states in instant automation flow. */
   if (inviteCodeRaw !== "") {
     const inviter = await prisma.user.findUnique({
       where: { inviteCode: inviteCodeRaw },
@@ -129,10 +130,7 @@ export async function registerPlayerCore(
       };
     }
     assignedAgentId = inviter.agentProfile.id;
-    accountUserStatus = "PENDING_APPROVAL";
-    playerStatus = "inactive";
-    agentCustomerLinkStatus = "REQUESTED";
-    nextStep = "/player/dashboard";
+    assignedAgentUserId = inviter.id;
   } else {
     const selectedAgentId = String(selectedAgentParsed ?? "").trim();
 
@@ -151,89 +149,218 @@ export async function registerPlayerCore(
         };
       }
       assignedAgentId = picked.id;
-      accountUserStatus = "PENDING_APPROVAL";
-      playerStatus = "inactive";
-      agentCustomerLinkStatus = "PENDING";
-      nextStep = "/login";
+      assignedAgentUserId = picked.userId;
     } else {
       const agentInput = String(agentParsed ?? "").trim();
+      if (agentInput === "") {
+        return {
+          ok: false,
+          status: 400,
+          message: "يرجى اختيار وكيل أو إدخال كود وكيل صالح.",
+        };
+      }
+      const agent = await prisma.agent.findFirst({
+        where: {
+          OR: [
+            { username: agentInput },
+            { referralCode: agentInput },
+            { id: agentInput },
+            { user: { inviteCode: agentInput } },
+          ],
+          status: { in: linkableAgentStatuses },
+        },
+      });
 
-      if (agentInput !== "") {
-        const agent = await prisma.agent.findFirst({
-          where: {
-            OR: [
-              { username: agentInput },
-              { referralCode: agentInput },
-              { id: agentInput },
-              { user: { inviteCode: agentInput } },
-            ],
-            status: { in: linkableAgentStatuses },
-          },
-        });
-
-        if (agent) {
-          assignedAgentId = agent.id;
-          accountUserStatus = "ACTIVE";
-          playerStatus = "active";
-          agentCustomerLinkStatus = "CONNECTED";
-          nextStep = "/player/select-agent";
-        } else {
-          return {
-            ok: false,
-            status: 400,
-            message: "كود الوكيل غير صحيح أو الوكيل غير موجود",
-          };
-        }
+      if (agent) {
+        assignedAgentId = agent.id;
+        assignedAgentUserId = agent.userId;
+      } else {
+        return {
+          ok: false,
+          status: 400,
+          message: "كود الوكيل غير صحيح أو الوكيل غير موجود",
+        };
       }
     }
   }
 
+  if (!assignedAgentId || !assignedAgentUserId) {
+    return {
+      ok: false,
+      status: 400,
+      message: "تعذر تحديد الوكيل المسؤول عن الحساب.",
+    };
+  }
+
+  const existingUser = existingUsername;
+  const existingAssignedAgentId = String(
+    existingUser?.assignedAgentId ?? existingUser?.player?.assignedAgentId ?? "",
+  ).trim();
+  const incomingAgentId = String(assignedAgentId).trim();
+  const isExistingSameAgent = Boolean(existingUser && existingAssignedAgentId && existingAssignedAgentId === incomingAgentId);
+  const shouldCreateExternal = !existingUser || !isExistingSameAgent;
+  const passwordHash = await hashPassword(password);
+
+  const emailOwner = await prisma.user.findUnique({
+    where: { email: safeEmail },
+    select: { id: true },
+  });
+  if (!existingUser && emailOwner) {
+    return {
+      ok: false,
+      status: 400,
+      message: "البريد الإلكتروني أو اسم المستخدم موجود مسبقاً",
+    };
+  }
+  if (existingUser && emailOwner && emailOwner.id !== existingUser.id) {
+    return {
+      ok: false,
+      status: 400,
+      message: "البريد الإلكتروني مستخدم من قبل حساب آخر.",
+    };
+  }
+
+  let resolvedGoSportId = String(
+    existingUser?.player?.goSportId ??
+      (String(existingUser?.player?.gosportUsername ?? "").trim().match(/^\d+$/)
+        ? String(existingUser?.player?.gosportUsername ?? "").trim()
+        : ""),
+  ).trim();
+
+  if (shouldCreateExternal) {
+    const caseLabel = existingUser ? "CASE_1_EXISTING_USER_NEW_AGENT" : "CASE_1_NEW_USER";
+    console.log("[registerPlayerCore]", caseLabel, {
+      username,
+      existingUserId: existingUser?.id ?? null,
+      fromAgentId: existingAssignedAgentId || null,
+      toAgentId: incomingAgentId,
+    });
+
+    const goSport = await createGoSportPlayer(assignedAgentUserId, username, password);
+    if (!goSport.success) {
+      return {
+        ok: false,
+        status: 400,
+        message: goSport.error || "فشل إنشاء حساب GoSport365.",
+      };
+    }
+    const createdGoSportId = String(goSport.goSportId ?? "").trim();
+    if (!createdGoSportId) {
+      return {
+        ok: false,
+        status: 500,
+        message: "تعذر استخراج معرف GoSport بعد إنشاء الحساب.",
+      };
+    }
+    resolvedGoSportId = createdGoSportId;
+  } else {
+    console.log("[registerPlayerCore] CASE_2_EXISTING_USER_SAME_AGENT", {
+      username,
+      existingUserId: existingUser?.id ?? null,
+      agentId: incomingAgentId,
+      goSportIdPreserved: resolvedGoSportId || null,
+    });
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const dobDate = new Date(dateOfBirth);
-      const user = await tx.user.create({
-        data: {
-          email,
-          username,
-          passwordHash,
-          role: "PLAYER",
-          applicationStatus: "NONE",
-          status: accountUserStatus,
-          playerStatus: playerStatus as never,
-          assignedAgentId,
-          country,
-          city,
-          dateOfBirth: dobDate,
-        },
-      });
+      let user = existingUser;
+      let player = existingUser?.player ?? null;
 
-      const player = await tx.player.create({
-        data: {
-          userId: user.id,
-          firstName,
-          lastName,
-          username,
-          phone: normalizePhoneWithCountry(phone, country),
-          status: playerStatus as never,
-          assignedAgentId,
-          country,
-          city,
-          dateOfBirth: dateOfBirth.slice(0, 10),
-        },
-      });
-
-      if (assignedAgentId && agentCustomerLinkStatus) {
-        await tx.agentCustomer.create({
+      if (!user) {
+        user = await tx.user.create({
           data: {
-            agentId: assignedAgentId,
-            playerId: player.id,
-            status: agentCustomerLinkStatus,
+            email: safeEmail,
+            username,
+            passwordHash,
+            role: "PLAYER",
+            applicationStatus: "NONE",
+            status: "ACTIVE",
+            playerStatus: "active",
+            assignedAgentId,
+            country: safeCountry,
+            city: safeCity,
+          },
+          include: { player: true },
+        });
+      } else {
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            email: safeEmail,
+            passwordHash,
+            status: "ACTIVE",
+            playerStatus: "active",
+            assignedAgentId,
+            country: safeCountry,
+            city: safeCity,
+          },
+          include: { player: true },
+        });
+      }
+
+      if (!player) {
+        player = await tx.player.create({
+          data: {
+            userId: user.id,
+            firstName,
+            lastName,
+            username,
+            phone: normalizePhoneWithCountry(phone, safeCountry),
+            status: "active",
+            goSportId: resolvedGoSportId || null,
+            assignedAgentId,
+            country: safeCountry,
+            city: safeCity,
+            dateOfBirth: null,
+          },
+        });
+      } else {
+        player = await tx.player.update({
+          where: { id: player.id },
+          data: {
+            firstName,
+            lastName,
+            phone: normalizePhoneWithCountry(phone, safeCountry),
+            status: "active",
+            ...(resolvedGoSportId ? { goSportId: resolvedGoSportId } : {}),
+            assignedAgentId,
+            country: safeCountry,
+            city: safeCity,
           },
         });
       }
 
-      return { user };
+      await tx.agentCustomer.upsert({
+        where: {
+          agentId_playerId: {
+            agentId: assignedAgentId,
+            playerId: player.id,
+          },
+        },
+        update: { status: "CONNECTED" },
+        create: {
+          agentId: assignedAgentId,
+          playerId: player.id,
+          status: "CONNECTED",
+        },
+      });
+
+      return { user, player };
     });
+
+    if (shouldCreateExternal) {
+      try {
+        await sendWhatsAppCredentials(
+          normalizePhoneWithCountry(phone, safeCountry),
+          username,
+          password,
+          resolvedGoSportId || "—",
+        );
+      } catch (e) {
+        console.error("registerPlayerCore whatsapp:", e);
+      }
+    }
 
     const role = String(result.user.role ?? "PLAYER");
 

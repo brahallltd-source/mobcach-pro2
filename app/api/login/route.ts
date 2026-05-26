@@ -290,6 +290,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       applicationStatus: user.applicationStatus,
       hasUsdtAccess: user.hasUsdtAccess,
       rejectionReason: user.rejectionReason,
+      goSportIntegrationStatus: user.goSportIntegrationStatus,
       ...(adminPermissions !== undefined ? { adminPermissions } : {}),
     };
 

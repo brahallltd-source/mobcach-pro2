@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { Link2 } from "lucide-react";
 import {
   GlassCard,
   LoadingCard,
@@ -17,9 +18,22 @@ import { DeviceSettingsCard } from "@/components/pwa/DeviceSettingsCard";
 import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-session";
 import { agentProfileUpdateSchema, type AgentProfileUpdateInput } from "@/lib/agent-profile-update";
 
+type IntegrationPayload = {
+  success?: boolean;
+  integration?: {
+    goSportUsername?: string;
+    goSportIntegrationStatus?: string;
+  };
+  message?: string;
+};
+
 export default function AgentGeneralSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
+  const [savingIntegration, setSavingIntegration] = useState(false);
+  const [goSportUsername, setGoSportUsername] = useState("");
+  const [goSportPassword, setGoSportPassword] = useState("");
+  const [integrationStatus, setIntegrationStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
 
   const form = useForm<AgentProfileUpdateInput>({
     resolver: zodResolver(agentProfileUpdateSchema),
@@ -35,6 +49,20 @@ export default function AgentGeneralSettingsPage() {
   });
 
   const { register, handleSubmit, reset, formState } = form;
+
+  const loadIntegration = useCallback(async () => {
+    const res = await fetch("/api/agent/integration/gosport", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const data = (await res.json().catch(() => ({}))) as IntegrationPayload;
+    if (!res.ok || !data.success) {
+      throw new Error(String(data.message || "تعذّر تحميل إعدادات الربط"));
+    }
+    setGoSportUsername(String(data.integration?.goSportUsername ?? ""));
+    const statusU = String(data.integration?.goSportIntegrationStatus ?? "ACTIVE").toUpperCase();
+    setIntegrationStatus(statusU === "INACTIVE" ? "INACTIVE" : "ACTIVE");
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/agent/profile", { credentials: "include", cache: "no-store" });
@@ -61,11 +89,16 @@ export default function AgentGeneralSettingsPage() {
         await load();
       } catch {
         toast.error("تعذّر تحميل الملف الشخصي");
+      }
+      try {
+        await loadIntegration();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "تعذّر تحميل إعدادات الربط");
       } finally {
         setLoading(false);
       }
     })();
-  }, [load]);
+  }, [load, loadIntegration]);
 
   const onSubmit = async (values: AgentProfileUpdateInput) => {
     const res = await fetch("/api/agent/profile", {
@@ -84,6 +117,56 @@ export default function AgentGeneralSettingsPage() {
       await load();
     } catch {
       /* ignore */
+    }
+  };
+
+  const saveIntegration = async () => {
+    const username = goSportUsername.trim();
+    const password = goSportPassword.trim();
+    if (!username || !password) {
+      toast.error("يرجى إدخال اسم المستخدم وكلمة المرور");
+      return;
+    }
+
+    setSavingIntegration(true);
+    try {
+      const res = await fetch("/api/agent/integration/gosport", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goSportUsername: username,
+          goSportPassword: password,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as IntegrationPayload;
+      if (!res.ok || !data.success) {
+        throw new Error(String(data.message || "فشل تحديث الربط"));
+      }
+
+      setIntegrationStatus("ACTIVE");
+      setGoSportPassword("");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("gosport-integration-status", {
+            detail: { status: "ACTIVE" },
+          }),
+        );
+      }
+      toast.success("تم تحديث الربط بنجاح");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "فشل تحديث الربط";
+      setIntegrationStatus("INACTIVE");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("gosport-integration-status", {
+            detail: { status: "INACTIVE" },
+          }),
+        );
+      }
+      toast.error(msg);
+    } finally {
+      setSavingIntegration(false);
     }
   };
 
@@ -187,6 +270,56 @@ export default function AgentGeneralSettingsPage() {
           {formState.isSubmitting ? "جاري الحفظ..." : "حفظ التعديلات"}
         </PrimaryButton>
       </form>
+
+      <GlassCard className="border border-white/[0.06] p-6 md:p-8">
+        <h2 className="text-lg font-semibold text-white">إعدادات الربط الآمن</h2>
+        <p className="mt-1 text-sm text-white/50">
+          أدخل بيانات الوكيل لتفعيل المزامنة الفورية للنظام، وضمان معالجة العمليات وإنشاء الحسابات عبر شبكة اتصال
+          مشفرة ومستقرة.
+        </p>
+
+        <div className="mt-6 mb-4 flex items-center gap-3">
+          <div
+            className={`h-2.5 w-2.5 rounded-full ${
+              integrationStatus === "ACTIVE"
+                ? "bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.8)]"
+                : "bg-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.8)]"
+            }`}
+            aria-hidden
+          />
+          <p className="text-sm font-semibold text-white">
+            Secure Connection
+          </p>
+        </div>
+
+        <label className="mb-1 block text-xs font-medium text-white/55">اسم مستخدم GoSport365</label>
+        <TextField
+          dir="ltr"
+          value={goSportUsername}
+          onChange={(e) => setGoSportUsername(e.target.value)}
+          placeholder="gosport_username"
+          className="mb-4"
+        />
+
+        <label className="mb-1 block text-xs font-medium text-white/55">كلمة المرور الجديدة</label>
+        <TextField
+          dir="ltr"
+          type="password"
+          value={goSportPassword}
+          onChange={(e) => setGoSportPassword(e.target.value)}
+          placeholder="••••••••"
+        />
+
+        <PrimaryButton
+          type="button"
+          className="mt-6 min-w-[220px]"
+          disabled={savingIntegration}
+          onClick={() => void saveIntegration()}
+        >
+          <Link2 className="mr-2 h-4 w-4" />
+          {savingIntegration ? "جاري الحفظ..." : "حفظ وتفعيل الربط"}
+        </PrimaryButton>
+      </GlassCard>
       <DeviceSettingsCard />
       </div>
     </SidebarShell>

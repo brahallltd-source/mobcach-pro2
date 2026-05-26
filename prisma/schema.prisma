@@ -70,6 +70,12 @@ model User {
   dislikes          Int      @default(0)
   /// Agent-only: unique invite code for `/register?ref=` (e.g. `AGENT-XYZ`).
   inviteCode        String?  @unique
+  /// Agent-only: external GoSport account username used by multi-agent automations.
+  goSportUsername   String?
+  /// Agent-only: external GoSport account password/token seed (store encrypted/hashed in production).
+  goSportPassword   String?
+  /// Agent-only: GoSport bot link status (`ACTIVE` | `INACTIVE`).
+  goSportIntegrationStatus String @default("ACTIVE")
   /// Agent-only: how many milestone bonus blocks (10 players @ 5000 DH each) have been auto-credited to wallet.
   bonusesClaimed    Int      @default(0)
   /// Agent invited by another agent (`User.id` of referrer).
@@ -202,6 +208,8 @@ model Player {
   country         String?
   dateOfBirth     String?
   status          String
+  /// Permanent numeric GoSport account ID used for automated transfers/deposits.
+  goSportId       String?      @map("go_sport_id")
   /// GoSport365 login set by the agent after manual approval (plain username; password stored bcrypt).
   gosportUsername String?      @map("gosport_username")
   gosportPassword String?      @map("gosport_password")

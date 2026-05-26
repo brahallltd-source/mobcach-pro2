@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Copy, MessageCircle } from "lucide-react";
@@ -50,8 +51,10 @@ export default function PlayerAchatLifecyclePage() {
   const [step, setStep] = useState<FlowStep>("AMOUNT");
 
   const [amountInput, setAmountInput] = useState("");
-  const [gosportUsername, setGosportUsername] = useState("");
-  const [confirmGosportUsername, setConfirmGosportUsername] = useState("");
+  const [goSportId, setGoSportId] = useState("");
+  const [confirmGoSportId, setConfirmGoSportId] = useState("");
+  const [goSportIdLocked, setGoSportIdLocked] = useState(false);
+  const [goSportIdLoadError, setGoSportIdLoadError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PublicPaymentMethodPayload | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
 
@@ -80,10 +83,25 @@ export default function PlayerAchatLifecyclePage() {
     }
     setPlayerEmail(user.email);
     setPlayerAccountActive(normalizePlayerStatus(user.player?.status));
-    const existing = String(user.player?.gosportUsername ?? "").trim();
-    if (existing) {
-      setGosportUsername(existing);
-      setConfirmGosportUsername(existing);
+    setGoSportId("");
+    setConfirmGoSportId("");
+    setGoSportIdLocked(false);
+    setGoSportIdLoadError(null);
+    try {
+      const profileRes = await fetch("/api/player/profile", { credentials: "include", cache: "no-store" });
+      const profileData = (await profileRes.json().catch(() => ({}))) as {
+        profile?: { goSportId?: unknown };
+      };
+      const fromProfile = String(profileData.profile?.goSportId ?? "").trim();
+      if (fromProfile) {
+        setGoSportId(fromProfile);
+        setConfirmGoSportId(fromProfile);
+        setGoSportIdLocked(true);
+      } else {
+        setGoSportIdLoadError("لم يتم العثور على رقم الحساب (GoSport ID) في ملفك الشخصي.");
+      }
+    } catch {
+      setGoSportIdLoadError("تعذّر جلب رقم الحساب (GoSport ID) من الخادم.");
     }
   }, []);
 
@@ -116,12 +134,14 @@ export default function PlayerAchatLifecyclePage() {
   }, [amountInput, numericAmount, agent?.availableBalance]);
 
   const identityError = useMemo(() => {
-    const a = gosportUsername.trim();
-    const b = confirmGosportUsername.trim();
-    if (!a || !b) return "املأ اسم المستخدم وتأكيده";
-    if (a !== b) return "تأكيد اسم مستخدم GoSport365 غير مطابق";
+    const a = goSportId.trim();
+    const b = confirmGoSportId.trim();
+    if (goSportIdLocked && a) return null;
+    if (!a || !b) return "املأ رقم الحساب (GoSport ID) وتأكيده";
+    if (!/^\d+$/.test(a) || !/^\d+$/.test(b)) return "رقم الحساب (GoSport ID) يجب أن يكون رقمياً فقط";
+    if (a !== b) return "تأكيد رقم الحساب (GoSport ID) غير مطابق";
     return null;
-  }, [gosportUsername, confirmGosportUsername]);
+  }, [goSportId, confirmGoSportId, goSportIdLocked]);
 
   const paymentError = useMemo(() => {
     if (!selectedMethod) return "اختر وسيلة دفع";
@@ -202,7 +222,7 @@ export default function PlayerAchatLifecyclePage() {
       formData.append("agentId", agent.id);
       formData.append("amount", String(numericAmount));
       formData.append("paymentMethodName", selectedMethod.methodTitle);
-      formData.append("gosportUsername", gosportUsername.trim());
+      formData.append("goSportId", goSportId.trim());
       formData.append("status", "pending_payment");
       formData.append("file", proofFile as File);
 
@@ -270,18 +290,67 @@ export default function PlayerAchatLifecyclePage() {
                 <ArrowLeft size={16} /> رجوع
               </button>
               <p className="text-sm font-semibold text-white/60">الخطوة 2 — تحقق الهوية</p>
+              <label className="block text-xs font-semibold text-white/55">رقم الحساب (GoSport ID)</label>
               <input
-                value={gosportUsername}
-                onChange={(e) => setGosportUsername(e.target.value)}
-                placeholder="player user name gosport365"
+                value={goSportId}
+                onChange={(e) => setGoSportId(e.target.value.replace(/\D/g, ""))}
+                placeholder="أدخل رقم الحساب (GoSport ID)"
+                disabled={goSportIdLocked}
                 className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white outline-none"
               />
+              <label className="block text-xs font-semibold text-white/55">تأكيد رقم الحساب (GoSport ID)</label>
               <input
-                value={confirmGosportUsername}
-                onChange={(e) => setConfirmGosportUsername(e.target.value)}
-                placeholder="confirm player user name gosport365"
+                value={confirmGoSportId}
+                onChange={(e) => setConfirmGoSportId(e.target.value.replace(/\D/g, ""))}
+                placeholder="أعد إدخال رقم الحساب (GoSport ID)"
+                disabled={goSportIdLocked}
                 className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white outline-none"
               />
+              {goSportIdLocked ? (
+                <p className="text-xs text-emerald-300">تم تعبئة رقم الحساب تلقائياً من ملفك الشخصي.</p>
+              ) : goSportIdLoadError ? (
+                <p className="text-xs text-amber-300">{goSportIdLoadError}</p>
+              ) : null}
+
+              <details className="group rounded-2xl border border-cyan-500/25 bg-cyan-500/10 p-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-cyan-200">
+                  ℹ️ كيف أجد رقم حسابي (ID)؟
+                </summary>
+                <div className="mt-4 space-y-5 text-sm text-white/80">
+                  <div>
+                    <p className="mb-3 leading-relaxed">
+                      <span className="font-bold text-white">الخطوة 1:</span> قم بتسجيل الدخول إلى حسابك في
+                      GoSport365 واضغط على &quot;My Account&quot; في القائمة العلوية.
+                    </p>
+                    <div className="overflow-hidden rounded-2xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+                      <Image
+                        src="/guide/step1.jpg"
+                        alt="شرح خطوة الدخول إلى My Account في GoSport365"
+                        width={1200}
+                        height={675}
+                        className="h-auto w-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-3 leading-relaxed">
+                      <span className="font-bold text-white">الخطوة 2:</span> انسخ الرقم الموجود في خانة
+                      &quot;User id&quot; كما هو موضح في الصورة.
+                    </p>
+                    <div className="overflow-hidden rounded-2xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+                      <Image
+                        src="/guide/step2.jpg"
+                        alt="شرح مكان User id في GoSport365"
+                        width={1200}
+                        height={675}
+                        className="h-auto w-full object-cover"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
+
               {identityError ? <p className="text-sm text-rose-300">{identityError}</p> : null}
               <button type="button" onClick={goToPayment} className="w-full rounded-full bg-cyan-500 px-5 py-3 font-bold text-slate-950">
                 متابعة لبيانات الدفع

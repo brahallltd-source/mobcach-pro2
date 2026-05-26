@@ -25,10 +25,34 @@ const initialForm = {
   city: "",
 };
 
+const MOROCCO_PREFIX = "+212";
+const MOROCCO_PHONE_REGEX = /^\+212[5-7]\d{8}$/;
+
+function sanitizePhoneInput(raw: string): string {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return MOROCCO_PREFIX;
+
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+
+  // Keep normalized +212 prefix no matter what RTL/LTR visual context does.
+  if (digits.startsWith("212")) {
+    return `+${digits.slice(0, 12)}`;
+  }
+  if (digits.startsWith("0")) {
+    return `${MOROCCO_PREFIX}${digits.slice(1, 10)}`;
+  }
+  if (hasPlus) {
+    return `+${digits.slice(0, 12)}`;
+  }
+  return `${MOROCCO_PREFIX}${digits.slice(0, 9)}`;
+}
+
 export default function AgentAddPlayerPage() {
   const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [phoneError, setPhoneError] = useState("");
 
   const updateCountry = (country: string) => {
     setForm((prev) => ({
@@ -41,12 +65,20 @@ export default function AgentAddPlayerPage() {
   const submit = async () => {
     const user = await requireMobcashUserOnClient("agent");
     if (!user) return void redirectToLogin();
+
+    const normalizedPhone = sanitizePhoneInput(form.phone);
+    if (!MOROCCO_PHONE_REGEX.test(normalizedPhone)) {
+      setPhoneError("Phone must be a valid Moroccan number (example: +212612345678).");
+      return;
+    }
+
+    setPhoneError("");
     setSaving(true);
 
     const res = await fetch("/api/agent/add-player", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, agentEmail: user.email }),
+      body: JSON.stringify({ ...form, phone: normalizedPhone, agentEmail: user.email }),
     });
 
     const data = await res.json();
@@ -192,11 +224,25 @@ export default function AgentAddPlayerPage() {
             />
             <TextField
               placeholder="Phone"
+              dir="ltr"
+              inputMode="numeric"
+              autoComplete="tel"
+              pattern="^\+212[5-7]\d{8}$"
+              maxLength={13}
               value={form.phone}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, phone: e.target.value }))
-              }
+              onChange={(e) => {
+                const next = sanitizePhoneInput(e.target.value);
+                setForm((prev) => ({ ...prev, phone: next }));
+                if (phoneError) setPhoneError("");
+              }}
+              className="text-left tracking-[0.02em]"
             />
+            <p className="md:col-span-2 -mt-1 text-xs text-white/55">
+              Format: <span dir="ltr" className="font-semibold text-white">+212612345678</span>
+            </p>
+            {phoneError ? (
+              <p className="md:col-span-2 -mt-2 text-xs font-medium text-rose-300">{phoneError}</p>
+            ) : null}
             <SelectField
               value={form.country}
               onChange={(e) => updateCountry(e.target.value)}

@@ -24,6 +24,7 @@ export const USER_SELECT_NO_PERMISSIONS = {
   flags: true,
   deletedAt: true,
   inviteCode: true,
+  goSportIntegrationStatus: true,
   bonusesClaimed: true,
   referredById: true,
   agentBonusesPaid: true,

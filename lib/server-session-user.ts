@@ -53,6 +53,7 @@ async function toPayload(prisma: PrismaClient, user: SessionUserRow): Promise<Se
     applicationStatus: user.applicationStatus,
     hasUsdtAccess: user.hasUsdtAccess,
     rejectionReason: user.rejectionReason,
+    goSportIntegrationStatus: user.goSportIntegrationStatus,
     ...(adminPermissions !== undefined ? { adminPermissions } : {}),
   };
 }

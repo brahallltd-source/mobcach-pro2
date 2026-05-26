@@ -15,6 +15,32 @@ function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+async function readPlayerGoSportId(
+  prisma: NonNullable<ReturnType<typeof getPrisma>>,
+  playerId: string,
+  fallbackUsername: string | null | undefined,
+): Promise<string> {
+  const tryRead = async (column: string): Promise<string> => {
+    try {
+      const rows = (await prisma.$queryRawUnsafe(
+        `SELECT "${column}"::text AS value FROM "Player" WHERE "id" = $1 LIMIT 1`,
+        playerId,
+      )) as Array<{ value?: string | null }>;
+      return String(rows?.[0]?.value ?? "").trim();
+    } catch {
+      return "";
+    }
+  };
+
+  const fromDedicated =
+    (await tryRead("goSportId")) || (await tryRead("gosportId")) || (await tryRead("gosport_id"));
+  if (fromDedicated) return fromDedicated;
+
+  const fallback = String(fallbackUsername ?? "").trim();
+  if (/^\d+$/.test(fallback)) return fallback;
+  return "";
+}
+
 export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
@@ -77,6 +103,10 @@ export async function POST(req: Request) {
         body.gosport_username ||
         ""
     ).trim();
+    const submittedGoSportId = String(
+      body.goSportId || body.gosportId || body.gosport_id || body.gosport365_id || "",
+    ).trim();
+    let goSportId = submittedGoSportId;
 
     const paymentMethodName = String(
       body.paymentMethodName ||
@@ -138,23 +168,35 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!gosportUsername) {
-      gosportUsername = String(player.gosportUsername ?? "").trim();
+    if (!goSportId && /^\d+$/.test(gosportUsername)) {
+      goSportId = gosportUsername;
     }
-
-    const playerStatus = String(player.status ?? "").trim().toUpperCase();
-    if (!gosportUsername && playerStatus === "ACTIVE") {
-      gosportUsername = String(player.username ?? "").trim();
+    if (!goSportId) {
+      goSportId = await readPlayerGoSportId(prisma, player.id, player.gosportUsername);
     }
-
-    if (!gosportUsername) {
+    if (!goSportId) {
       return NextResponse.json(
         {
           message:
-            "لم يُسجّل اسم مستخدم GoSport365 على حسابك بعد. يُفعّله الوكيل بعد التفعيل، أو تواصل معه.",
+            "لم يتم العثور على رقم الحساب (GoSport ID) في ملفك. يُرجى التواصل مع وكيلك لتفعيل الحساب.",
         },
         { status: 400 }
       );
+    }
+    if (!/^\d+$/.test(goSportId)) {
+      return NextResponse.json(
+        { message: "رقم الحساب (GoSport ID) غير صالح. يجب أن يكون رقمياً." },
+        { status: 400 },
+      );
+    }
+    gosportUsername = goSportId;
+
+    // Persist manually entered legacy GoSport ID immediately on order creation.
+    if (submittedGoSportId && /^\d+$/.test(submittedGoSportId)) {
+      await prisma.player.update({
+        where: { id: player.id },
+        data: { goSportId: submittedGoSportId },
+      });
     }
 
     const amount = requested;
@@ -259,7 +301,7 @@ export async function POST(req: Request) {
         playerId: player.id,
         playerEmail,
         amount: requested,
-        gosportUsername,
+        gosportUsername: goSportId,
         paymentMethodName: paymentMethodName || null,
         proofUrl: proofUrl || null,
         proofHash,
@@ -274,6 +316,21 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // Keep GoSport ID as a first-class value when optional DB columns are present.
+    try {
+      await prisma.$executeRaw`UPDATE "Order" SET "goSportId" = ${goSportId} WHERE "id" = ${order.id}`;
+    } catch {
+      try {
+        await prisma.$executeRaw`UPDATE "Order" SET "gosportId" = ${goSportId} WHERE "id" = ${order.id}`;
+      } catch {
+        try {
+          await prisma.$executeRaw`UPDATE "Order" SET "gosport_id" = ${goSportId} WHERE "id" = ${order.id}`;
+        } catch {
+          // Column may not exist yet.
+        }
+      }
+    }
 
     await prisma.orderMessage.create({
       data: {
@@ -341,6 +398,7 @@ export async function POST(req: Request) {
       order: {
         ...order,
         gosport365_username: order.gosportUsername,
+        goSportId,
         payment_method_name: order.paymentMethodName,
         proof_url: order.proofUrl,
         created_at: order.createdAt,

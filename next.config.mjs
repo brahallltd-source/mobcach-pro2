@@ -18,6 +18,8 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ["whatsapp-web.js"],
+  trailingSlash: false,
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '**' }]
   },

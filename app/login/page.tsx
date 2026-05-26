@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { GlassCard, PrimaryButton, Shell, TextField } from "@/components/ui";
 import { useTranslation } from "@/lib/i18n";
@@ -40,6 +41,7 @@ export default function LoginPage() {
   const { t, tx, dir } = useTranslation();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -131,14 +133,25 @@ export default function LoginPage() {
                 dir="auto"
                 autoComplete="username"
               />
-              <TextField
-                type="password"
-                placeholder={tx("auth.login.placeholderPassword")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                dir="ltr"
-                autoComplete="current-password"
-              />
+              <div className="relative">
+                <TextField
+                  type={showPassword ? "text" : "password"}
+                  placeholder={tx("auth.login.placeholderPassword")}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  dir="ltr"
+                  autoComplete="current-password"
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-3 inline-flex items-center text-white/45 transition hover:text-white/70"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <PrimaryButton type="button" onClick={() => void handleLogin()} disabled={loading} className="w-full">
                 {loading ? tx("auth.login.submitLoading") : tx("auth.login.submit")}
               </PrimaryButton>

@@ -327,6 +327,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
   const [unreadCount, setUnreadCount] = useState(0);
   const [wideLayout, setWideLayout] = useState(false);
   const [agentMaintenance, setAgentMaintenance] = useState<boolean | null>(null);
+  const [goSportIntegrationStatus, setGoSportIntegrationStatus] = useState<"ACTIVE" | "INACTIVE" | null>(null);
 
   useEffect(() => {
     if (role !== "admin") return;
@@ -357,6 +358,47 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
     return () => {
       cancelled = true;
     };
+  }, [role]);
+
+  useEffect(() => {
+    if (role !== "agent") return;
+    let cancelled = false;
+    const loadStatus = async () => {
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "include", cache: "no-store" });
+        const j = (await res.json().catch(() => ({}))) as {
+          success?: boolean;
+          user?: { goSportIntegrationStatus?: string };
+        };
+        if (cancelled) return;
+        if (!j.success || !j.user) {
+          setGoSportIntegrationStatus("INACTIVE");
+          return;
+        }
+        const statusU = String(j.user.goSportIntegrationStatus ?? "ACTIVE").trim().toUpperCase();
+        setGoSportIntegrationStatus(statusU === "INACTIVE" ? "INACTIVE" : "ACTIVE");
+      } catch {
+        if (!cancelled) setGoSportIntegrationStatus("INACTIVE");
+      }
+    };
+    void loadStatus();
+    const iv = setInterval(loadStatus, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [role]);
+
+  useEffect(() => {
+    if (role !== "agent") return;
+    const onStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ status?: string }>).detail;
+      const status = String(detail?.status ?? "").trim().toUpperCase();
+      if (!status) return;
+      setGoSportIntegrationStatus(status === "INACTIVE" ? "INACTIVE" : "ACTIVE");
+    };
+    window.addEventListener("gosport-integration-status", onStatusChange as EventListener);
+    return () => window.removeEventListener("gosport-integration-status", onStatusChange as EventListener);
   }, [role]);
 
   useEffect(() => {
@@ -438,6 +480,31 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
   const navItemActive = (href: string) =>
     role === "player" ? isPlayerNavActive(pathname, href) : pathname === href;
   const highContrastNav = role === "admin" || role === "agent" || role === "player";
+  const isGoSportInactive = role === "agent" && goSportIntegrationStatus === "INACTIVE";
+  const goSportChip = role === "agent" ? (
+    <button
+      type="button"
+      onClick={() => {
+        if (!isGoSportInactive) return;
+        window.location.href = "/agent/dashboard?openIntegration=1";
+      }}
+      className={clsx(
+        "inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-1.5 text-[11px] font-semibold transition",
+        isGoSportInactive
+          ? "cursor-pointer border-rose-400/40 bg-rose-500/15 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.25)] hover:bg-rose-500/20"
+          : "cursor-default border-emerald-400/40 bg-emerald-500/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.22)]",
+      )}
+      aria-label="Secure Connection"
+      title={isGoSportInactive ? "Secure Connection: click to re-link" : "Secure Connection"}
+    >
+      {isGoSportInactive ? (
+        <ShieldAlert className="h-3.5 w-3.5 text-rose-200" />
+      ) : (
+        <ShieldCheck className="h-3.5 w-3.5 text-emerald-200" />
+      )}
+      <span>Secure Connection</span>
+    </button>
+  ) : null;
 
   return (
     <main dir={dir} className="min-h-screen bg-transparent px-6 py-8 text-white md:px-8">
@@ -445,7 +512,10 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
         <aside className="hidden w-72 shrink-0 lg:block">
           <div className="mb-6 hidden scale-90 items-center justify-between gap-4 origin-end lg:flex">
             <NotificationBell active={wideLayout} />
-            <LanguageSwitcher />
+            <div className="flex items-center gap-2">
+              {goSportChip}
+              <LanguageSwitcher />
+            </div>
           </div>
           <GlassCard className="sticky top-5 flex min-h-[600px] flex-col p-5">
             <div className="mb-6 border-b border-white/5 pb-5">
@@ -531,6 +601,7 @@ export function SidebarShell({ children, role }: { children: ReactNode; role: Ro
             </button>
             <div className="flex items-center gap-2">
               <NotificationBell active={!wideLayout} />
+              {goSportChip}
               <LanguageSwitcher />
             </div>
           </div>

@@ -31,20 +31,34 @@ const dateOfBirthStringSchema = z
  */
 export const registerPlayerApiSchema = z
   .object({
-    name: z.string().min(3, "الاسم يجب أن يكون 3 أحرف على الأقل"),
+    name: z.string().optional(),
     email: z
       .string()
-      .email("بريد إلكتروني غير صالح")
-      .transform((s) => s.trim().toLowerCase()),
-    phone: z.string().min(8, "رقم الهاتف قصير جداً"),
-    country: z.string().min(2, "يرجى إدخال البلد"),
-    city: z.string().min(2, "يرجى إدخال المدينة"),
-    dateOfBirth: dateOfBirthStringSchema,
+      .trim()
+      .email("صيغة البريد الإلكتروني غير صحيحة"),
+    phone: z
+      .any()
+      .transform((v) => {
+        if (typeof v === "string") return v.replace(/\s+/g, "");
+        if (typeof v === "object" && v !== null) {
+          const rec = v as Record<string, unknown>;
+          const candidate =
+            rec.number ?? rec.phone ?? Object.values(rec).join("");
+          return String(candidate).replace(/\s+/g, "");
+        }
+        return String(v || "").replace(/\s+/g, "");
+      })
+      .refine((val) => /^\+?\d{6,15}$/.test(val), {
+        message: "رقم الهاتف غير صالح",
+      }),
+    country: z.string().min(2, "يرجى إدخال البلد").optional(),
+    city: z.string().optional(),
+    dateOfBirth: z.string().optional(),
     password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
     confirmPassword: z.string().min(1, "يرجى تأكيد كلمة المرور"),
     username: z.string().min(2, "اسم المستخدم قصير جداً"),
     inviteCode: z.string().optional(),
-    agent_code: z.string().optional(),
+    agent_code: z.string().trim().optional().or(z.literal("")),
     /** Public registration: chosen agent (`Agent.id`) from marketplace slider — creates `AgentCustomer` with `PENDING`. */
     selectedAgentId: z
       .string()

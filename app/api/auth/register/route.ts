@@ -13,7 +13,17 @@ function jsonError(message: string, status: number) {
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const out = await registerPlayerCore(body);
+    const username = String(body.username ?? "").trim();
+    const normalizedUsername = username.toLowerCase().replace(/\s+/g, "_");
+    const incomingEmail = String(body.email ?? "").trim();
+    const email =
+      incomingEmail ||
+      (normalizedUsername ? `${normalizedUsername}@gs365cash.local` : "");
+    const payload: Record<string, unknown> = {
+      ...body,
+      ...(email ? { email } : {}),
+    };
+    const out = await registerPlayerCore(payload);
     if (out.ok === false) {
       console.error("[REGISTER_ERROR]", out.message);
       return jsonError(out.message, out.status);

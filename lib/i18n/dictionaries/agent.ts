@@ -25,6 +25,7 @@ const en = {
   sidebar_balance_topup_requests: "Balance top-up requests",
   sidebar_all_history: "All history",
   sidebar_gs365_topup: "GS365 top-up",
+  sidebar_integration_settings: "Integration settings",
   /** Player invite list + 200 DH milestone (standalone nav). */
   sidebar_invite: "Player invites",
   sidebar_invitations_rewards: "Invitations & rewards",
@@ -419,6 +420,7 @@ const fr: Record<AgentTranslationKey, string> = {
   sidebar_balance_topup_requests: "Recharges solde",
   sidebar_all_history: "Tout l’historique",
   sidebar_gs365_topup: "Recharge GS365",
+  sidebar_integration_settings: "Paramètres d’intégration",
   sidebar_invite: "Invitations joueurs",
   sidebar_invitations_rewards: "Invitations & récompenses",
   sidebar_bonus_rewards: "Bonus & récompenses",
@@ -808,6 +810,7 @@ const ar: Record<AgentTranslationKey, string> = {
   sidebar_balance_topup_requests: "طلبات شحن الرصيد",
   sidebar_all_history: "كل السجل",
   sidebar_gs365_topup: "شحن GS365",
+  sidebar_integration_settings: "إعدادات الربط",
   sidebar_invite: "دعوات اللاعبين",
   sidebar_invitations_rewards: "الدعوات والمكافآت",
   sidebar_bonus_rewards: "المكافآت والمهام",

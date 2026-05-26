@@ -51,32 +51,24 @@ type PublicBranding = {
 };
 
 type ProfileFormValues = z.infer<ReturnType<typeof buildProfileSchema>>;
+type ChangePasswordFormValues = z.infer<ReturnType<typeof buildChangePasswordSchema>>;
 function buildProfileSchema(tp: (path: string) => string) {
+  return z.object({
+    email: z.string().email(tp("profile.validation.emailInvalid")),
+    phone: z.string().min(6, tp("profile.validation.phoneShort")).max(32, tp("profile.validation.phoneLong")),
+  });
+}
+
+function buildChangePasswordSchema() {
   return z
     .object({
-      email: z.string().email(tp("profile.validation.emailInvalid")),
-      phone: z.string().min(6, tp("profile.validation.phoneShort")).max(32, tp("profile.validation.phoneLong")),
-      newPassword: z.string().optional(),
-      newPasswordConfirm: z.string().optional(),
+      currentPassword: z.string().min(1, "كلمة المرور الحالية مطلوبة."),
+      newPassword: z.string().min(6, "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل."),
+      confirmNewPassword: z.string().min(1, "يرجى تأكيد كلمة المرور الجديدة."),
     })
-    .superRefine((data, ctx) => {
-      const p = (data.newPassword || "").trim();
-      const c = (data.newPasswordConfirm || "").trim();
-      if (!p && !c) return;
-      if (p.length > 0 && p.length < 6) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: tp("profile.validation.passwordMin"),
-          path: ["newPassword"],
-        });
-      }
-      if (p !== c) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: tp("profile.validation.passwordMismatch"),
-          path: ["newPasswordConfirm"],
-        });
-      }
+    .refine((v) => v.newPassword === v.confirmNewPassword, {
+      message: "تأكيد كلمة المرور غير مطابق.",
+      path: ["confirmNewPassword"],
     });
 }
 
@@ -109,6 +101,7 @@ export default function PlayerProfilePage() {
   const { t } = useTranslation();
   const tp = usePlayerTx();
   const profileSchema = useMemo(() => buildProfileSchema(tp), [tp]);
+  const changePasswordSchema = useMemo(() => buildChangePasswordSchema(), []);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -119,7 +112,11 @@ export default function PlayerProfilePage() {
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { email: "", phone: "", newPassword: "", newPasswordConfirm: "" },
+    defaultValues: { email: "", phone: "" },
+  });
+  const changePasswordForm = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmNewPassword: "" },
   });
 
   const loadBranding = async () => {
@@ -157,8 +154,6 @@ export default function PlayerProfilePage() {
       profileForm.reset({
         email: p.email,
         phone: ph,
-        newPassword: "",
-        newPasswordConfirm: "",
       });
       if (p.pendingAgentRequest) setAgentStatus("pending");
     }
@@ -194,14 +189,10 @@ export default function PlayerProfilePage() {
 
   const onSaveProfile = profileForm.handleSubmit(async (values) => {
     if (!currentUser) return;
-    const pwd = values.newPassword?.trim();
     const body: Record<string, string> = {
       newEmail: values.email.trim(),
       newPhone: values.phone.trim(),
     };
-    if (pwd && pwd.length >= 6) {
-      body.newPassword = pwd;
-    }
     try {
       const res = await fetch("/api/player/profile", {
         method: "POST",
@@ -227,9 +218,27 @@ export default function PlayerProfilePage() {
           role: String(data.user.role ?? "player"),
         });
       }
-      profileForm.setValue("newPassword", "");
-      profileForm.setValue("newPasswordConfirm", "");
       await loadProfile();
+    } catch {
+      toast.error(tp("profile.networkError"));
+    }
+  });
+
+  const onChangePassword = changePasswordForm.handleSubmit(async (values) => {
+    try {
+      const res = await fetch("/api/player/change-password", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        toast.error(data.message || "تعذر تغيير كلمة المرور.");
+        return;
+      }
+      toast.success(data.message || "تم تحديث كلمة المرور بنجاح.");
+      changePasswordForm.reset();
     } catch {
       toast.error(tp("profile.networkError"));
     }
@@ -370,30 +379,53 @@ export default function PlayerProfilePage() {
                   <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.phone.message}</p>
                 ) : null}
               </div>
-              <div>
-                <TextField
-                  type="password"
-                  placeholder={tp("profile.placeholderNewPassword")}
-                  autoComplete="new-password"
-                  {...profileForm.register("newPassword")}
-                />
-                {profileForm.formState.errors.newPassword ? (
-                  <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.newPassword.message}</p>
-                ) : null}
-              </div>
-              <div>
-                <TextField
-                  type="password"
-                  placeholder={tp("profile.placeholderConfirmPassword")}
-                  autoComplete="new-password"
-                  {...profileForm.register("newPasswordConfirm")}
-                />
-                {profileForm.formState.errors.newPasswordConfirm ? (
-                  <p className="mt-1 text-xs text-rose-300">{profileForm.formState.errors.newPasswordConfirm.message}</p>
-                ) : null}
-              </div>
               <PrimaryButton type="submit" className="w-full" disabled={profileForm.formState.isSubmitting}>
                 {profileForm.formState.isSubmitting ? tp("profile.saving") : tp("profile.saveChanges")}
+              </PrimaryButton>
+            </form>
+
+            <div className="mt-6 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-4 text-sm leading-7 text-cyan-50">
+              💡 لتغيير كلمة المرور الخاصة بك في المنصتين، يرجى تغييرها من هنا فقط لضمان بقاء حساباتك متزامنة
+              (Synchronized).
+            </div>
+            <form className="mt-4 space-y-4" onSubmit={onChangePassword}>
+              <div>
+                <TextField
+                  type="password"
+                  placeholder="كلمة المرور الحالية"
+                  autoComplete="current-password"
+                  {...changePasswordForm.register("currentPassword")}
+                />
+                {changePasswordForm.formState.errors.currentPassword ? (
+                  <p className="mt-1 text-xs text-rose-300">{changePasswordForm.formState.errors.currentPassword.message}</p>
+                ) : null}
+              </div>
+              <div>
+                <TextField
+                  type="password"
+                  placeholder="كلمة المرور الجديدة"
+                  autoComplete="new-password"
+                  {...changePasswordForm.register("newPassword")}
+                />
+                {changePasswordForm.formState.errors.newPassword ? (
+                  <p className="mt-1 text-xs text-rose-300">{changePasswordForm.formState.errors.newPassword.message}</p>
+                ) : null}
+              </div>
+              <div>
+                <TextField
+                  type="password"
+                  placeholder="تأكيد كلمة المرور الجديدة"
+                  autoComplete="new-password"
+                  {...changePasswordForm.register("confirmNewPassword")}
+                />
+                {changePasswordForm.formState.errors.confirmNewPassword ? (
+                  <p className="mt-1 text-xs text-rose-300">
+                    {changePasswordForm.formState.errors.confirmNewPassword.message}
+                  </p>
+                ) : null}
+              </div>
+              <PrimaryButton type="submit" className="w-full" disabled={changePasswordForm.formState.isSubmitting}>
+                {changePasswordForm.formState.isSubmitting ? "جاري التغيير..." : "تغيير كلمة المرور (متزامن)"}
               </PrimaryButton>
             </form>
 

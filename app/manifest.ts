@@ -36,10 +36,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const icon512 = String(pwaIcon512 ?? "").trim() || FALLBACK_ICON_512;
 
   return {
-    name: "GS365",
-    short_name: "GS365",
+    name: "GS365CASH",
+    short_name: "GS365CASH",
     description: "Modern recharge workflow for players, agents and admins",
-    start_url: "/login",
+    id: "/",
+    start_url: "/",
+    scope: "/",
     display: "standalone",
     background_color: backgroundColor,
     theme_color: themeColor,

@@ -1,0 +1,22 @@
+2026/05/25-19:49:55.225 5063ae Reusing MANIFEST /Users/Brahim/mobcash-pro-v17.1-fix-pack-14/.wwebjs_auth/session-mobcash-go-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/25-19:49:55.226 5063ae Recovering log #49
+2026/05/25-19:49:55.393 5063ae Reusing old log /Users/Brahim/mobcash-pro-v17.1-fix-pack-14/.wwebjs_auth/session-mobcash-go-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000049.log 
+2026/05/25-19:50:04.991 5063ae Level-0 table #54: started
+2026/05/25-19:50:05.173 5063ae Level-0 table #54: 1234077 bytes OK
+2026/05/25-19:50:05.186 5063ae Delete type=0 #49
+2026/05/25-19:50:09.826 5063c5 Compacting 1@1 + 1@2 files
+2026/05/25-19:50:10.136 5063c5 Generated table #55@1: 43891 keys, 2037248 bytes
+2026/05/25-19:50:10.136 5063c5 Compacted 1@1 + 1@2 files => 2037248 bytes
+2026/05/25-19:50:10.159 5063c5 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/05/25-19:50:10.161 5063c5 Delete type=2 #54
+2026/05/25-19:50:10.161 5063c5 Delete type=2 #51
+2026/05/26-15:27:37.647 5063ae Level-0 table #57: started
+2026/05/26-15:27:37.698 5063ae Level-0 table #57: 1252184 bytes OK
+2026/05/26-15:27:37.715 5063ae Delete type=0 #53
+2026/05/26-15:27:49.993 5063ae Compacting 1@1 + 1@2 files
+2026/05/26-15:27:50.058 5063ae Generated table #58@1: 48020 keys, 2214988 bytes
+2026/05/26-15:27:50.066 5063ae Generated table #59@1: 2178 keys, 130260 bytes
+2026/05/26-15:27:50.066 5063ae Compacted 1@1 + 1@2 files => 2345248 bytes
+2026/05/26-15:27:50.080 5063ae compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/05/26-15:27:50.081 5063ae Delete type=2 #57
+2026/05/26-15:27:50.081 5063ae Delete type=2 #55

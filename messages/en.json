@@ -514,7 +514,7 @@
   },
   "auth": {
     "login": {
-      "subtitle": "A premium workspace for players, agents, and admins with trilingual support, a modern purchase flow, wallet accounting, and secure order review.",
+      "subtitle": "Seamless access to your synchronized digital ecosystem.",
       "placeholderIdentifier": "Username or email",
       "placeholderPassword": "Password",
       "submit": "Sign in",

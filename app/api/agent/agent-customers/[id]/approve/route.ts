@@ -8,6 +8,8 @@ import {
 import { isAgentCustomerPendingRequestStatus } from "@/lib/agent-customer-status";
 import { hashPassword } from "@/lib/security";
 import { executionMinutesFromAgentSettings } from "@/lib/recharge-proof-lifecycle";
+import { createGoSportPlayer } from "@/lib/gosport-api";
+import { sendWhatsAppCredentials } from "@/lib/whatsapp";
 
 export const runtime = "nodejs";
 
@@ -86,7 +88,7 @@ export async function POST(
     const row = await prisma.agentCustomer.findFirst({
       where: { id: customerId, agentId },
       include: {
-        player: { select: { id: true, userId: true } },
+        player: { select: { id: true, userId: true, phone: true } },
       },
     });
     if (!row) {
@@ -110,46 +112,86 @@ export async function POST(
 
     const hashed = await hashPassword(p);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.player.update({
-        where: { id: row.playerId },
-        data: {
-          assignedAgentId: agentId,
-          gosportUsername: u,
-          gosportPassword: p,
-          status: "active",
-        },
+    const goSport = await createGoSportPlayer(session.id, u, p);
+    if (!goSport.success) {
+      return NextResponse.json(
+        { message: goSport.error || "فشل إنشاء حساب اللاعب على GoSport365" },
+        { status: 400 },
+      );
+    }
+    const creationResult =
+      typeof goSport.data === "object" && goSport.data !== null
+        ? (goSport.data as { id?: unknown; data?: { id?: unknown } })
+        : null;
+    const goSportId = String(
+      creationResult?.id ?? creationResult?.data?.id ?? goSport.goSportId ?? "",
+    ).trim();
+    if (!goSportId) {
+      return NextResponse.json(
+        { message: "تم إنشاء اللاعب لكن تعذّر استخراج GoSport ID من الاستجابة." },
+        { status: 500 },
+      );
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.player.update({
+          where: { id: row.playerId },
+          data: {
+            assignedAgentId: agentId,
+            goSportId,
+            gosportUsername: u,
+            gosportPassword: p,
+            status: "active",
+          },
+        });
+
+        await tx.user.update({
+          where: { id: row.player.userId },
+          data: {
+            status: "ACTIVE",
+            playerStatus: "active",
+          },
+        });
+        await tx.agentCustomer.update({
+          where: { id: row.id },
+          data: {
+            gs365Username: u,
+            gs365Password: hashed,
+            executionTimeMinutes: execMin,
+            status: "CONNECTED",
+          },
+        });
+        await tx.activation.updateMany({
+          where: {
+            playerUserId: row.player.userId,
+            agentId,
+          },
+          data: {
+            username: u,
+            passwordPlain: p,
+            status: "active",
+            activatedAt: new Date(),
+            sentAt: new Date(),
+          },
+        });
       });
-      await tx.user.update({
-        where: { id: row.player.userId },
-        data: {
-          status: "ACTIVE",
-          playerStatus: "active",
+    } catch (dbError) {
+      console.error("agent-customers approve local sync after GoSport success:", dbError);
+      return NextResponse.json(
+        {
+          message:
+            "تم إنشاء الحساب على GoSport365 لكن فشل تحديث الحالة محلياً. يرجى إبلاغ الإدارة للمراجعة.",
         },
-      });
-      await tx.agentCustomer.update({
-        where: { id: row.id },
-        data: {
-          gs365Username: u,
-          gs365Password: hashed,
-          executionTimeMinutes: execMin,
-          status: "CONNECTED",
-        },
-      });
-      await tx.activation.updateMany({
-        where: {
-          playerUserId: row.player.userId,
-          agentId,
-        },
-        data: {
-          username: u,
-          passwordPlain: p,
-          status: "active",
-          activatedAt: new Date(),
-          sentAt: new Date(),
-        },
-      });
-    });
+        { status: 500 },
+      );
+    }
+
+    try {
+      await sendWhatsAppCredentials(String(row.player.phone ?? "").trim(), u, p, goSportId);
+    } catch (whatsAppError) {
+      console.error("agent-customers approve whatsapp send failed:", whatsAppError);
+    }
 
     return NextResponse.json({ success: true, message: "تمت الموافقة وتفعيل حساب اللاعب" });
   } catch (e) {

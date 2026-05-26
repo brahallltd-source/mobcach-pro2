@@ -14,8 +14,8 @@ const config: CapacitorConfig & {
   webDir: 'public',
   bundledWebRuntime: false,
   server: {
-    // الرابط الصحيح للمنصة الجديدة
-    url: 'https://gs365cash.com/login',
+    // Keep root domain only to avoid WebView start-route 404s.
+    url: 'https://gs365cash.com',
     allowNavigation: ['gs365cash.com', '*.gs365cash.com'],
     cleartext: true,
   },
