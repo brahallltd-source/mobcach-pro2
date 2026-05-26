@@ -267,7 +267,18 @@ function rolesMatchPathRequirement(pathRequiredRole: JwtRole, userRole: JwtRole)
  */
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
+  const normalizedPath = pathname.trim().toLowerCase();
   const isApi = pathname.startsWith("/api/");
+
+  // Hard-redirect legacy standalone entry paths to avoid custom 404 in stale APK/PWA clients.
+  if (
+    normalizedPath === "/download" ||
+    normalizedPath.startsWith("/download/") ||
+    normalizedPath === "/dow" ||
+    normalizedPath.startsWith("/dow/")
+  ) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
 
   const token = getSessionToken(req);
   const user = await getAuthUser(req, token);

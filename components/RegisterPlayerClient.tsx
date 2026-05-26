@@ -501,7 +501,7 @@ export function RegisterPlayerClient({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>* البريد الإلكتروني</FormLabel>
+                        <FormLabel>* {t("emailAddress")}</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
@@ -595,7 +595,7 @@ export function RegisterPlayerClient({
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{REGISTER_AR.phone} *</FormLabel>
+                        <FormLabel>{t("phoneNumberWhatsApp")} *</FormLabel>
                         <FormControl>
                           <div className="flex overflow-hidden rounded-md border border-input bg-background">
                             <span
@@ -661,7 +661,7 @@ export function RegisterPlayerClient({
                       name="agent_code"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                          <FormLabel>رمز الوكيل (اختياري)</FormLabel>
+                          <FormLabel>{t("optionalAgentCode")}</FormLabel>
                           <FormControl>
                             <Input {...field} className="border-cyan-500/30" />
                           </FormControl>

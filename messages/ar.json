@@ -523,6 +523,11 @@
       "toastSuccess": "تم تسجيل الدخول بنجاح!",
       "toastNetwork": "خطأ في الشبكة. حاول مرة أخرى."
     },
+    "register": {
+      "emailLabel": "البريد الإلكتروني",
+      "agentCodeOptionalLabel": "رمز الوكيل (اختياري)",
+      "phoneWhatsappLabel": "رقم الهاتف (واتساب)"
+    },
     "errors": {
       "generic": "فشل تسجيل الدخول. تحقق من البيانات وحاول مجدداً.",
       "VALIDATION_ERROR": "أدخل اسم مستخدم أو بريد وكلمة مرور صالحة.",

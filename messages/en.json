@@ -523,6 +523,11 @@
       "toastSuccess": "Signed in successfully.",
       "toastNetwork": "Network error. Try again."
     },
+    "register": {
+      "emailLabel": "Email Address",
+      "agentCodeOptionalLabel": "Agent Code (Optional)",
+      "phoneWhatsappLabel": "Phone Number (WhatsApp)"
+    },
     "errors": {
       "generic": "Sign-in failed. Check your details and try again.",
       "VALIDATION_ERROR": "Enter a valid username or email and password.",

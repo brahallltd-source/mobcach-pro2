@@ -498,7 +498,7 @@
   },
   "auth": {
     "login": {
-      "subtitle": "Un espace premium pour joueurs, agents et admins : support multilingue, parcours d’achat moderne, comptabilité des portefeuilles et validation sécurisée des commandes.",
+      "subtitle": "Accès fluide à votre écosystème numérique synchronisé.",
       "placeholderIdentifier": "Nom d’utilisateur ou e-mail",
       "placeholderPassword": "Mot de passe",
       "submit": "Connexion",
@@ -506,6 +506,11 @@
       "toastMissingFields": "Saisissez votre nom d’utilisateur ou e-mail et votre mot de passe.",
       "toastSuccess": "Connexion réussie.",
       "toastNetwork": "Erreur réseau. Réessayez."
+    },
+    "register": {
+      "emailLabel": "Adresse E-mail",
+      "agentCodeOptionalLabel": "Code Agent (Optionnel)",
+      "phoneWhatsappLabel": "Numéro de téléphone (WhatsApp)"
     },
     "errors": {
       "generic": "Échec de la connexion. Vérifiez vos informations.",

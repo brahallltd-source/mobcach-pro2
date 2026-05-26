@@ -15,6 +15,7 @@ import { BrandingStyleVars } from "@/components/BrandingStyleVars";
 import { AuthSessionRehydrator } from "@/components/auth/AuthSessionRehydrator";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { CacheBuster } from "@/components/pwa/CacheBuster";
+import { ServiceWorkerNuker } from "@/components/pwa/ServiceWorkerNuker";
 import { getRootBranding } from "@/lib/root-branding";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -69,6 +70,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <div className="relative z-0">
           <LanguageProvider>
             <AuthSessionRehydrator />
+            <ServiceWorkerNuker />
             <CacheBuster />
             <Toaster richColors position="top-center" closeButton />
             <InstallBanner />
