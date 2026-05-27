@@ -1,8 +1,11 @@
 import { getPrisma } from "@/lib/db";
+import { isMasterAdminEmail } from "@/lib/server-auth";
 
 const GOSPORT_BASE_URL = "https://www.gosport365.com";
 const CSRF_URL = `${GOSPORT_BASE_URL}/api/auth/csrf`;
 const LOGIN_URL = `${GOSPORT_BASE_URL}/api/auth/callback/credentials`;
+const GOSPORT_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 type HeadersWithSetCookie = Headers & {
   getSetCookie?: () => string[];
@@ -114,33 +117,62 @@ export async function loginAndGetGoSportToken(params: {
       .catch(() => {});
   };
 
+  const userRow = await prisma.user.findUnique({
+    where: { id: agentUserId },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      goSportUsername: true,
+      goSportPassword: true,
+    },
+  });
+  if (!userRow) {
+    throw new Error("User account not found for GoSport integration.");
+  }
+
+  const roleUpper = String(userRow.role ?? "").trim().toUpperCase();
+  const isMasterAdmin =
+    roleUpper === "SUPER_ADMIN" || isMasterAdminEmail(String(userRow.email ?? ""));
+
   let username = String(params.username ?? "").trim();
   let password = String(params.password ?? "").trim();
+  let credentialSource: "payload" | "db" | "env_master_admin" = "payload";
+
   if (!username || !password) {
-    const userRow = await prisma.user.findUnique({
-      where: { id: agentUserId },
-      select: {
-        id: true,
-        role: true,
-        goSportUsername: true,
-        goSportPassword: true,
-      },
-    });
-    if (!userRow || String(userRow.role ?? "").trim().toUpperCase() !== "AGENT") {
-      throw new Error("Agent account not found for GoSport integration.");
-    }
     username = String(userRow.goSportUsername ?? "").trim();
     password = String(userRow.goSportPassword ?? "").trim();
+    credentialSource = "db";
   }
+
+  // Multi-tenant rule:
+  // - regular agents: credentials must come from payload/agent DB profile
+  // - env fallback: allowed only for master admin accounts
+  if ((!username || !password) && isMasterAdmin) {
+    username = String(process.env.GOSPORT_AGENT_USERNAME ?? "").trim();
+    password = String(process.env.GOSPORT_AGENT_PASSWORD ?? "").trim();
+    credentialSource = "env_master_admin";
+  }
+
   if (!username || !password) {
     await deactivateIntegration();
     throw new Error("Integration disconnected: Invalid GoSport credentials.");
   }
 
+  if (roleUpper === "AGENT" && credentialSource === "env_master_admin") {
+    await deactivateIntegration();
+    throw new Error("Integration disconnected: Agent credentials must be configured in profile.");
+  }
+
+  console.error("[GoSport Auth Debug] Credential source", {
+    agentUserId,
+    role: roleUpper,
+    source: credentialSource,
+    username,
+  });
+
   try {
-    const safeUserAgent =
-      String(process.env.GOSPORT_AGENT_USER_AGENT ?? "").trim() ||
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+    const safeUserAgent = GOSPORT_BROWSER_USER_AGENT;
 
     // Step 1: fetch CSRF token + csrf cookie.
     let csrfRes: Response;
@@ -148,7 +180,13 @@ export async function loginAndGetGoSportToken(params: {
       csrfRes = await fetch(CSRF_URL, {
         method: "GET",
         headers: {
-          Accept: "application/json, text/plain, */*",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7,ar;q=0.6",
+          "Sec-Ch-Ua-Platform": '"Windows"',
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+          Connection: "keep-alive",
           "User-Agent": safeUserAgent,
           Referer: `${GOSPORT_BASE_URL}/en/login?callbackUrl=%2Fagent%2Ftransfer`,
           Origin: GOSPORT_BASE_URL,
@@ -238,8 +276,14 @@ export async function loginAndGetGoSportToken(params: {
       loginRes = await fetch(LOGIN_URL, {
         method: "POST",
         headers: {
-          Accept: "application/json, text/plain, */*",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7,ar;q=0.6",
           "Content-Type": "application/x-www-form-urlencoded",
+          "Sec-Ch-Ua-Platform": '"Windows"',
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+          Connection: "keep-alive",
           "User-Agent": safeUserAgent,
           Origin: GOSPORT_BASE_URL,
           Referer: `${GOSPORT_BASE_URL}/en/login?callbackUrl=%2Fagent%2Ftransfer`,
@@ -314,6 +358,14 @@ export async function loginAndGetGoSportToken(params: {
 
     return sessionCookie.value;
   } catch (error) {
+    const catchStatus =
+      typeof error === "object" && error !== null && "response" in error
+        ? (error as { response?: { status?: unknown } }).response?.status
+        : undefined;
+    console.error("[GoSport Auth Debug] Catch status code", { status: catchStatus });
+    if (catchStatus === 403 || catchStatus === 503) {
+      console.error("WAF/Cloudflare IP Block detected in production.");
+    }
     console.error("[GoSport Auth Debug] Final catch", {
       step: "loginAndGetGoSportToken",
       username,
