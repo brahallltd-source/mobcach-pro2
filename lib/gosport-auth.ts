@@ -311,6 +311,12 @@ export async function loginAndGetGoSportToken(params: {
     }
 
     const loginBody = await readHttpBodySafe(loginRes);
+    console.log("--- GOSPORT LOGIN ATTEMPT ---");
+    console.log("STATUS:", loginRes.status);
+    console.log(
+      "RAW RESPONSE (first 300 chars):",
+      String(loginBody.rawText ?? "").substring(0, 300),
+    );
     if (!loginRes.ok) {
       logGoSportHttpDetails({
         step: "login_fetch",
