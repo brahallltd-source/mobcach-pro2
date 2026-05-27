@@ -1,10 +1,13 @@
 import { loginAndGetGoSportToken } from "@/lib/gosport-auth";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 const GOSPORT_CREATE_PLAYER_URL = "https://api.8d32211.info/api/agent/users/create";
 const GOSPORT_TRANSFER_URL = "https://api.8d32211.info/api/agent/transfers/create";
 const GOSPORT_SEARCH_PLAYER_URL = "https://api.8d32211.info/api/agent/users/search";
 const GOSPORT_PASSWORD_CHANGE_URL = "https://api.8d32211.info/api/agent/users/changePassword";
 const GOSPORT_NEXTAUTH_SESSION_URL = "https://www.gosport365.com/api/auth/session";
+const proxyUrl = process.env.GOSPORT_PROXY_URL;
+const goSportProxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
 export type CreateGoSportPlayerResult<T = unknown> =
   | { success: true; goSportId: string | number; data: T; error: null }
@@ -26,6 +29,18 @@ type GoSportSessionAuth = {
   accessToken: string;
   parentId: number;
 };
+
+type ProxiedRequestInit = RequestInit & {
+  agent?: unknown;
+};
+
+function withGoSportProxy(init: RequestInit): ProxiedRequestInit {
+  if (!goSportProxyAgent) return init;
+  return {
+    ...init,
+    agent: goSportProxyAgent,
+  };
+}
 
 export type AgentGoSportAuth = {
   accessToken: string;
@@ -80,14 +95,14 @@ function throwIfHardTransferFailure(parsed: unknown, status: number): void {
 }
 
 async function fetchGoSportSessionAuth(sessionToken: string): Promise<GoSportSessionAuth> {
-  const response = await fetch(GOSPORT_NEXTAUTH_SESSION_URL, {
+  const response = await fetch(GOSPORT_NEXTAUTH_SESSION_URL, withGoSportProxy({
     method: "GET",
     headers: {
       Accept: "application/json",
       Cookie: `__Secure-next-auth.session-token=${sessionToken}`,
     },
     cache: "no-store",
-  });
+  }));
 
   if (!response.ok) {
     throw new Error(`Failed to fetch GoSport session (status ${response.status}).`);
@@ -154,7 +169,7 @@ async function searchGoSportPlayers(
   params: URLSearchParams,
 ): Promise<{ status: number; parsed: unknown }> {
   const url = `${GOSPORT_SEARCH_PLAYER_URL}?${params.toString()}`;
-  const response = await fetch(url, {
+  const response = await fetch(url, withGoSportProxy({
     method: "GET",
     headers: {
       authorization: `Bearer ${agentToken}`,
@@ -162,7 +177,7 @@ async function searchGoSportPlayers(
       accept: "application/json",
     },
     cache: "no-store",
-  });
+  }));
 
   const rawText = await response.text();
   let parsed: unknown = null;
@@ -221,7 +236,7 @@ async function sendCreatePlayerRequest(
   accessToken: string,
   payload: Record<string, unknown>,
 ): Promise<GoSportRequestResult> {
-  const response = await fetch(GOSPORT_CREATE_PLAYER_URL, {
+  const response = await fetch(GOSPORT_CREATE_PLAYER_URL, withGoSportProxy({
     method: "POST",
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -230,7 +245,7 @@ async function sendCreatePlayerRequest(
     },
     body: JSON.stringify(payload),
     cache: "no-store",
-  });
+  }));
 
   let parsed: unknown = null;
   try {
@@ -383,7 +398,7 @@ export async function transferGoSportBalance(
   }
 
   try {
-    const response = await fetch(GOSPORT_TRANSFER_URL, {
+    const response = await fetch(GOSPORT_TRANSFER_URL, withGoSportProxy({
       method: "POST",
       headers: {
         authorization: `Bearer ${safeToken}`,
@@ -398,7 +413,7 @@ export async function transferGoSportBalance(
         currency: "MAD",
       }),
       cache: "no-store",
-    });
+    }));
 
     const rawText = await response.text();
     let parsed: unknown = null;
@@ -484,7 +499,7 @@ export async function updateGoSportPlayerPassword(
   }
 
   try {
-    const response = await fetch(GOSPORT_PASSWORD_CHANGE_URL, {
+    const response = await fetch(GOSPORT_PASSWORD_CHANGE_URL, withGoSportProxy({
       method: "POST",
       headers: {
         authorization: `Bearer ${safeToken}`,
@@ -498,7 +513,7 @@ export async function updateGoSportPlayerPassword(
         password_confirmation: safePassword,
       }),
       cache: "no-store",
-    });
+    }));
 
     const rawText = await response.text();
     let parsed: unknown = null;

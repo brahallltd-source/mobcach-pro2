@@ -1,9 +1,12 @@
 import { getPrisma } from "@/lib/db";
 import { isMasterAdminEmail } from "@/lib/server-auth";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 const GOSPORT_BASE_URL = "https://www.gosport365.com";
 const CSRF_URL = `${GOSPORT_BASE_URL}/api/auth/csrf`;
 const LOGIN_URL = `${GOSPORT_BASE_URL}/api/auth/callback/credentials`;
+const proxyUrl = process.env.GOSPORT_PROXY_URL;
+const goSportProxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 const GOSPORT_BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -15,6 +18,18 @@ type ParsedHttpBody = {
   rawText: string;
   parsedJson: unknown | null;
 };
+
+type ProxiedRequestInit = RequestInit & {
+  agent?: unknown;
+};
+
+function withGoSportProxy(init: RequestInit): ProxiedRequestInit {
+  if (!goSportProxyAgent) return init;
+  return {
+    ...init,
+    agent: goSportProxyAgent,
+  };
+}
 
 function getSetCookieLines(headers: Headers): string[] {
   const h = headers as HeadersWithSetCookie;
@@ -177,7 +192,7 @@ export async function loginAndGetGoSportToken(params: {
     // Step 1: fetch CSRF token + csrf cookie.
     let csrfRes: Response;
     try {
-      csrfRes = await fetch(CSRF_URL, {
+      csrfRes = await fetch(CSRF_URL, withGoSportProxy({
         method: "GET",
         headers: {
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -192,7 +207,7 @@ export async function loginAndGetGoSportToken(params: {
           Origin: GOSPORT_BASE_URL,
         },
         cache: "no-store",
-      });
+      }));
     } catch (error) {
       console.error("[GoSport Auth Debug] CSRF network error", {
         step: "csrf_fetch",
@@ -273,7 +288,7 @@ export async function loginAndGetGoSportToken(params: {
 
     let loginRes: Response;
     try {
-      loginRes = await fetch(LOGIN_URL, {
+      loginRes = await fetch(LOGIN_URL, withGoSportProxy({
         method: "POST",
         headers: {
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -292,7 +307,7 @@ export async function loginAndGetGoSportToken(params: {
         body: body.toString(),
         redirect: "manual",
         cache: "no-store",
-      });
+      }));
     } catch (error) {
       console.error("[GoSport Auth Debug] Login network error", {
         step: "login_fetch",
