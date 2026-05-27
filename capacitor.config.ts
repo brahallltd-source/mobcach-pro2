@@ -14,10 +14,9 @@ const config: CapacitorConfig & {
   webDir: 'public',
   bundledWebRuntime: false,
   server: {
-    // Keep root domain only to avoid WebView start-route 404s.
     url: 'https://gs365cash.com',
-    allowNavigation: ['gs365cash.com', '*.gs365cash.com'],
     cleartext: true,
+    allowNavigation: ['gs365cash.com', '*.gs365cash.com'],
   },
 };
 

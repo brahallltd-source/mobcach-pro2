@@ -14,6 +14,10 @@ export function ServiceWorkerNuker() {
       .getRegistrations()
       .then(async (registrations) => {
         await Promise.allSettled(registrations.map((registration) => registration.unregister()));
+        if ("caches" in window) {
+          const cacheKeys = await caches.keys();
+          await Promise.allSettled(cacheKeys.map((key) => caches.delete(key)));
+        }
       })
       .catch(() => {
         // Ignore errors to avoid blocking app startup.

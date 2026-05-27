@@ -5,13 +5,17 @@ import { useEffect } from "react";
 
 export default function NotFound() {
   useEffect(() => {
+    const hasCapacitorBridge =
+      typeof window !== "undefined" && "Capacitor" in window;
+    const isAndroidWebView =
+      typeof window !== "undefined" && /\bwv\b/i.test(window.navigator.userAgent);
     const isStandalone =
       typeof window !== "undefined" &&
       (window.matchMedia("(display-mode: standalone)").matches ||
         // iOS Safari standalone mode fallback
         (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
 
-    if (!isStandalone) return;
+    if (!isStandalone && !hasCapacitorBridge && !isAndroidWebView) return;
 
     const timeout = window.setTimeout(() => {
       window.location.replace("/");

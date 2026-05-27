@@ -25,6 +25,12 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      { source: "/download", destination: "/", permanent: false },
+      { source: "/download/:path*", destination: "/", permanent: false },
+      { source: "/dow", destination: "/", permanent: false },
+      { source: "/dow/:path*", destination: "/", permanent: false },
+      { source: "/index.html", destination: "/", permanent: false },
+      { source: "/home.html", destination: "/", permanent: false },
       { source: "/agent/requests", destination: "/agent/add-requests", permanent: false },
       { source: "/agent/requests-history", destination: "/agent/add-requests", permanent: false },
       { source: "/agent/orders", destination: "/agent/add-requests", permanent: false },

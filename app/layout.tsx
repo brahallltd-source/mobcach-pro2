@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { CSSProperties, ReactNode } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Tajawal } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
 
@@ -17,6 +17,13 @@ import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { CacheBuster } from "@/components/pwa/CacheBuster";
 import { ServiceWorkerNuker } from "@/components/pwa/ServiceWorkerNuker";
 import { getRootBranding } from "@/lib/root-branding";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const b = await getRootBranding();

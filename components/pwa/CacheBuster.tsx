@@ -9,7 +9,7 @@ import { useEffect } from "react";
  * - clears Cache Storage
  * - forces a single reload to fetch fresh assets
  */
-const CACHE_BUSTER_VERSION = "2026-05-17-wsod-hotfix-1";
+const CACHE_BUSTER_VERSION = "2026-05-27-capacitor-launch-404";
 const CACHE_BUSTER_KEY = "gs365_cache_buster_version";
 
 export function CacheBuster() {
