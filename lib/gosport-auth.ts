@@ -8,6 +8,11 @@ type HeadersWithSetCookie = Headers & {
   getSetCookie?: () => string[];
 };
 
+type ParsedHttpBody = {
+  rawText: string;
+  parsedJson: unknown | null;
+};
+
 function getSetCookieLines(headers: Headers): string[] {
   const h = headers as HeadersWithSetCookie;
   if (typeof h.getSetCookie === "function") {
@@ -40,6 +45,47 @@ function findCookieValue(
     if (names.includes(parsed.name)) return parsed;
   }
   return null;
+}
+
+async function readHttpBodySafe(response: Response): Promise<ParsedHttpBody> {
+  const rawText = await response.text().catch(() => "");
+  let parsedJson: unknown | null = null;
+  if (rawText) {
+    try {
+      parsedJson = JSON.parse(rawText) as unknown;
+    } catch {
+      parsedJson = null;
+    }
+  }
+  return { rawText, parsedJson };
+}
+
+function logGoSportHttpDetails(args: {
+  step: string;
+  status: number;
+  statusText: string;
+  responseHeaders: Record<string, string>;
+  bodyText: string;
+  bodyJson: unknown | null;
+  username: string;
+}): void {
+  console.error("[GoSport Auth Debug] HTTP failure", {
+    step: args.step,
+    status: args.status,
+    statusText: args.statusText,
+    username: args.username,
+    responseHeaders: args.responseHeaders,
+    bodyJson: args.bodyJson,
+    bodyTextPreview: args.bodyText.slice(0, 5000),
+  });
+}
+
+function toHeaderRecord(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    out[key] = value;
+  });
+  return out;
 }
 
 /**
@@ -92,21 +138,69 @@ export async function loginAndGetGoSportToken(params: {
   }
 
   try {
+    const safeUserAgent =
+      String(process.env.GOSPORT_AGENT_USER_AGENT ?? "").trim() ||
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+
     // Step 1: fetch CSRF token + csrf cookie.
-    const csrfRes = await fetch(CSRF_URL, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+    let csrfRes: Response;
+    try {
+      csrfRes = await fetch(CSRF_URL, {
+        method: "GET",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "User-Agent": safeUserAgent,
+          Referer: `${GOSPORT_BASE_URL}/en/login?callbackUrl=%2Fagent%2Ftransfer`,
+          Origin: GOSPORT_BASE_URL,
+        },
+        cache: "no-store",
+      });
+    } catch (error) {
+      console.error("[GoSport Auth Debug] CSRF network error", {
+        step: "csrf_fetch",
+        username,
+        message: error instanceof Error ? error.message : String(error),
+        errorResponseStatus:
+          typeof error === "object" && error !== null && "response" in error
+            ? (error as { response?: { status?: unknown } }).response?.status
+            : undefined,
+        errorResponseData:
+          typeof error === "object" && error !== null && "response" in error
+            ? (error as { response?: { data?: unknown } }).response?.data
+            : undefined,
+      });
+      throw error;
+    }
+
     if (!csrfRes.ok) {
+      const csrfBody = await readHttpBodySafe(csrfRes);
+      logGoSportHttpDetails({
+        step: "csrf_fetch",
+        status: csrfRes.status,
+        statusText: csrfRes.statusText,
+        responseHeaders: toHeaderRecord(csrfRes.headers),
+        bodyText: csrfBody.rawText,
+        bodyJson: csrfBody.parsedJson,
+        username,
+      });
       throw new Error(`Failed to fetch CSRF token (status ${csrfRes.status}).`);
     }
 
-    const csrfJson = (await csrfRes.json().catch(() => ({}))) as { csrfToken?: unknown };
+    const csrfBody = await readHttpBodySafe(csrfRes);
+    const csrfJson =
+      (csrfBody.parsedJson as { csrfToken?: unknown } | null) ??
+      ({} as { csrfToken?: unknown });
     const csrfToken = String(csrfJson.csrfToken ?? "").trim();
     if (!csrfToken) {
+      logGoSportHttpDetails({
+        step: "csrf_missing_token",
+        status: csrfRes.status,
+        statusText: csrfRes.statusText,
+        responseHeaders: toHeaderRecord(csrfRes.headers),
+        bodyText: csrfBody.rawText,
+        bodyJson: csrfBody.parsedJson,
+        username,
+      });
       throw new Error("CSRF token missing in /api/auth/csrf response.");
     }
 
@@ -133,27 +227,57 @@ export async function loginAndGetGoSportToken(params: {
       password,
       clientIP: String(process.env.GOSPORT_AGENT_CLIENT_IP ?? ""),
       callbackUrl,
-      userAgent:
-        String(process.env.GOSPORT_AGENT_USER_AGENT ?? "").trim() ||
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+      userAgent: safeUserAgent,
       device: String(process.env.GOSPORT_AGENT_DEVICE ?? "desktop"),
       csrfToken,
       json: "true",
     });
 
-    const loginRes = await fetch(LOGIN_URL, {
-      method: "POST",
-      headers: {
-        Accept: "*/*",
-        "Content-Type": "application/x-www-form-urlencoded",
-        Origin: GOSPORT_BASE_URL,
-        Referer: `${GOSPORT_BASE_URL}/en/login?callbackUrl=%2Fagent%2Ftransfer`,
-        Cookie: `${csrfCookie.name}=${csrfCookie.value}; ${callbackCookieName}=${callbackCookieValue}`,
-      },
-      body: body.toString(),
-      redirect: "manual",
-      cache: "no-store",
-    });
+    let loginRes: Response;
+    try {
+      loginRes = await fetch(LOGIN_URL, {
+        method: "POST",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": safeUserAgent,
+          Origin: GOSPORT_BASE_URL,
+          Referer: `${GOSPORT_BASE_URL}/en/login?callbackUrl=%2Fagent%2Ftransfer`,
+          Cookie: `${csrfCookie.name}=${csrfCookie.value}; ${callbackCookieName}=${callbackCookieValue}`,
+        },
+        body: body.toString(),
+        redirect: "manual",
+        cache: "no-store",
+      });
+    } catch (error) {
+      console.error("[GoSport Auth Debug] Login network error", {
+        step: "login_fetch",
+        username,
+        message: error instanceof Error ? error.message : String(error),
+        errorResponseStatus:
+          typeof error === "object" && error !== null && "response" in error
+            ? (error as { response?: { status?: unknown } }).response?.status
+            : undefined,
+        errorResponseData:
+          typeof error === "object" && error !== null && "response" in error
+            ? (error as { response?: { data?: unknown } }).response?.data
+            : undefined,
+      });
+      throw error;
+    }
+
+    const loginBody = await readHttpBodySafe(loginRes);
+    if (!loginRes.ok) {
+      logGoSportHttpDetails({
+        step: "login_fetch",
+        status: loginRes.status,
+        statusText: loginRes.statusText,
+        responseHeaders: toHeaderRecord(loginRes.headers),
+        bodyText: loginBody.rawText,
+        bodyJson: loginBody.parsedJson,
+        username,
+      });
+    }
 
     // Explicit watchdog trigger for invalid credentials.
     if (loginRes.status === 401 || loginRes.status === 403) {
@@ -168,6 +292,15 @@ export async function loginAndGetGoSportToken(params: {
       "__Host-next-auth.session-token",
     ]);
     if (!sessionCookie?.value) {
+      logGoSportHttpDetails({
+        step: "login_missing_session_cookie",
+        status: loginRes.status,
+        statusText: loginRes.statusText,
+        responseHeaders: toHeaderRecord(loginRes.headers),
+        bodyText: loginBody.rawText,
+        bodyJson: loginBody.parsedJson,
+        username,
+      });
       await deactivateIntegration();
       throw new Error("Integration disconnected: Invalid GoSport credentials.");
     }
@@ -181,6 +314,19 @@ export async function loginAndGetGoSportToken(params: {
 
     return sessionCookie.value;
   } catch (error) {
+    console.error("[GoSport Auth Debug] Final catch", {
+      step: "loginAndGetGoSportToken",
+      username,
+      message: error instanceof Error ? error.message : String(error),
+      errorResponseStatus:
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { status?: unknown } }).response?.status
+          : undefined,
+      errorResponseData:
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { data?: unknown } }).response?.data
+          : undefined,
+    });
     const msg = error instanceof Error ? error.message : "";
     if (msg.includes("Integration disconnected")) {
       throw error;
