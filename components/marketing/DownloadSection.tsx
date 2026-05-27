@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Apple, QrCode, Share2, Smartphone, Sparkles, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
@@ -22,6 +21,7 @@ function detectDevice(): DeviceType {
 
 function StoreButton({
   href,
+  download,
   onClick,
   Icon,
   title,
@@ -29,6 +29,7 @@ function StoreButton({
   glow,
 }: {
   href?: string;
+  download?: string;
   onClick?: () => void;
   Icon: typeof Smartphone;
   title: string;
@@ -52,9 +53,9 @@ function StoreButton({
 
   if (href) {
     return (
-      <Link href={href} className={baseClass}>
+      <a href={href} download={download} className={baseClass}>
         {content}
-      </Link>
+      </a>
     );
   }
 
@@ -113,13 +114,27 @@ export function DownloadSection({ audience }: DownloadSectionProps) {
         <div className="mt-6 grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-3">
             {(device === "android" || device === "desktop") && (
-              <StoreButton
+              <a
                 href="/downloads/gs365cash.apk"
-                Icon={Smartphone}
-                subtitle={tx("home.downloadSection.directApk")}
-                title={tx("home.downloadSection.downloadAndroid")}
-                glow="bg-[radial-gradient(circle,rgba(16,185,129,0.28),transparent_65%)]"
-              />
+                download="GS365CASH.apk"
+                className="group relative inline-flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-white shadow-xl backdrop-blur-md transition hover:-translate-y-0.5 hover:border-white/25"
+              >
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle,rgba(16,185,129,0.28),transparent_65%)] opacity-75 blur-xl"
+                  aria-hidden
+                />
+                <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10">
+                  <Smartphone className="h-6 w-6" aria-hidden />
+                </span>
+                <span className="relative text-start">
+                  <span className="block text-[11px] uppercase tracking-[0.14em] text-white/60">
+                    {tx("home.downloadSection.directApk")}
+                  </span>
+                  <span className="block text-sm font-bold">
+                    {tx("home.downloadSection.downloadAndroid")}
+                  </span>
+                </span>
+              </a>
             )}
 
             {(device === "ios" || device === "desktop") && (
