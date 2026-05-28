@@ -58,7 +58,11 @@ export const registerPlayerApiSchema = z
     confirmPassword: z.string().min(1, "يرجى تأكيد كلمة المرور"),
     username: z.string().min(2, "اسم المستخدم قصير جداً"),
     inviteCode: z.string().optional(),
-    agent_code: z.string().trim().optional().or(z.literal("")),
+    agent_code: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => value || undefined),
     /** Public registration: chosen agent (`Agent.id`) from marketplace slider — creates `AgentCustomer` with `PENDING`. */
     selectedAgentId: z
       .string()

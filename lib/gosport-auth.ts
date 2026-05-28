@@ -13,14 +13,14 @@ const GOSPORT_BROWSER_USER_AGENT =
  * Minimal shape of a got-scraping response (the bits we use).
  * We keep this local to avoid forcing the heavy got types onto callers.
  */
-type GotScrapingResponseLike = {
+export type GotScrapingResponseLike = {
   statusCode: number;
   statusMessage?: string;
   body: string;
   headers: Record<string, string | string[] | undefined>;
 };
 
-type GotScrapingOptions = Record<string, unknown>;
+export type GotScrapingOptions = Record<string, unknown>;
 
 type GotScrapingFn = (options: GotScrapingOptions) => Promise<GotScrapingResponseLike>;
 
@@ -30,7 +30,7 @@ let gotScrapingCache: GotScrapingFn | null = null;
  * Lazy-load `got-scraping` because it is ESM-only and we run inside Next.js
  * Node runtime. Cached after first import.
  */
-async function getGotScraping(): Promise<GotScrapingFn> {
+export async function getGotScraping(): Promise<GotScrapingFn> {
   if (gotScrapingCache) return gotScrapingCache;
   const mod = (await import("got-scraping")) as unknown as {
     gotScraping: GotScrapingFn;
@@ -81,7 +81,7 @@ function logGoSportHttpDetails(args: {
  * Build shared got-scraping options: TLS/header fingerprint spoofing, proxy
  * injection, and disabled HTTP error throwing (we handle non-2xx manually).
  */
-function buildBaseOptions(extra: GotScrapingOptions = {}): GotScrapingOptions {
+export function buildGoSportScrapingOptions(extra: GotScrapingOptions = {}): GotScrapingOptions {
   const base: GotScrapingOptions = {
     useHeaderGenerator: true,
     headerGeneratorOptions: {
@@ -193,7 +193,7 @@ export async function loginAndGetGoSportToken(params: {
     let csrfRes: GotScrapingResponseLike;
     try {
       csrfRes = await gotScraping(
-        buildBaseOptions({
+        buildGoSportScrapingOptions({
           url: CSRF_URL,
           method: "GET",
           cookieJar,
@@ -293,7 +293,7 @@ export async function loginAndGetGoSportToken(params: {
     let loginRes: GotScrapingResponseLike;
     try {
       loginRes = await gotScraping(
-        buildBaseOptions({
+        buildGoSportScrapingOptions({
           url: LOGIN_URL,
           method: "POST",
           cookieJar,

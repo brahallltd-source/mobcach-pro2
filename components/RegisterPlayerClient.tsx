@@ -104,7 +104,7 @@ export function RegisterPlayerClient({
   registerApiPath = "/api/auth/register",
   pageTitle,
   pageSubtitle,
-  multiStepAgentSelection = false,
+  multiStepAgentSelection = true,
 }: RegisterPlayerClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();

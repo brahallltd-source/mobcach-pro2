@@ -1,13 +1,14 @@
-import { loginAndGetGoSportToken } from "@/lib/gosport-auth";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import {
+  buildGoSportScrapingOptions,
+  getGotScraping,
+  loginAndGetGoSportToken,
+} from "@/lib/gosport-auth";
 
 const GOSPORT_CREATE_PLAYER_URL = "https://api.8d32211.info/api/agent/users/create";
 const GOSPORT_TRANSFER_URL = "https://api.8d32211.info/api/agent/transfers/create";
 const GOSPORT_SEARCH_PLAYER_URL = "https://api.8d32211.info/api/agent/users/search";
 const GOSPORT_PASSWORD_CHANGE_URL = "https://api.8d32211.info/api/agent/users/changePassword";
 const GOSPORT_NEXTAUTH_SESSION_URL = "https://www.gosport365.com/api/auth/session";
-const proxyUrl = process.env.GOSPORT_PROXY_URL;
-const goSportProxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
 export type CreateGoSportPlayerResult<T = unknown> =
   | { success: true; goSportId: string | number; data: T; error: null }
@@ -29,18 +30,6 @@ type GoSportSessionAuth = {
   accessToken: string;
   parentId: number;
 };
-
-type ProxiedRequestInit = RequestInit & {
-  agent?: unknown;
-};
-
-function withGoSportProxy(init: RequestInit): ProxiedRequestInit {
-  if (!goSportProxyAgent) return init;
-  return {
-    ...init,
-    agent: goSportProxyAgent,
-  };
-}
 
 export type AgentGoSportAuth = {
   accessToken: string;
@@ -65,6 +54,39 @@ function extractErrorMessage(parsed: unknown, status: number): string {
   }
   if (typeof parsed === "string" && parsed.trim()) return parsed.trim();
   return `GoSport API request failed with status ${status}.`;
+}
+
+async function sendGoSportRequest(args: {
+  url: string;
+  method: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: string;
+}): Promise<GoSportRequestResult> {
+  const gotScraping = await getGotScraping();
+  const response = await gotScraping(
+    buildGoSportScrapingOptions({
+      url: args.url,
+      method: args.method,
+      headers: args.headers,
+      ...(args.body ? { body: args.body } : {}),
+    }),
+  );
+
+  const rawText = String(response.body ?? "");
+  let parsed: unknown = null;
+  if (rawText) {
+    try {
+      parsed = JSON.parse(rawText) as unknown;
+    } catch {
+      parsed = rawText;
+    }
+  }
+
+  return {
+    ok: response.statusCode >= 200 && response.statusCode < 300,
+    status: response.statusCode,
+    parsed,
+  };
 }
 
 function isUnauthorizedResponse(res: GoSportRequestResult): boolean {
@@ -95,20 +117,22 @@ function throwIfHardTransferFailure(parsed: unknown, status: number): void {
 }
 
 async function fetchGoSportSessionAuth(sessionToken: string): Promise<GoSportSessionAuth> {
-  const response = await fetch(GOSPORT_NEXTAUTH_SESSION_URL, withGoSportProxy({
+  const response = await sendGoSportRequest({
+    url: GOSPORT_NEXTAUTH_SESSION_URL,
     method: "GET",
     headers: {
       Accept: "application/json",
       Cookie: `__Secure-next-auth.session-token=${sessionToken}`,
     },
-    cache: "no-store",
-  }));
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch GoSport session (status ${response.status}).`);
   }
 
-  const sessionData = (await response.json().catch(() => ({}))) as {
+  const sessionData = (typeof response.parsed === "object" && response.parsed !== null
+    ? response.parsed
+    : {}) as {
     user?: { profile?: { token?: unknown; id?: unknown } };
   };
   const accessToken = String(sessionData.user?.profile?.token ?? "").trim();
@@ -169,31 +193,21 @@ async function searchGoSportPlayers(
   params: URLSearchParams,
 ): Promise<{ status: number; parsed: unknown }> {
   const url = `${GOSPORT_SEARCH_PLAYER_URL}?${params.toString()}`;
-  const response = await fetch(url, withGoSportProxy({
+  const response = await sendGoSportRequest({
+    url,
     method: "GET",
     headers: {
       authorization: `Bearer ${agentToken}`,
       skinid: "kawarji365",
       accept: "application/json",
     },
-    cache: "no-store",
-  }));
-
-  const rawText = await response.text();
-  let parsed: unknown = null;
-  if (rawText) {
-    try {
-      parsed = JSON.parse(rawText) as unknown;
-    } catch {
-      parsed = rawText;
-    }
-  }
+  });
 
   if (!response.ok) {
-    throw new Error(extractErrorMessage(parsed, response.status));
+    throw new Error(extractErrorMessage(response.parsed, response.status));
   }
 
-  return { status: response.status, parsed };
+  return { status: response.status, parsed: response.parsed };
 }
 
 function findPlayerIdByUsername(parsed: unknown, username: string): number | null {
@@ -236,7 +250,8 @@ async function sendCreatePlayerRequest(
   accessToken: string,
   payload: Record<string, unknown>,
 ): Promise<GoSportRequestResult> {
-  const response = await fetch(GOSPORT_CREATE_PLAYER_URL, withGoSportProxy({
+  return sendGoSportRequest({
+    url: GOSPORT_CREATE_PLAYER_URL,
     method: "POST",
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -244,22 +259,7 @@ async function sendCreatePlayerRequest(
       "content-type": "application/json",
     },
     body: JSON.stringify(payload),
-    cache: "no-store",
-  }));
-
-  let parsed: unknown = null;
-  try {
-    parsed = (await response.json()) as unknown;
-  } catch {
-    const rawText = await response.text().catch(() => "");
-    parsed = rawText || null;
-  }
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    parsed,
-  };
+  });
 }
 
 function extractCreatedPlayerId(parsed: unknown): string | number | null {
@@ -398,7 +398,8 @@ export async function transferGoSportBalance(
   }
 
   try {
-    const response = await fetch(GOSPORT_TRANSFER_URL, withGoSportProxy({
+    const response = await sendGoSportRequest({
+      url: GOSPORT_TRANSFER_URL,
       method: "POST",
       headers: {
         authorization: `Bearer ${safeToken}`,
@@ -412,18 +413,8 @@ export async function transferGoSportBalance(
         note: "Auto-deposit via GS365 Cash",
         currency: "MAD",
       }),
-      cache: "no-store",
-    }));
-
-    const rawText = await response.text();
-    let parsed: unknown = null;
-    if (rawText) {
-      try {
-        parsed = JSON.parse(rawText) as unknown;
-      } catch {
-        parsed = rawText;
-      }
-    }
+    });
+    const parsed = response.parsed;
 
     throwIfHardTransferFailure(parsed, response.status);
 
@@ -499,7 +490,8 @@ export async function updateGoSportPlayerPassword(
   }
 
   try {
-    const response = await fetch(GOSPORT_PASSWORD_CHANGE_URL, withGoSportProxy({
+    const response = await sendGoSportRequest({
+      url: GOSPORT_PASSWORD_CHANGE_URL,
       method: "POST",
       headers: {
         authorization: `Bearer ${safeToken}`,
@@ -512,18 +504,8 @@ export async function updateGoSportPlayerPassword(
         password: safePassword,
         password_confirmation: safePassword,
       }),
-      cache: "no-store",
-    }));
-
-    const rawText = await response.text();
-    let parsed: unknown = null;
-    if (rawText) {
-      try {
-        parsed = JSON.parse(rawText) as unknown;
-      } catch {
-        parsed = rawText;
-      }
-    }
+    });
+    const parsed = response.parsed;
 
     if (!response.ok) {
       throw new Error(extractErrorMessage(parsed, response.status));

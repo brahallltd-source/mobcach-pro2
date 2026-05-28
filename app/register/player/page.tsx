@@ -13,7 +13,7 @@ export default function RegisterPlayerPage() {
         </Shell>
       }
     >
-      <RegisterPlayerClient registerApiPath="/api/auth/register" />
+      <RegisterPlayerClient registerApiPath="/api/auth/register" multiStepAgentSelection />
     </Suspense>
   );
 }
