@@ -115,7 +115,7 @@ export function DownloadSection({ audience }: DownloadSectionProps) {
           <div className="space-y-3">
             {(device === "android" || device === "desktop") && (
               <a
-                href="/download/android-app"
+                href="https://github.com/brahallltd-source/GS365-Android-App/releases/download/v1.0.0/gs365cash.apk"
                 download="gs365cash.apk"
                 className="group relative inline-flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-white shadow-xl backdrop-blur-md transition hover:-translate-y-0.5 hover:border-white/25"
               >
