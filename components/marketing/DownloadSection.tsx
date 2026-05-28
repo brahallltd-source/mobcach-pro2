@@ -115,7 +115,7 @@ export function DownloadSection({ audience }: DownloadSectionProps) {
           <div className="space-y-3">
             {(device === "android" || device === "desktop") && (
               <a
-                href="/download/android-app"
+                href="/api/download-app"
                 className="group relative inline-flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-white shadow-xl backdrop-blur-md transition hover:-translate-y-0.5 hover:border-white/25"
               >
                 <span
