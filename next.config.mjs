@@ -46,6 +46,28 @@ const nextConfig = {
       { source: "/agent/winner-requests", destination: "/agent/all-history", permanent: false },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: "/downloads/:file*.apk",
+        headers: [
+          { key: "Content-Type", value: "application/vnd.android.package-archive" },
+          { key: "Content-Disposition", value: 'attachment; filename="GS365CASH.apk"' },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/:file*.apk",
+        headers: [
+          { key: "Content-Type", value: "application/vnd.android.package-archive" },
+          { key: "Content-Disposition", value: 'attachment; filename="GS365CASH.apk"' },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
