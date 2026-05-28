@@ -33,43 +33,73 @@ export async function createNotification(payload: {
   type?: AppNotificationType;
   link?: string | null;
 }) {
-  const prisma = getPrisma();
-  if (!prisma) return null;
-
-  const user = await prisma.user.findFirst({
-    where: { id: payload.userId, deletedAt: null },
-    select: { id: true, role: true },
-  });
-  if (!user) return null;
-
-  const title = localizeNotificationTitle(payload.title);
-  const message = localizeNotificationMessage(payload.message);
-  const targetRole = normalizeTargetRole(String(user.role));
-
-  const created = await prisma.notification.create({
-    data: {
-      title,
-      message,
-      read: false,
-      userId: user.id,
-      targetRole,
-      targetId: user.id,
-      type: payload.type ?? "INFO",
-      link: payload.link ?? null,
-    },
-  });
-
-  const link = payload.link ?? undefined;
   try {
-    await dispatchUnifiedPush({
-      userId: user.id,
-      title,
-      body: message,
-      ...(link ? { url: link } : {}),
-    });
-  } catch (e) {
-    console.error("[notifications] dispatchUnifiedPush after createNotification:", e);
-  }
+    const prisma = getPrisma();
+    if (!prisma) {
+      console.error("[Notification Service Error] Prisma unavailable in createNotification", {
+        userId: payload.userId,
+      });
+      return null;
+    }
 
-  return created;
+    const safeUserId = String(payload.userId ?? "").trim();
+    if (!safeUserId) {
+      console.error("[Notification Service Error] Missing userId payload in createNotification", payload);
+      return null;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: safeUserId, deletedAt: null },
+      select: { id: true, role: true },
+    });
+    if (!user) {
+      console.error("[Notification Service Error] Recipient user not found for createNotification", {
+        userId: safeUserId,
+        title: payload.title,
+      });
+      return null;
+    }
+
+    const title = localizeNotificationTitle(payload.title);
+    const message = localizeNotificationMessage(payload.message);
+    const targetRole = normalizeTargetRole(String(user.role));
+
+    const created = await prisma.notification.create({
+      data: {
+        title,
+        message,
+        read: false,
+        userId: user.id,
+        targetRole,
+        targetId: user.id,
+        type: payload.type ?? "INFO",
+        link: payload.link ?? null,
+      },
+    });
+
+    const link = payload.link ?? undefined;
+    try {
+      await dispatchUnifiedPush({
+        userId: user.id,
+        title,
+        body: message,
+        ...(link ? { url: link } : {}),
+      });
+    } catch (e) {
+      console.error("[Notification Service Error] dispatchUnifiedPush after createNotification", {
+        userId: user.id,
+        title,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    return created;
+  } catch (error) {
+    console.error("[Notification Service Error] createNotification failed", {
+      userId: payload.userId,
+      title: payload.title,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }

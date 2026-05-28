@@ -6,6 +6,7 @@ export const RECHARGE_PROOF_STATUS = {
   PENDING_PROOF: "PENDING_PROOF",
   PROCESSING: "PROCESSING",
   AGENT_APPROVED: "AGENT_APPROVED",
+  AUTO_APPROVED: "AUTO_APPROVED",
   AGENT_REJECTED: "AGENT_REJECTED",
   PLAYER_CONFIRMED: "PLAYER_CONFIRMED",
   DISPUTED: "DISPUTED",
@@ -16,6 +17,7 @@ export type RechargeProofStatus = (typeof RECHARGE_PROOF_STATUS)[keyof typeof RE
 const LEGACY: Record<string, RechargeProofStatus> = {
   PENDING: RECHARGE_PROOF_STATUS.PROCESSING,
   APPROVED: RECHARGE_PROOF_STATUS.AGENT_APPROVED,
+  AUTO_APPROVED: RECHARGE_PROOF_STATUS.AUTO_APPROVED,
   REJECTED: RECHARGE_PROOF_STATUS.AGENT_REJECTED,
 };
 
@@ -40,6 +42,8 @@ export function rechargeProofStatusLabelAr(status: string): string {
       return "قيد المعالجة (تم رفع الإثبات)";
     case RECHARGE_PROOF_STATUS.AGENT_APPROVED:
       return "وافق الوكيل — بانتظار تأكيدك";
+    case RECHARGE_PROOF_STATUS.AUTO_APPROVED:
+      return "موافقة آلية";
     case RECHARGE_PROOF_STATUS.AGENT_REJECTED:
       return "مرفوض من الوكيل";
     case RECHARGE_PROOF_STATUS.PLAYER_CONFIRMED:

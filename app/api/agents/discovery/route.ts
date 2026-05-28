@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { UserAccountStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { activeJsonPaymentLabels } from "@/lib/active-payment-labels";
 import {
@@ -16,7 +15,15 @@ export const runtime = "nodejs";
 
 type DiscoveryAgentRow = {
   paymentMethods: Array<{ id: string; methodName: string; active: boolean }>;
-  user: { paymentMethods: unknown } | null;
+  responseMinutes?: number | null;
+  rating?: number | null;
+  availableBalance?: number | null;
+  wallet?: { balance?: number | null } | null;
+  user: {
+    paymentMethods: unknown;
+    likes?: number | null;
+    dislikes?: number | null;
+  } | null;
 };
 
 function mergePaymentMethodsForDiscovery(agent: DiscoveryAgentRow) {
@@ -72,8 +79,10 @@ export async function GET(req: Request) {
         status: { in: ["ACTIVE", "active", "account_created", "pending"] },
         user: {
           is: {
+            role: "AGENT",
+            deletedAt: null,
             frozen: false,
-            accountStatus: UserAccountStatus.ACTIVE,
+            status: { notIn: ["BANNED", "INACTIVE"] },
           },
         },
       },
@@ -86,7 +95,7 @@ export async function GET(req: Request) {
         },
         user: { select: USER_SELECT_SAFE_RELATION },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }],
     });
 
     // 3. تنسيق البيانات
@@ -108,6 +117,12 @@ export async function GET(req: Request) {
           (typeof u?.executionTime === "string" && u.executionTime.trim()) ||
           `${agent.responseMinutes ?? 30} min`;
 
+        const availableBalance = Number(agent.wallet?.balance ?? agent.availableBalance ?? 0) || 0;
+        const paymentGatewayCount = mergedMethods.length;
+        const likeScore = Number(likes) || 0;
+        const rechargeSpeedMinutes =
+          Number(agent.responseMinutes ?? 30) > 0 ? Number(agent.responseMinutes ?? 30) : 30;
+
         return {
           // 🟢 هاد الـ ID هو اللي كيتستعمل فـ دالة handleDirectSelectAgent
           agentId: agent.id,
@@ -120,7 +135,7 @@ export async function GET(req: Request) {
           response_minutes: agent.responseMinutes || 5,
           updated_at: agent.updatedAt,
           country: agent.country || "Morocco",
-          available_balance: agent.wallet?.balance || 0,
+          available_balance: availableBalance,
           min_limit: 50,
           max_limit: 10000,
           verified: agent.verified || false,
@@ -132,6 +147,9 @@ export async function GET(req: Request) {
           payment_pills,
           execution_time_label: executionTimeLabel,
           paymentMethods: mergedMethods,
+          payment_gateway_count: paymentGatewayCount,
+          like_score: likeScore,
+          recharge_speed_minutes: rechargeSpeedMinutes,
         };
       });
 
@@ -153,6 +171,24 @@ export async function GET(req: Request) {
         (a) => a.available_balance >= amountFilter
       );
     }
+
+    // Smart ranking priority:
+    // 1) Highest balance, 2) most payment gateways, 3) likes/rating, 4) fastest recharge speed.
+    formattedAgents.sort((a, b) => {
+      const balanceDelta = Number(b.available_balance ?? 0) - Number(a.available_balance ?? 0);
+      if (balanceDelta !== 0) return balanceDelta;
+
+      const gatewaysDelta = Number(b.payment_gateway_count ?? 0) - Number(a.payment_gateway_count ?? 0);
+      if (gatewaysDelta !== 0) return gatewaysDelta;
+
+      const likesDelta = Number(b.like_score ?? 0) - Number(a.like_score ?? 0);
+      if (likesDelta !== 0) return likesDelta;
+
+      const ratingDelta = Number(b.rating_percent ?? 0) - Number(a.rating_percent ?? 0);
+      if (ratingDelta !== 0) return ratingDelta;
+
+      return Number(a.recharge_speed_minutes ?? 9999) - Number(b.recharge_speed_minutes ?? 9999);
+    });
 
     return NextResponse.json({ agents: formattedAgents });
 

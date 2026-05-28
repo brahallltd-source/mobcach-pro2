@@ -4,6 +4,7 @@ import { normalizePhoneWithCountry } from "@/lib/countries";
 import { registerPlayerApiSchema } from "@/lib/validations/auth";
 import { hashPassword } from "@/lib/security";
 import { createGoSportPlayer } from "@/lib/gosport-api";
+import { createNotification } from "@/lib/notifications";
 import { sendWhatsAppCredentials } from "@/lib/whatsapp";
 
 export type RegisterPlayerCoreSuccess = {
@@ -262,6 +263,8 @@ export async function registerPlayerCore(
     });
   }
 
+  const normalizedPlayerPhone = normalizePhoneWithCountry(phone, safeCountry);
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       let user = existingUser;
@@ -306,7 +309,7 @@ export async function registerPlayerCore(
             firstName,
             lastName,
             username,
-            phone: normalizePhoneWithCountry(phone, safeCountry),
+            phone: normalizedPlayerPhone,
             status: "active",
             goSportId: resolvedGoSportId || null,
             assignedAgentId,
@@ -321,7 +324,7 @@ export async function registerPlayerCore(
           data: {
             firstName,
             lastName,
-            phone: normalizePhoneWithCountry(phone, safeCountry),
+            phone: normalizedPlayerPhone,
             status: "active",
             ...(resolvedGoSportId ? { goSportId: resolvedGoSportId } : {}),
             assignedAgentId,
@@ -349,17 +352,88 @@ export async function registerPlayerCore(
       return { user, player };
     });
 
-    if (shouldCreateExternal) {
-      try {
-        await sendWhatsAppCredentials(
-          normalizePhoneWithCountry(phone, safeCountry),
-          username,
-          password,
-          resolvedGoSportId || "—",
-        );
-      } catch (e) {
-        console.error("registerPlayerCore whatsapp:", e);
+    try {
+      const selectedAgent = await prisma.agent.findUnique({
+        where: { id: assignedAgentId },
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          phone: true,
+          user: {
+            select: {
+              id: true,
+              phone: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      const missingAgentFields: string[] = [];
+      if (!selectedAgent) {
+        missingAgentFields.push("agent_record");
+      } else {
+        if (!String(selectedAgent.fullName ?? "").trim() && !String(selectedAgent.username ?? "").trim()) {
+          missingAgentFields.push("agent_name_or_username");
+        }
+        const hasAgentPhone =
+          String(selectedAgent.phone ?? "").trim() || String(selectedAgent.user?.phone ?? "").trim();
+        if (!hasAgentPhone) {
+          missingAgentFields.push("agent_phone");
+        }
       }
+
+      if (missingAgentFields.length > 0) {
+        console.error("[registerPlayerCore] WhatsApp context warning", {
+          assignedAgentId,
+          assignedAgentUserId,
+          missingAgentFields,
+        });
+      }
+      if (!String(normalizedPlayerPhone ?? "").trim()) {
+        throw new Error("Player phone is missing after normalization.");
+      }
+
+      await sendWhatsAppCredentials(
+        normalizedPlayerPhone,
+        username,
+        password,
+        resolvedGoSportId || "—",
+      );
+    } catch (e) {
+      console.error("[registerPlayerCore] WhatsApp welcome send failed", {
+        assignedAgentId,
+        assignedAgentUserId,
+        username,
+        phone: normalizedPlayerPhone,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    try {
+      await Promise.allSettled([
+        createNotification({
+          userId: assignedAgentUserId,
+          title: "لاعب جديد مربوط",
+          message: `قام اللاعب ${result.user.username} بإنشاء حساب جديد واختيارك كوكيل.`,
+          link: "/agent/my-players",
+        }),
+        createNotification({
+          userId: result.user.id,
+          title: "تم إنشاء الحساب بنجاح",
+          message: "تم إنشاء حسابك وربطه بالوكيل بنجاح. يمكنك البدء مباشرة.",
+          link: "/player/dashboard",
+        }),
+      ]);
+    } catch (e) {
+      console.error("[Notification Service Error] registerPlayerCore notification emit failed", {
+        assignedAgentId,
+        assignedAgentUserId,
+        playerUserId: result.user.id,
+        username,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
 
     const role = String(result.user.role ?? "PLAYER");

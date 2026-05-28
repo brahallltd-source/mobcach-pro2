@@ -130,6 +130,25 @@ async function handleAgentTreasuryPost(
     },
   });
 
+  try {
+    const agentUser = await prisma.user.findUnique({
+      where: { id: agent.id },
+      select: { username: true },
+    });
+    const agentUsername = String(agentUser?.username ?? "").trim() || agent.email || "—";
+    await notifyAllAdminsOfNewRechargeRequest({
+      title: "طلب شحن جديد",
+      message: `وصل طلب شحن Treasury بقيمة ${validated.value.amount} من الوكيل ${agentUsername}.`,
+      link: "/admin/requests",
+    });
+  } catch (error) {
+    console.error("[Notification Service Error] treasury recharge admin notification failed", {
+      agentId: agent.id,
+      amount: validated.value.amount,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   return NextResponse.json({
     success: true,
     message: "Treasury request submitted",

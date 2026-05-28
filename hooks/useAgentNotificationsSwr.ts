@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 const NOTIFICATIONS_KEY = "/api/notifications?for=me&limit=25";
@@ -39,18 +38,7 @@ const fetcher = async (url: string): Promise<NotificationsPayload> => {
  * Live agent/player notifications with SWR (deduped, 20s refresh).
  */
 export function useAgentNotificationsSwr() {
-  const [hasSession, setHasSession] = useState<boolean>(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("mobcash_user");
-      setHasSession(Boolean(raw));
-    } catch {
-      setHasSession(false);
-    }
-  }, []);
-
-  const swrKey = hasSession ? NOTIFICATIONS_KEY : null;
+  const swrKey = NOTIFICATIONS_KEY;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(swrKey, fetcher, {
     refreshInterval: 20_000,

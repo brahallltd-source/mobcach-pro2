@@ -71,7 +71,7 @@ export async function GET(req: Request) {
       unreadCount,
     });
   } catch (error) {
-    console.error("GET NOTIFICATIONS ERROR:", error);
+    console.error("[Notification Service Error] GET /api/notifications failed", error);
     return NextResponse.json({ notifications: [], unreadCount: 0 }, { status: 500 });
   }
 }
@@ -113,7 +113,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ success: result.count > 0 });
   } catch (error) {
-    console.error("UPDATE NOTIFICATION ERROR:", error);
+    console.error("[Notification Service Error] PATCH /api/notifications failed", error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

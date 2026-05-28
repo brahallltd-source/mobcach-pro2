@@ -9,14 +9,11 @@ import { redirectToLogin, requireMobcashUserOnClient } from "@/lib/client-sessio
 
 type Row = {
   id: string;
+  playerId: string;
   amount: number;
-  bonus10: number;
-  invitationAffiliateDh?: number;
-  totalApprox: number;
-  methodLabel: string;
-  adminMethodName: string;
   status: string;
   proofUrl: string | null;
+  decisionAt: string;
   createdAt: string;
 };
 
@@ -24,13 +21,10 @@ function normStatus(s: string) {
   return String(s ?? "").trim().toUpperCase();
 }
 
-function formatDateDdMmYyyy(iso: string) {
+function formatDateTime(iso: string) {
   try {
     const d = new Date(iso);
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
+    return d.toLocaleString();
   } catch {
     return iso;
   }
@@ -38,6 +32,12 @@ function formatDateDdMmYyyy(iso: string) {
 
 function statusBadge(status: string, am: (path: string) => string) {
   const u = normStatus(status);
+  if (u === "AUTO_APPROVED") {
+    return {
+      className: "bg-cyan-500/20 text-cyan-200 border-cyan-500/35",
+      label: "Auto approved",
+    };
+  }
   if (u === "APPROVED") {
     return {
       className: "bg-emerald-500/20 text-emerald-200 border-emerald-500/35",
@@ -107,9 +107,9 @@ export function AgentRechargeHistoryBoard() {
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.03] text-start text-xs uppercase tracking-wide text-white/45">
-                  <th className="px-4 py-3">{am("wallet.colDate")}</th>
+                  <th className="px-4 py-3">Player ID</th>
                   <th className="px-4 py-3">{am("wallet.colAmount")}</th>
-                  <th className="px-4 py-3">{am("wallet.colMethod")}</th>
+                  <th className="px-4 py-3">Decision date/time</th>
                   <th className="px-4 py-3">{am("wallet.colStatus")}</th>
                   <th className="px-4 py-3">{am("wallet.colProof")}</th>
                 </tr>
@@ -119,37 +119,17 @@ export function AgentRechargeHistoryBoard() {
                   const badge = statusBadge(row.status, am);
                   return (
                     <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 whitespace-nowrap font-mono text-white/80" dir="ltr">
+                        {row.playerId || "—"}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-white/85" dir="ltr">
-                        {formatDateDdMmYyyy(row.createdAt)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-emerald-300/95 tabular-nums" dir="ltr">
+                        <span className="font-semibold text-emerald-300/95 tabular-nums">
                           {Number(row.amount).toLocaleString(numLocale)} DH
-                        </div>
-                        <div className="mt-0.5 space-y-0.5 text-xs text-white/45">
-                          <div>
-                            {am("wallet.bonusStandard", { pct: "10" })}{" "}
-                            <span className="text-amber-200/90 tabular-nums" dir="ltr">
-                              {Number(row.bonus10).toLocaleString(numLocale)} DH
-                            </span>
-                          </div>
-                          {Number(row.invitationAffiliateDh) > 0 ? (
-                            <div>
-                              {am("wallet.bonusPromotion")}{" "}
-                              <span className="text-violet-200/90 tabular-nums" dir="ltr">
-                                {Number(row.invitationAffiliateDh).toLocaleString(numLocale)} DH
-                              </span>
-                            </div>
-                          ) : null}
-                          <div className="text-white/55">
-                            {am("wallet.approxTotal")}{" "}
-                            <span className="text-emerald-200/90 tabular-nums" dir="ltr">
-                              {Number(row.totalApprox).toLocaleString(numLocale)} DH
-                            </span>
-                          </div>
-                        </div>
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-white/80">{row.methodLabel}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-white/85" dir="ltr">
+                        {formatDateTime(row.decisionAt)}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${badge.className}`}
@@ -163,8 +143,15 @@ export function AgentRechargeHistoryBoard() {
                             href={row.proofUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
+                            className="inline-flex items-center gap-2 text-cyan-300 hover:underline"
                           >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={row.proofUrl}
+                              alt="Proof"
+                              className="h-9 w-9 rounded-md border border-white/15 object-cover"
+                              loading="lazy"
+                            />
                             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                             {am("wallet.viewProof")}
                           </a>

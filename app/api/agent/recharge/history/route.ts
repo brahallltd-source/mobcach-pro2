@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { getAgentFromMobcashUserCookie } from "@/lib/mobcash-user-cookie";
 import { getSessionUserFromCookies } from "@/lib/server-session-user";
+import { RECHARGE_PROOF_STATUS } from "@/lib/recharge-proof-lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,34 +34,59 @@ export async function GET() {
   }
 
   try {
-    const rows = await prisma.rechargeRequest.findMany({
-      where: { agentId: currentAgentId },
-      include: { paymentMethod: true },
-      orderBy: { createdAt: "desc" },
+    const rows = await prisma.paymentProofTransaction.findMany({
+      where: {
+        agentUserId: currentAgentId,
+        status: {
+          in: [
+            RECHARGE_PROOF_STATUS.AGENT_APPROVED,
+            RECHARGE_PROOF_STATUS.AGENT_REJECTED,
+            RECHARGE_PROOF_STATUS.AUTO_APPROVED,
+            "APPROVED",
+            "REJECTED",
+            "AUTO_APPROVED",
+          ],
+        },
+      },
+      include: {
+        playerUser: {
+          select: {
+            id: true,
+            player: {
+              select: {
+                goSportId: true,
+                gosportUsername: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
     });
 
     const items = rows.map((r) => {
-      const stored = Number(r.bonusAmount);
-      const bonus =
-        Number.isFinite(stored) && stored > 0
-          ? stored
-          : Math.floor(Number(r.amount) * 0.1);
-      const affiliate = Number(r.pendingBonusApplied) || 0;
-      const methodLabel =
-        r.paymentMethod?.methodName?.trim() ||
-        r.adminMethodName?.trim() ||
-        "—";
+      const statusUpper = String(r.status ?? "").trim().toUpperCase();
+      const status =
+        statusUpper === RECHARGE_PROOF_STATUS.AUTO_APPROVED
+          ? "AUTO_APPROVED"
+          : statusUpper === RECHARGE_PROOF_STATUS.AGENT_REJECTED || statusUpper === "REJECTED"
+            ? "REJECTED"
+            : "APPROVED";
+      const playerId =
+        String(
+          r.playerUser?.player?.goSportId ??
+            r.playerUser?.player?.gosportUsername ??
+            r.playerUser?.id ??
+            "",
+        ).trim() || "—";
 
       return {
         id: r.id,
+        playerId,
         amount: r.amount,
-        bonus10: bonus,
-        invitationAffiliateDh: affiliate,
-        totalApprox: Number(r.amount) + bonus + affiliate,
-        methodLabel,
-        adminMethodName: r.adminMethodName,
-        status: r.status,
-        proofUrl: r.proofUrl,
+        status,
+        proofUrl: r.receiptUrl || null,
+        decisionAt: r.updatedAt.toISOString(),
         createdAt: r.createdAt.toISOString(),
       };
     });
