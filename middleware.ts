@@ -273,7 +273,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Hard-redirect legacy standalone entry paths to avoid custom 404 in stale APK/PWA clients.
   if (
     normalizedPath === "/download" ||
-    normalizedPath.startsWith("/download/") ||
+    (normalizedPath.startsWith("/download/") && normalizedPath !== "/download/android-app") ||
     normalizedPath === "/dow" ||
     normalizedPath.startsWith("/dow/")
   ) {

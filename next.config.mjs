@@ -26,7 +26,6 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/download", destination: "/", permanent: false },
-      { source: "/download/:path*", destination: "/", permanent: false },
       { source: "/dow", destination: "/", permanent: false },
       { source: "/dow/:path*", destination: "/", permanent: false },
       { source: "/index.html", destination: "/", permanent: false },
@@ -44,6 +43,15 @@ const nextConfig = {
       { source: "/agent/invite-agent", destination: "/agent/invitations-rewards", permanent: false },
       { source: "/agent/bonus", destination: "/agent/invitations-rewards", permanent: false },
       { source: "/agent/winner-requests", destination: "/agent/all-history", permanent: false },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/download/android-app",
+        destination:
+          "https://github.com/brahallltd-source/mobcach-pro2/releases/download/v1.0.0-stable/gs365cash.apk",
+      },
     ];
   },
   async headers() {
