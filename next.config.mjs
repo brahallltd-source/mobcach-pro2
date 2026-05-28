@@ -45,6 +45,15 @@ const nextConfig = {
       { source: "/agent/winner-requests", destination: "/agent/all-history", permanent: false },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: "/download/android-app",
+        destination:
+          "https://github.com/brahallltd-source/mobcach-pro2/releases/download/v1.0.0-stable/gs365cash.apk",
+      },
+    ];
+  },
   async headers() {
     return [
       {
