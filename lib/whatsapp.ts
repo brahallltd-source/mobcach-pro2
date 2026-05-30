@@ -37,6 +37,11 @@ function bindEvents(client: Client, state: WhatsAppState): void {
   state.listenersBound = true;
 
   client.on("qr", (qr) => {
+    // Print raw QR value as a fallback when terminal rendering is distorted.
+    console.log("=========================================");
+    console.log("RAW QR STRING (Copy this if terminal fails):");
+    console.log(qr);
+    console.log("=========================================");
     qrcode.generate(qr, { small: true });
   });
 
