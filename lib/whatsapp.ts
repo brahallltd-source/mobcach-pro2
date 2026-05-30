@@ -1,6 +1,8 @@
 import qrcode from "qrcode-terminal";
 import { Client, LocalAuth } from "whatsapp-web.js";
 
+const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+
 type WhatsAppState = {
   client: Client | null;
   initPromise: Promise<Client> | null;
@@ -83,6 +85,8 @@ export async function initializeWhatsAppClient(): Promise<Client> {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: "mobcash-go-bot" }),
     puppeteer: {
+      headless: true,
+      executablePath: PUPPETEER_EXECUTABLE_PATH,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     },
   });

@@ -1,4 +1,10 @@
 const BALANCE_SELECTOR = "button.headerBalanceBtn span";
+const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+const PUPPETEER_LAUNCH_ARGS = [
+  "--no-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-dev-shm-usage",
+] as const;
 
 type PageLike = {
   goto: (url: string, options?: Record<string, unknown>) => Promise<unknown>;
@@ -15,6 +21,30 @@ type ScrapeGoSportBalanceParams = {
   username: string;
   password: string;
 };
+
+type LaunchableBrowser = {
+  newPage: () => Promise<PageLike>;
+  close: () => Promise<void>;
+};
+
+type PuppeteerLauncher = {
+  launch: (options: {
+    headless: boolean;
+    executablePath?: string;
+    args: readonly string[];
+  }) => Promise<LaunchableBrowser>;
+};
+
+/**
+ * Shared launch options for Linux servers (Railway/Render) where Chromium comes from system packages.
+ */
+export async function launchGoSportBrowser(launcher: PuppeteerLauncher): Promise<LaunchableBrowser> {
+  return launcher.launch({
+    headless: true,
+    executablePath: PUPPETEER_EXECUTABLE_PATH,
+    args: PUPPETEER_LAUNCH_ARGS,
+  });
+}
 
 /**
  * Logs into GoSport365 and returns the numeric wallet balance from dashboard.
