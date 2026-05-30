@@ -13,3 +13,4 @@ public/worker-*.js.map
 public/fallback-*.js
 *.apk
 public/downloads/*.apk
+.wwebjs_auth

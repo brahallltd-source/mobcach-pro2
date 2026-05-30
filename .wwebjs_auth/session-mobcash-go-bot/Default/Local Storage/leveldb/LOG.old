@@ -1,9 +1,0 @@
-2026/05/25-19:49:50.825 506419 Reusing MANIFEST /Users/Brahim/mobcash-pro-v17.1-fix-pack-14/.wwebjs_auth/session-mobcash-go-bot/Default/Local Storage/leveldb/MANIFEST-000001
-2026/05/25-19:49:50.834 506419 Recovering log #4
-2026/05/25-19:49:50.835 506419 Reusing old log /Users/Brahim/mobcash-pro-v17.1-fix-pack-14/.wwebjs_auth/session-mobcash-go-bot/Default/Local Storage/leveldb/000004.log 
-2026/05/26-02:43:57.404 50641f Level-0 table #7: started
-2026/05/26-02:43:57.419 50641f Level-0 table #7: 15082 bytes OK
-2026/05/26-02:43:57.433 50641f Delete type=0 #4
-2026/05/26-15:37:46.076 50641f Level-0 table #9: started
-2026/05/26-15:37:46.090 50641f Level-0 table #9: 14192 bytes OK
-2026/05/26-15:37:46.109 50641f Delete type=0 #6
